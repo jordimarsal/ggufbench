@@ -25,9 +25,10 @@ def run(lang, solution_code, test_code, timeout=30):
         shutil.rmtree(tmp, ignore_errors=True)
 
 def _run_in(tmp, lang, solution_code, test_code, timeout, started):
-    if lang == "python":
-        return _python(tmp, solution_code, test_code, timeout, started)
-    raise ValueError(f"lang not implemented yet: {lang}")
+    runners = {"python": _python, "bash": _bash, "java": _java, "typescript": _typescript}
+    if lang not in runners:
+        raise ValueError(f"lang not supported: {lang}")
+    return runners[lang](tmp, solution_code, test_code, timeout, started)
 
 def _python(tmp, solution_code, test_code, timeout, started):
     with open(os.path.join(tmp, "solution.py"), "w") as f:
@@ -35,6 +36,45 @@ def _python(tmp, solution_code, test_code, timeout, started):
     with open(os.path.join(tmp, "test_solution.py"), "w") as f:
         f.write(test_code)
     cmd = _sandbox_prefix(timeout) + ["python3", "test_solution.py"]
+    p = subprocess.run(cmd, cwd=tmp, capture_output=True, text=True, timeout=timeout + 5)
+    out = (p.stdout + p.stderr).strip()
+    return {"passed": p.returncode == 0, "output": out[-2000:],
+            "elapsed_ms": int((time.time() - started) * 1000)}
+
+def _bash(tmp, solution_code, test_code, timeout, started):
+    with open(os.path.join(tmp, "solution.sh"), "w") as f:
+        f.write(solution_code)
+    with open(os.path.join(tmp, "test_solution.sh"), "w") as f:
+        f.write(test_code)
+    cmd = _sandbox_prefix(timeout) + ["bash", "test_solution.sh"]
+    p = subprocess.run(cmd, cwd=tmp, capture_output=True, text=True, timeout=timeout + 5)
+    out = (p.stdout + p.stderr).strip()
+    return {"passed": p.returncode == 0, "output": out[-2000:],
+            "elapsed_ms": int((time.time() - started) * 1000)}
+
+def _java(tmp, solution_code, test_code, timeout, started):
+    with open(os.path.join(tmp, "Solution.java"), "w") as f:
+        f.write(solution_code)
+    with open(os.path.join(tmp, "Test.java"), "w") as f:
+        f.write(test_code)
+    pre = _sandbox_prefix(timeout)
+    comp = subprocess.run(pre + ["javac", "Solution.java", "Test.java"],
+                          cwd=tmp, capture_output=True, text=True, timeout=timeout + 5)
+    if comp.returncode != 0:
+        return {"passed": False, "output": ("compile error:\n" + comp.stderr)[:2000],
+                "elapsed_ms": int((time.time() - started) * 1000)}
+    run = subprocess.run(pre + ["java", "Test"], cwd=tmp,
+                         capture_output=True, text=True, timeout=timeout + 5)
+    out = (run.stdout + run.stderr).strip()
+    return {"passed": run.returncode == 0, "output": out[-2000:],
+            "elapsed_ms": int((time.time() - started) * 1000)}
+
+def _typescript(tmp, solution_code, test_code, timeout, started):
+    with open(os.path.join(tmp, "solution.ts"), "w") as f:
+        f.write(solution_code)
+    with open(os.path.join(tmp, "test_solution.ts"), "w") as f:
+        f.write(test_code)
+    cmd = _sandbox_prefix(timeout) + ["bun", "test_solution.ts"]
     p = subprocess.run(cmd, cwd=tmp, capture_output=True, text=True, timeout=timeout + 5)
     out = (p.stdout + p.stderr).strip()
     return {"passed": p.returncode == 0, "output": out[-2000:],
