@@ -1,2 +1,2 @@
-ID = "hello"
-PROMPT = "Si us plau, respon 'Hello, World!' (només el text)"
+id = "hello"
+prompt = "Si us plau, respon 'Hello, World!' (només el text)"
