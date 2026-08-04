@@ -50,11 +50,14 @@ def forget(model_name):
 
 def _scores(r):
     """Score 0..1 per dimensió d'un model. Falta una dimensió (run parcial) -> 0."""
+    sp = r.get("speed") or {}
     return {
         "tools": (r.get("tools") or {}).get("score", 0),
         "code": (r.get("code") or {}).get("score", 0),
         "agent": (r.get("agent") or {}).get("score", 0),
-        "speed_ms": (r.get("speed") or {}).get("speed_ms", 0),
+        "speed_ms": sp.get("speed_ms", 0),
+        "gen_tps": sp.get("gen_tps", 0),
+        "prompt_tps": sp.get("prompt_tps", 0),
     }
 
 
@@ -97,4 +100,13 @@ def render(pool, weights, title="Benchmark Results"):
         sp = f"{sc['speed_ms']}ms" if sc["speed_ms"] else "—"
         out.append(f"{name:40.40} {sc['tools']:>5.0%} {sc['code']:>5.0%} "
                    f"{sc['agent']:>5.0%} {sp:>9} {g:>7.2f}")
+    # Epígraf de tokens per segon (output i input).
+    out.append("")
+    out.append("=== Tokens per segon (t/s) ===")
+    out.append(f"{'MODEL':40} {'gen (out)':>10} {'prompt (in)':>12}")
+    out.append("-" * 64)
+    for name, sc, g in rows:
+        gen = f"{sc['gen_tps']:.1f}" if sc["gen_tps"] else "—"
+        prom = f"{sc['prompt_tps']:.1f}" if sc["prompt_tps"] else "—"
+        out.append(f"{name:40.40} {gen:>10} {prom:>12}")
     return "\n".join(out)

@@ -43,6 +43,14 @@ class TestSpeedGrader(unittest.TestCase):
         def make(ms): return {"timings":{"predicted_ms": ms}}
         r = graders.grade_speed(FakeClient([make(100), make(50), make(33)]), tasks=[{"id":"s1","prompt":"hi"}])
         self.assertAlmostEqual(r["speed_ms"], 61.0, places=0)  # mitjana de [100,50,33] ~ 61 ms
+    def test_captures_tokens_per_second(self):
+        def make(gen, prom): return {"timings": {"predicted_per_second": gen,
+                                                 "prompt_per_second": prom,
+                                                 "predicted_ms": 100}}
+        r = graders.grade_speed(FakeClient([make(50.0, 1000.0)]),
+                                tasks=[{"id": "s", "prompt": "hi"}])
+        self.assertAlmostEqual(r["gen_tps"], 50.0)
+        self.assertAlmostEqual(r["prompt_tps"], 1000.0)
 
 
 class TestTransientErrors(unittest.TestCase):

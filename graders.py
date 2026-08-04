@@ -14,31 +14,43 @@ _TRANSIENT = (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, OSErr
 def grade_speed(client_mod, tasks, on_task=None):
     results = []
     for task in tasks:
-        speed_ms_values = []
+        speed_ms_values, gen_tps_values, prompt_tps_values = [], [], []
         for _ in range(3):
             try:
                 resp = client_mod.chat([{"role": "user", "content": task["prompt"]}],
                                        max_tokens=SPEED_MAX_TOKENS)
                 t = C.parse_timings(resp)
-                if t and t.get("completion_ms"):
+                if not t:
+                    continue
+                if t.get("completion_ms"):
                     speed_ms_values.append(t["completion_ms"])
+                if t.get("gen_tps"):
+                    gen_tps_values.append(t["gen_tps"])
+                if t.get("prompt_tps"):
+                    prompt_tps_values.append(t["prompt_tps"])
             except _TRANSIENT:
                 pass  # mostra descartada; una altra ho pot compensar
-        avg_speed_ms = statistics.mean(speed_ms_values) if speed_ms_values else 0
-        results.append({
+        avg = lambda xs: statistics.mean(xs) if xs else 0
+        entry = {
             "passed": True,
             "turns": 0,
             "trace": [],
-            "speed_ms": int(avg_speed_ms) if avg_speed_ms else 0,
-        })
+            "speed_ms": int(avg(speed_ms_values)) if speed_ms_values else 0,
+            "gen_tps": round(avg(gen_tps_values), 1) if gen_tps_values else 0,
+            "prompt_tps": round(avg(prompt_tps_values), 1) if prompt_tps_values else 0,
+        }
+        results.append(entry)
         if on_task:
-            on_task("speed", {"id": task["id"], "ms": results[-1]["speed_ms"]})
-    if results and any(r["speed_ms"] for r in results):
-        total_speed_ms = statistics.mean(r["speed_ms"] for r in results if r["speed_ms"])
-    else:
-        total_speed_ms = 0
+            on_task("speed", {"id": task["id"], "ms": entry["speed_ms"], "gen_tps": entry["gen_tps"]})
+    ms_vals = [r["speed_ms"] for r in results if r["speed_ms"]]
+    total_speed_ms = statistics.mean(ms_vals) if ms_vals else 0
+    def _mean_field(field):
+        vals = [r[field] for r in results if r.get(field)]
+        return round(statistics.mean(vals), 1) if vals else 0
     return {"passed": True, "turns": 0, "trace": results,
-            "speed_ms": int(total_speed_ms) if total_speed_ms else 0}
+            "speed_ms": int(total_speed_ms) if total_speed_ms else 0,
+            "gen_tps": _mean_field("gen_tps"),
+            "prompt_tps": _mean_field("prompt_tps")}
 
 
 def _args_equal(got, expected):

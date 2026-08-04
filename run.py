@@ -46,7 +46,7 @@ def _print_task(dim, info):
     lang = info.get("lang") or "—"
     tid = info.get("id", "")
     if dim == "speed":
-        print(f"  {dim:5} {lang:11} {tid:20} {info.get('ms', 0)}ms",
+        print(f"  {dim:5} {lang:11} {tid:20} {info.get('ms', 0)}ms  {info.get('gen_tps', 0)} t/s",
               file=sys.stderr, flush=True)
         return
     mark = "✓" if info.get("passed") else "✗"
@@ -140,10 +140,12 @@ def main(argv=None):
             R.save_result(res)
             slug = config.slug(mp)
             speed = res.get("speed", {}).get("speed_ms", 0)
+            gen_tps = res.get("speed", {}).get("gen_tps", 0)
             tools = res.get("tools", {}).get("score", 0)
             code = res.get("code", {}).get("score", 0)
             agent = res.get("agent", {}).get("score", 0)
-            print(f"✓ {slug}: speed={speed}ms tools={tools:.2f} code={code:.2f} agent={agent:.2f}",
+            print(f"✓ {slug}: speed={speed}ms ({gen_tps} t/s) "
+                  f"tools={tools:.2f} code={code:.2f} agent={agent:.2f}",
                   file=sys.stderr, flush=True)
         except Exception as e:
             # Xarxa de seguretat del batch: aïlla la fallada d'un model per no tomba tota la run.
