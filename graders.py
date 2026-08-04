@@ -132,28 +132,37 @@ def grade_code(client_mod, tasks, max_turns=8, on_task=None, model_slug=None):
                 token_budget.put("code", model_slug, t["lang"], t["id"], resolved)
         if server_err:
             detail = f"server error: {server_err}"[:160]
-            results.append({"id": t["id"], "passed": False, "detail": detail})
-            by_lang.setdefault(t["lang"], []).append(False)
+            results.append({"id": t["id"], "lang": t["lang"], "passed": False,
+                            "excluded": True, "detail": detail})
             if on_task:
-                on_task("code", {"id": t["id"], "lang": t["lang"], "passed": False, "detail": detail})
+                on_task("code", {"id": t["id"], "lang": t["lang"], "passed": False,
+                                 "excluded": True, "detail": detail})
             continue
         if code is None:
+            # Truncament o format sense bloc extrebable: NO demostra capacitat del
+            # model, per tant s'exclou del score (es marca excluded=True).
             snippet = " ".join(text.split())[:120]
-            detail = f"no code block ({t['lang']}, fins a {budgets[-1]} tok); reply: {snippet}"
-            results.append({"id": t["id"], "passed": False, "detail": detail[:160]})
-            by_lang.setdefault(t["lang"], []).append(False)
+            detail = f"no code block ({t['lang']}, no comptat); reply: {snippet}"[:160]
+            results.append({"id": t["id"], "lang": t["lang"], "passed": False,
+                            "excluded": True, "detail": detail})
             if on_task:
-                on_task("code", {"id": t["id"], "lang": t["lang"], "passed": False, "detail": detail})
+                on_task("code", {"id": t["id"], "lang": t["lang"], "passed": False,
+                                 "excluded": True, "detail": detail})
             continue
         r = executors.run(t["lang"], code, t.get("test_code"))
-        results.append({"id": t["id"], "passed": r["passed"], "detail": r["output"][:160]})
+        results.append({"id": t["id"], "lang": t["lang"], "passed": r["passed"],
+                        "excluded": False, "detail": r["output"][:160]})
         by_lang.setdefault(t["lang"], []).append(r["passed"])
         if on_task:
-            on_task("code", {"id": t["id"], "lang": t["lang"],
+            on_task("code", {"id": t["id"], "lang": t["lang"], "excluded": False,
                              "passed": r["passed"], "detail": r["output"]})
+    # Score sobre les tasques que SÍ van produir codi executable: els truncaments
+    # i errors de servidor (excluded=True) no compten al numerador ni al denominador.
+    scored = [r for r in results if not r["excluded"]]
     bl = {k: (sum(v) / len(v)) for k, v in by_lang.items()}
-    score = sum(1 for r in results if r["passed"]) / len(results) if results else 0.0
-    return {"passed": score == 1.0, "turns": len(results), "trace": results, "by_lang": bl, "score": score}
+    score = sum(1 for r in scored if r["passed"]) / len(scored) if scored else 0.0
+    return {"passed": score == 1.0, "turns": len(results), "trace": results,
+            "by_lang": bl, "score": score, "excluded": len(results) - len(scored)}
 
 
 def grade_agent(client_mod, tasks, max_turns=8, on_task=None):

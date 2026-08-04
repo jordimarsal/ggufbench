@@ -50,6 +50,8 @@ def _print_task(dim, info):
               file=sys.stderr, flush=True)
         return
     mark = "✓" if info.get("passed") else "✗"
+    if info.get("excluded"):
+        mark = "⊘"  # truncament/format o error de servidor: no compta al score
     if dim == "agent":
         extra = f"turns={info.get('turns', 0)}"
     else:
@@ -144,9 +146,11 @@ def main(argv=None):
             gen_tps = res.get("speed", {}).get("gen_tps", 0)
             tools = res.get("tools", {}).get("score", 0)
             code = res.get("code", {}).get("score", 0)
+            code_excl = res.get("code", {}).get("excluded", 0)
             agent = res.get("agent", {}).get("score", 0)
+            code_lbl = f"{code:.2f}" + (f" ({code_excl} excloses)" if code_excl else "")
             print(f"✓ {slug}: speed={speed}ms ({gen_tps} t/s) "
-                  f"tools={tools:.2f} code={code:.2f} agent={agent:.2f}",
+                  f"tools={tools:.2f} code={code_lbl} agent={agent:.2f}",
                   file=sys.stderr, flush=True)
         except Exception as e:
             # Xarxa de seguretat del batch: aïlla la fallada d'un model per no tomba tota la run.

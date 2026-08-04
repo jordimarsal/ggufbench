@@ -105,6 +105,37 @@ class TestCodeEscalation(unittest.TestCase):
         self.assertIn("export", sysmsg.lower())
         self.assertIn("```typescript", sysmsg)
 
+    def test_truncation_excluded_from_score(self):
+        # python: produeix codi (passa); bash: només prosa -> truncament, exclòs.
+        class C:
+            def chat(self, messages, **k):
+                if "```python" in messages[0]["content"]:
+                    return {"choices": [{"message": {"content":
+                            "```python\ndef f():\n    return 1\n```"}}]}
+                return {"choices": [{"message": {"content": "hmmm, no escric codi, només prosa"}}]}
+        tasks = [
+            {"id": "good", "lang": "python", "prompt": "p",
+             "test_code": "from solution import *\nassert f()==1\n"},
+            {"id": "bad", "lang": "bash", "prompt": "p", "test_code": "echo x"},
+        ]
+        r = graders.grade_code(C(), tasks, model_slug="x")
+        self.assertEqual(r["excluded"], 1)              # la bash truncada
+        self.assertEqual(r["score"], 1.0)               # només compta la python (pass)
+        self.assertTrue(r["trace"][1]["excluded"])
+        self.assertFalse(r["trace"][0]["excluded"])
+
+    def test_real_failure_is_counted(self):
+        # Codi vàlid però que falla els tests: ha de comptar com a fallida (no exclosa).
+        class C:
+            def chat(self, messages, **k):
+                return {"choices": [{"message": {"content":
+                        "```python\ndef f():\n    return 0\n```"}}]}
+        r = graders.grade_code(C(), [{"id": "wrong", "lang": "python", "prompt": "p",
+                                      "test_code": "from solution import *\nassert f()==1\n"}],
+                                model_slug="y")
+        self.assertEqual(r["excluded"], 0)
+        self.assertEqual(r["score"], 0.0)
+
 class TestSpeedGrader(unittest.TestCase):
     def test_median(self):
         def make(ms): return {"timings":{"predicted_ms": ms}}
