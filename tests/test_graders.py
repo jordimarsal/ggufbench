@@ -1,4 +1,5 @@
 import unittest
+import urllib.error
 from benchmark import graders
 
 class FakeClient:
@@ -42,6 +43,41 @@ class TestSpeedGrader(unittest.TestCase):
         def make(ms): return {"timings":{"predicted_ms": ms}}
         r = graders.grade_speed(FakeClient([make(100), make(50), make(33)]), tasks=[{"id":"s1","prompt":"hi"}])
         self.assertAlmostEqual(r["speed_ms"], 61.0, places=0)  # mitjana de [100,50,33] ~ 61 ms
+
+
+class TestTransientErrors(unittest.TestCase):
+    """Un 500/timeout del servidor només ha de fallar la tasca afectada, no avortar la run."""
+    def _flaky(self, fail_on):
+        class FlakyClient:
+            def __init__(self): self.n = 0
+            def chat(self, *a, **k):
+                self.n += 1
+                if self.n == fail_on:
+                    raise urllib.error.HTTPError("http://x", 500, "Internal Server Error", {}, None)
+                return {"choices": [{"message": {"content": "```python\nx=1\n```"}}]}
+        return FlakyClient()
+    def test_code_500_isolated(self):
+        tasks = [{"id": f"t{i}", "lang": "python", "prompt": "p", "test_code": "pass"} for i in range(3)]
+        r = graders.grade_code(self._flaky(2), tasks)
+        self.assertEqual(len(r["trace"]), 3)            # cap tasca abortada
+        self.assertFalse(r["trace"][1]["passed"])       # la que va 500 → fallada
+        self.assertIn("server error", r["trace"][1]["detail"].lower())
+        self.assertTrue(r["trace"][0]["passed"])        # les altres segueixen corrent
+    def test_tools_500_isolated(self):
+        tasks = [{"id": "a", "prompt": "p", "tools": [], "expected": None},
+                 {"id": "b", "prompt": "p", "tools": [], "expected": None}]
+        r = graders.grade_tools(self._flaky(1), tasks)
+        self.assertEqual(len(r["trace"]), 2)
+        self.assertFalse(r["trace"][0]["passed"])
+    def test_agent_500_isolated(self):
+        # run_agent fa múltiples chat(); un 500 a mig torn ha de fallar només aquesta tasca.
+        tasks = [{"id": "a", "lang": "python", "goal": "g", "max_turns": 4,
+                  "initial_files": {"solution.py": ""}, "test_file": "test_solution.py"},
+                 {"id": "b", "lang": "python", "goal": "g", "max_turns": 4,
+                  "initial_files": {"solution.py": ""}, "test_file": "test_solution.py"}]
+        r = graders.grade_agent(self._flaky(1), tasks)
+        self.assertEqual(len(r["trace"]), 2)
+        self.assertFalse(r["trace"][0]["passed"])
 
 if __name__ == "__main__":
     unittest.main()

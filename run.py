@@ -58,7 +58,7 @@ def _print_task(dim, info):
           file=sys.stderr, flush=True)
 
 
-def _bench_one(model_path, pool, dims, lang_filter, port):
+def _bench_one(model_path, pool, dims, lang_filter, port, quick=False):
     sm = S.ServerManager(model_path, context_mode="fixed", port=port)
     slug = config.slug(model_path)
     print(f"→ {slug}: arrencant servidor...", file=sys.stderr, flush=True)
@@ -79,16 +79,21 @@ def _bench_one(model_path, pool, dims, lang_filter, port):
                   "server_build": _server_build(), "warmup_times": times}
         lf = set(lang_filter) if lang_filter else None
         if "speed" in dims:
-            result["speed"] = G.grade_speed(c, T.load("speed"), on_task=_print_task)
+            result["speed"] = G.grade_speed(c, _limit(T.load("speed"), quick), on_task=_print_task)
         if "tools" in dims:
-            result["tools"] = G.grade_tools(c, T.load("tools"), on_task=_print_task)
+            result["tools"] = G.grade_tools(c, _limit(T.load("tools"), quick), on_task=_print_task)
         if "code" in dims:
-            result["code"] = G.grade_code(c, T.load("code", lang_filter=lf), on_task=_print_task)
+            result["code"] = G.grade_code(c, _limit(T.load("code", lang_filter=lf), quick), on_task=_print_task)
         if "agent" in dims:
-            result["agent"] = G.grade_agent(c, T.load("agent", lang_filter=lf), on_task=_print_task)
+            result["agent"] = G.grade_agent(c, _limit(T.load("agent", lang_filter=lf), quick), on_task=_print_task)
         return result
     finally:
         sm.stop()
+
+
+def _limit(tasks, quick):
+    """--quick: només la primera tasca de cada dimensió (smoke test del harness)."""
+    return tasks[:1] if quick else tasks
 
 def _server_build():
     try:
@@ -129,7 +134,7 @@ def main(argv=None):
     models = resolve_models(args.models)
     for mp in models:
         try:
-            res = _bench_one(mp, [], dims, lang_filter, args.port)
+            res = _bench_one(mp, [], dims, lang_filter, args.port, quick=args.quick)
             if res.get("serve_failed"):
                 print(f"✗ {mp}: no carrega", file=sys.stderr, flush=True); continue
             R.save_result(res)

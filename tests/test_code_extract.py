@@ -17,6 +17,13 @@ class TestExtract(unittest.TestCase):
         self.assertIsNone(code_extract.extract("no code here", "python"))
     def test_plain_block_fallback(self):
         self.assertEqual(code_extract.extract("```\nx=1\n```", "python"), "x=1\n")
+    def test_unclosed_block_fallback(self):
+        # Resposta tallada per max_tokens a mig bloc de codi (sense ```);
+        # l'extractor ha de recuperar el codi igualment com a últim recurs.
+        txt = "Aquí tens:\n```python\ndef f():\n    return 1\n"
+        self.assertEqual(code_extract.extract(txt, "python"), "def f():\n    return 1")
+    def test_unclosed_plain_block_fallback(self):
+        self.assertEqual(code_extract.extract("```\nx=1\n", "python"), "x=1")
 
 if __name__ == "__main__":
     unittest.main()

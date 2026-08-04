@@ -13,6 +13,10 @@ class TestParseWeights(unittest.TestCase):
         ms = run.resolve_models("all")
         self.assertIsInstance(ms, list)
         self.assertTrue(all(str(m).endswith(".gguf") for m in ms))
+    def test_limit_quick(self):
+        tasks = [{"id": "a"}, {"id": "b"}, {"id": "c"}]
+        self.assertEqual(run._limit(tasks, True), [{"id": "a"}])
+        self.assertEqual(run._limit(tasks, False), tasks)
 
 if __name__ == "__main__":
     unittest.main()
