@@ -8,6 +8,7 @@ SERVER_BIN = BASE_DIR / "llama-server"
 RESULTS_DIR = BENCH_DIR / "results"
 RESULTS_MODELS = RESULTS_DIR / "models"
 RESULTS_RUNS = RESULTS_DIR / "runs"
+TOKEN_BUDGETS = RESULTS_DIR / "token_budgets.json"
 
 PORT = 8999
 CONTEXT_FIXED = 16384

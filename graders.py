@@ -1,10 +1,12 @@
 import statistics
 import urllib.error
 
-from . import agent as A, client as C, code_extract, executors
+from . import agent as A, client as C, code_extract, executors, token_budget
 
 SPEED_MAX_TOKENS = 128
 CODE_MAX_TOKENS = 2048
+# Escalat de pressupost quan una tasca de codi no extreu bloc (model truncat).
+CODE_LADDER = [CODE_MAX_TOKENS, 4096, 8192]
 
 # Errors transients del servidor/xarxa (500, timeouts, connexió tombada...).
 # Aïllar-los per tasca: una resposta 500 només ha de fallar aquella tasca, no avortar tota la run.
@@ -88,22 +90,39 @@ def grade_tools(client_mod, tasks, max_turns=6, on_task=None):
     return {"passed": score == 1.0, "turns": len(results), "trace": results, "score": score, "by_lang": {}}
 
 
-def grade_code(client_mod, tasks, max_turns=8, on_task=None):
+def grade_code(client_mod, tasks, max_turns=8, on_task=None, model_slug=None):
     results, by_lang = [], {}
     for t in tasks:
-        try:
-            resp = client_mod.chat([{"role": "user", "content": t["prompt"]}], max_tokens=CODE_MAX_TOKENS)
-        except _TRANSIENT as e:
-            results.append({"id": t["id"], "passed": False, "detail": f"server error: {e}"[:160]})
+        stored = token_budget.get("code", model_slug, t["lang"], t["id"])
+        budgets = [stored] if stored else CODE_LADDER
+        text, code, server_err = "", None, None
+        for budget in budgets:
+            try:
+                resp = client_mod.chat([{"role": "user", "content": t["prompt"]}], max_tokens=budget)
+            except _TRANSIENT as e:
+                server_err = str(e)
+                break
+            text = C.first_text(resp)
+            code = code_extract.extract(text, t["lang"])
+            if code is not None:
+                break
+        # Calibratge (una sola vegada): si no hi havia pressupost guardat i no hi ha
+        # hagut error de servidor, persistim el resolt — sempre que difereixi del
+        # default (si passa amb el default no cal anotar res).
+        if not stored and not server_err:
+            resolved = budget if code is not None else budgets[-1]
+            if resolved != CODE_MAX_TOKENS:
+                token_budget.put("code", model_slug, t["lang"], t["id"], resolved)
+        if server_err:
+            detail = f"server error: {server_err}"[:160]
+            results.append({"id": t["id"], "passed": False, "detail": detail})
             by_lang.setdefault(t["lang"], []).append(False)
             if on_task:
-                on_task("code", {"id": t["id"], "lang": t["lang"], "passed": False, "detail": f"server error: {e}"})
+                on_task("code", {"id": t["id"], "lang": t["lang"], "passed": False, "detail": detail})
             continue
-        text = C.first_text(resp)
-        code = code_extract.extract(text, t["lang"])
         if code is None:
             snippet = " ".join(text.split())[:120]
-            detail = f"no code block ({t['lang']}); reply: {snippet}"
+            detail = f"no code block ({t['lang']}, fins a {budgets[-1]} tok); reply: {snippet}"
             results.append({"id": t["id"], "passed": False, "detail": detail[:160]})
             by_lang.setdefault(t["lang"], []).append(False)
             if on_task:

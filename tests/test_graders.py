@@ -1,6 +1,9 @@
 import unittest
 import urllib.error
-from benchmark import graders
+import tempfile
+import shutil
+from pathlib import Path
+from benchmark import graders, token_budget
 
 class FakeClient:
     """Client que pot ser programat amb una seqüència de respostes per tasca."""
@@ -37,6 +40,57 @@ class TestCodeGrader(unittest.TestCase):
         r = graders.grade_code(FakeClient([resp]), tasks)
         self.assertEqual(r["score"], 1.0)
         self.assertEqual(r["by_lang"], {"python": 1.0})
+
+
+class TestCodeEscalation(unittest.TestCase):
+    """Quan una tasca no extreu bloc de codi (model truncat), el grader escala el
+    pressupost de tokens i persisteix el valor calibrat a token_budget."""
+    def setUp(self):
+        self.tmpdir = Path(tempfile.mkdtemp())
+        self.old_file = token_budget.BUDGET_FILE
+        token_budget.BUDGET_FILE = self.tmpdir / "tb.json"
+        token_budget.reset_cache()
+
+    def tearDown(self):
+        token_budget.BUDGET_FILE = self.old_file
+        token_budget.reset_cache()
+        shutil.rmtree(self.tmpdir)
+
+    def _client(self, threshold):
+        """Retorna prosa (sense fence) si max_tokens < threshold, sinó un bloc vàlid."""
+        code = "```python\ndef f():\n    return 1\n```"
+        prose = "hmmm deixa'm pensar... "
+        class C:
+            def __init__(self): self.calls = 0
+            def chat(self, *a, **k):
+                self.calls += 1
+                mt = k.get("max_tokens", 0)
+                return {"choices": [{"message": {"content": code if mt >= threshold else prose * 50}}]}
+        return C()
+
+    def test_escalation_saves_budget(self):
+        c = self._client(threshold=4096)
+        tasks = [{"id": "t1", "lang": "python", "prompt": "p",
+                  "test_code": "from solution import *\nassert f()==1\n"}]
+        graders.grade_code(c, tasks, model_slug="skyrl")
+        self.assertEqual(token_budget.get("code", "skyrl", "python", "t1"), 4096)
+        self.assertGreater(c.calls, 1)  # ha escalat
+
+    def test_stored_budget_skips_escalation(self):
+        token_budget.put("code", "skyrl", "python", "t1", 4096)
+        token_budget.reset_cache()
+        c = self._client(threshold=4096)
+        tasks = [{"id": "t1", "lang": "python", "prompt": "p",
+                  "test_code": "from solution import *\nassert f()==1\n"}]
+        graders.grade_code(c, tasks, model_slug="skyrl")
+        self.assertEqual(c.calls, 1)  # pressupost guardat -> una sola crida
+
+    def test_no_save_when_default_suffices(self):
+        c = self._client(threshold=1024)  # el bloc apareix fins i tot a 2048
+        tasks = [{"id": "t2", "lang": "python", "prompt": "p",
+                  "test_code": "from solution import *\nassert f()==1\n"}]
+        graders.grade_code(c, tasks, model_slug="m")
+        self.assertIsNone(token_budget.get("code", "m", "python", "t2"))  # no cal anotar res
 
 class TestSpeedGrader(unittest.TestCase):
     def test_median(self):

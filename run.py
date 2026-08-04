@@ -83,7 +83,8 @@ def _bench_one(model_path, pool, dims, lang_filter, port, quick=False):
         if "tools" in dims:
             result["tools"] = G.grade_tools(c, _limit(T.load("tools"), quick), on_task=_print_task)
         if "code" in dims:
-            result["code"] = G.grade_code(c, _limit(T.load("code", lang_filter=lf), quick), on_task=_print_task)
+            result["code"] = G.grade_code(c, _limit(T.load("code", lang_filter=lf), quick),
+                                           on_task=_print_task, model_slug=slug)
         if "agent" in dims:
             result["agent"] = G.grade_agent(c, _limit(T.load("agent", lang_filter=lf), quick), on_task=_print_task)
         return result

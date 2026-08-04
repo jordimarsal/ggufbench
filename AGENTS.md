@@ -61,6 +61,11 @@ The harness shells out to system binaries; absence causes specific failures, not
   A 3-shot warmup precedes measurement.
 - **Code execution is sandboxed** in a fresh tempdir with `timeout 30s` and best-effort network
   isolation via `unshare -n` (silently skipped if user namespaces aren't permitted).
+- **Token-budget calibration.** Code tasks whose response has no extractable code block (a verbose
+  model truncated mid-block) are retried with a larger `max_tokens` ladder
+  (`CODE_LADDER` in `graders.py`). The budget that worked for each (model, lang, task) is persisted
+  to `results/token_budgets.json` (gitignored) via `token_budget.py`, so later runs use it directly
+  instead of re-escalating. Keys are per-model; deleting the file forces a fresh calibration.
 - **Same conditions by design**: fixed server flags in `config.SERVER_FLAGS` (temp 0.2, top-p 0.95,
   seed 42, repeat-penalty 1.1, q4_0 KV cache, `-ngl 999`, `--jinja`). Context mode `--context
   fixed` (default, 16384 for all) vs `adapted`. Don't change these casually — comparability across
