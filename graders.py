@@ -5,7 +5,7 @@ from . import agent as A, client as C, code_extract, executors
 SPEED_MAX_TOKENS = 128
 
 
-def grade_speed(client_mod, tasks):
+def grade_speed(client_mod, tasks, on_task=None):
     results = []
     for task in tasks:
         speed_ms_values = []
@@ -22,12 +22,15 @@ def grade_speed(client_mod, tasks):
             "trace": [],
             "speed_ms": int(avg_speed_ms) if avg_speed_ms else 0,
         })
+        if on_task:
+            on_task("speed", {"id": task["id"], "ms": results[-1]["speed_ms"]})
     if results and any(r["speed_ms"] for r in results):
         total_speed_ms = statistics.mean(r["speed_ms"] for r in results if r["speed_ms"])
     else:
         total_speed_ms = 0
     return {"passed": True, "turns": 0, "trace": results,
             "speed_ms": int(total_speed_ms) if total_speed_ms else 0}
+
 
 def _args_equal(got, expected):
     if expected is None:
@@ -36,7 +39,8 @@ def _args_equal(got, expected):
         return False
     return got == expected
 
-def grade_tools(client_mod, tasks, max_turns=6):
+
+def grade_tools(client_mod, tasks, max_turns=6, on_task=None):
     results = []
     for t in tasks:
         resp = client_mod.chat([{"role": "user", "content": t["prompt"]}],
@@ -51,10 +55,13 @@ def grade_tools(client_mod, tasks, max_turns=6):
                       and _args_equal(got.get("arguments"), exp.get("arguments")))
             detail = f"got={got} expected={exp}"
         results.append({"id": t["id"], "passed": passed, "detail": detail[:160]})
+        if on_task:
+            on_task("tools", {"id": t["id"], "passed": passed})
     score = sum(1 for r in results if r["passed"]) / len(results) if results else 0.0
     return {"passed": score == 1.0, "turns": len(results), "trace": results, "score": score, "by_lang": {}}
 
-def grade_code(client_mod, tasks, max_turns=8):
+
+def grade_code(client_mod, tasks, max_turns=8, on_task=None):
     results, by_lang = [], {}
     for t in tasks:
         resp = client_mod.chat([{"role": "user", "content": t["prompt"]}], max_tokens=1024)
@@ -62,17 +69,24 @@ def grade_code(client_mod, tasks, max_turns=8):
         r = executors.run(t["lang"], code, t.get("test_code"))
         results.append({"id": t["id"], "passed": r["passed"], "detail": r["output"][:160]})
         by_lang.setdefault(t["lang"], []).append(r["passed"])
+        if on_task:
+            on_task("code", {"id": t["id"], "lang": t["lang"],
+                             "passed": r["passed"], "detail": r["output"]})
     bl = {k: (sum(v) / len(v)) for k, v in by_lang.items()}
     score = sum(1 for r in results if r["passed"]) / len(results) if results else 0.0
     return {"passed": score == 1.0, "turns": len(results), "trace": results, "by_lang": bl, "score": score}
 
-def grade_agent(client_mod, tasks, max_turns=8):
+
+def grade_agent(client_mod, tasks, max_turns=8, on_task=None):
     results, by_lang = [], {}
     for t in tasks:
         r = A.run_agent(client_mod, t, max_turns=t.get("max_turns", max_turns))
         results.append({"id": t["id"], "passed": r["success"], "turns": r["turns"],
                         "detail": f"turns={r['turns']} tool_calls={r['tool_calls']}"})
         by_lang.setdefault(t["lang"], []).append(r["success"])
+        if on_task:
+            on_task("agent", {"id": t["id"], "lang": t["lang"],
+                              "passed": r["success"], "turns": r["turns"]})
     bl = {k: (sum(v) / len(v)) for k, v in by_lang.items()}
     score = sum(1 for r in results if r["passed"]) / len(results) if results else 0.0
     return {"passed": score == 1.0, "turns": sum(r["turns"] for r in results), "trace": results, "by_lang": bl, "score": score}

@@ -81,3 +81,6 @@ model overwrites its previous entry rather than duplicating it. `--forget <model
   (machine-readable pool dump) are all available; see `--help`.
 - Weights default to `{tools:0.30, code:0.30, agent:0.25, speed:0.15}` in `config.py`; override via
   `--weights tools=0.3,…`.
+- Progress (server start, warmup, per-task results, per-model ✓/✗) is streamed to **stderr** as it
+  happens; only the final scoreboard — or the JSON dump with `--json` — goes to **stdout**. So
+  `run --json > out.json` keeps stdout clean while still showing live progress on the terminal.

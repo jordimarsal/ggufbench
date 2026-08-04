@@ -36,12 +36,32 @@ def warmup(client_mod, model_url, n=3):
             pass
         elapsed = (datetime.datetime.now() - start).total_seconds()
         times.append(elapsed)
-        print(f"  warmup {i + 1}/{n}: {elapsed:.2f}s")
+        print(f"  warmup {i + 1}/{n}: {elapsed:.2f}s", file=sys.stderr, flush=True)
     return times
+
+def _print_task(dim, info):
+    """Mostra el resultat d'una tasca a mida que es completa (stderr + flush, perquè
+    la terminal no es quedi congelada durant les dimensions lentes i --json mantingui
+    stdout net)."""
+    lang = info.get("lang") or "—"
+    tid = info.get("id", "")
+    if dim == "speed":
+        print(f"  {dim:5} {lang:11} {tid:20} {info.get('ms', 0)}ms",
+              file=sys.stderr, flush=True)
+        return
+    mark = "✓" if info.get("passed") else "✗"
+    if dim == "agent":
+        extra = f"turns={info.get('turns', 0)}"
+    else:
+        extra = " ".join(str(info.get("detail") or "").split())[:60]
+    print(f"  {dim:5} {lang:11} {tid:20} {mark} {extra}",
+          file=sys.stderr, flush=True)
+
 
 def _bench_one(model_path, pool, dims, lang_filter, port):
     sm = S.ServerManager(model_path, context_mode="fixed", port=port)
-    print(f"→ arrencant {model_path}...", flush=True)
+    slug = config.slug(model_path)
+    print(f"→ {slug}: arrencant servidor...", file=sys.stderr, flush=True)
     sm.start()
     if not sm.wait_ready(timeout=240):
         sm.stop(); return {"model": model_path, "serve_failed": True}
@@ -59,13 +79,13 @@ def _bench_one(model_path, pool, dims, lang_filter, port):
                   "server_build": _server_build(), "warmup_times": times}
         lf = set(lang_filter) if lang_filter else None
         if "speed" in dims:
-            result["speed"] = G.grade_speed(c, T.load("speed"))
+            result["speed"] = G.grade_speed(c, T.load("speed"), on_task=_print_task)
         if "tools" in dims:
-            result["tools"] = G.grade_tools(c, T.load("tools"))
+            result["tools"] = G.grade_tools(c, T.load("tools"), on_task=_print_task)
         if "code" in dims:
-            result["code"] = G.grade_code(c, T.load("code", lang_filter=lf))
+            result["code"] = G.grade_code(c, T.load("code", lang_filter=lf), on_task=_print_task)
         if "agent" in dims:
-            result["agent"] = G.grade_agent(c, T.load("agent", lang_filter=lf))
+            result["agent"] = G.grade_agent(c, T.load("agent", lang_filter=lf), on_task=_print_task)
         return result
     finally:
         sm.stop()
@@ -111,17 +131,18 @@ def main(argv=None):
         try:
             res = _bench_one(mp, [], dims, lang_filter, args.port)
             if res.get("serve_failed"):
-                print(f"✗ {mp}: no carrega"); continue
+                print(f"✗ {mp}: no carrega", file=sys.stderr, flush=True); continue
             R.save_result(res)
             slug = config.slug(mp)
             speed = res.get("speed", {}).get("speed_ms", 0)
             tools = res.get("tools", {}).get("score", 0)
             code = res.get("code", {}).get("score", 0)
             agent = res.get("agent", {}).get("score", 0)
-            print(f"✓ {slug}: speed={speed}ms tools={tools:.2f} code={code:.2f} agent={agent:.2f}")
+            print(f"✓ {slug}: speed={speed}ms tools={tools:.2f} code={code:.2f} agent={agent:.2f}",
+                  file=sys.stderr, flush=True)
         except Exception as e:
             # Xarxa de seguretat del batch: aïlla la fallada d'un model per no tomba tota la run.
-            print(f"✗ {mp}: {e}")
+            print(f"✗ {mp}: {e}", file=sys.stderr, flush=True)
     pool = R.load_pool()
     if args.json:
         print(json.dumps(pool, indent=2, ensure_ascii=False))
