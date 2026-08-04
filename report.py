@@ -1,11 +1,14 @@
-import json, datetime
-from pathlib import Path
+import json
+import datetime
+
 from . import config
 
 POOL_FILE = config.RESULTS_MODELS / "pool.jsonl"
 
+
 def _slug_of(result):
     return config.slug(result["model"])
+
 
 def save_result(result):
     config.RESULTS_MODELS.mkdir(parents=True, exist_ok=True)
@@ -21,6 +24,7 @@ def save_result(result):
     ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     (config.RESULTS_RUNS / f"{ts}-{slug}.json").write_text(json.dumps(result, indent=2, ensure_ascii=False))
 
+
 def load_pool():
     if not POOL_FILE.exists():
         return []
@@ -32,6 +36,7 @@ def load_pool():
                 pool.append(json.loads(line))
     return pool
 
+
 def forget(model_name):
     if not POOL_FILE.exists():
         return
@@ -42,30 +47,26 @@ def forget(model_name):
         for r in pool:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
 
-def compute_global(pool, dims):
-    stats = {d: {"total": 0, "passed": 0, "count": 0, "speed_ms": 0} for d in dims}
-    for r in pool:
-        for d in dims:
-            stats[d]["total"] += 1
-            if d == "speed":
-                ms = r.get(d, {}).get("speed_ms")
-                if ms:
-                    stats[d]["speed_ms"] += ms
-                    stats[d]["passed"] += 1
-            else:
-                dim_data = r.get(d, {})
-                if not isinstance(dim_data, dict):
-                    continue
-                if dim_data.get("passed"):
-                    stats[d]["passed"] += 1
-                tasks = dim_data.get("trace", [])
-                stats[d]["count"] += len(tasks)
-    for d in dims:
-        if stats[d]["total"] > 0:
-            stats[d]["passed"] = stats[d]["passed"] / stats[d]["total"]
-            if stats[d]["speed_ms"] > 0:
-                stats[d]["speed_ms"] = stats[d]["speed_ms"] / stats[d]["total"]
-    return stats
+
+def _scores(r):
+    """Score 0..1 per dimensió d'un model. Falta una dimensió (run parcial) -> 0."""
+    return {
+        "tools": (r.get("tools") or {}).get("score", 0),
+        "code": (r.get("code") or {}).get("score", 0),
+        "agent": (r.get("agent") or {}).get("score", 0),
+        "speed_ms": (r.get("speed") or {}).get("speed_ms", 0),
+    }
+
+
+def _global_score(r, weights, min_speed):
+    """Suma ponderada 0..1. Velocitat normalitzada: el model més ràpid (menys ms) -> 1.0."""
+    sc = _scores(r)
+    speed_score = (min_speed / sc["speed_ms"]) if (sc["speed_ms"] and min_speed) else 0
+    parts = {"tools": sc["tools"], "code": sc["code"],
+             "agent": sc["agent"], "speed": speed_score}
+    total_w = sum(weights.values()) or 1.0
+    return sum(parts.get(k, 0) * w for k, w in weights.items()) / total_w
+
 
 def lang_profile(pool, lang):
     prof = {"speed": {}, "tools": {}, "code": {}, "agent": {}}
@@ -76,14 +77,24 @@ def lang_profile(pool, lang):
                 prof[dim][lang] = bl[lang]
     return prof
 
-def render(pool, dims, title="Benchmark Results"):
+
+def render(pool, weights, title="Benchmark Results"):
+    """Marcador per model (SPEC, Taula 1): una fila per model amb el score de cada
+    dimensió i un global ponderat, ordenat de millor a pitjor."""
     if not pool:
         return "(no results in pool)"
-    stats = compute_global(pool, dims)
-    out = []
-    out.append(f"=== {title} ===")
-    out.append(f"{'GLOBAL':12} {'TOTAL':>6} {'PASSED':>7} {'COUNT':>6} {'SPEED_MS':>10}")
-    for d in dims:
-        s = stats[d]
-        out.append(f"{d:12} {s['total']:>6} {s['passed']:>6.1%} {s['count']:>6} {s['speed_ms']:>10.0f}")
+    speed_values = [(r.get("speed") or {}).get("speed_ms", 0) for r in pool]
+    min_speed = min((v for v in speed_values if v > 0), default=0)
+    rows = []
+    for r in pool:
+        sc = _scores(r)
+        rows.append((config.slug(r["model"]), sc, _global_score(r, weights, min_speed)))
+    rows.sort(key=lambda x: x[2], reverse=True)
+    out = [f"=== {title} ===",
+           f"{'MODEL':40} {'tools':>6} {'code':>6} {'agent':>6} {'speed':>9} {'GLOBAL':>7}",
+           "-" * 74]
+    for name, sc, g in rows:
+        sp = f"{sc['speed_ms']}ms" if sc["speed_ms"] else "—"
+        out.append(f"{name:40.40} {sc['tools']:>5.0%} {sc['code']:>5.0%} "
+                   f"{sc['agent']:>5.0%} {sp:>9} {g:>7.2f}")
     return "\n".join(out)

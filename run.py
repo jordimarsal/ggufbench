@@ -126,7 +126,7 @@ def main(argv=None):
         R.forget(args.forget); print(f"esborrat {args.forget} del pool"); return
     if args.scoreboard:
         pool = R.load_pool()
-        print(R.render(pool, weights.keys(), title="Scoreboard"))
+        print(R.render(pool, weights, title="Scoreboard"))
         return
 
     dims = [d.strip() for d in args.dims.split(",") if d.strip()]
@@ -152,7 +152,7 @@ def main(argv=None):
     if args.json:
         print(json.dumps(pool, indent=2, ensure_ascii=False))
     else:
-        print(R.render(pool, weights.keys(), title="Benchmark Results"))
+        print(R.render(pool, weights, title="Benchmark Results"))
 
 if __name__ == "__main__":
     main()
