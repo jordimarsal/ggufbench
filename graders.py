@@ -90,15 +90,32 @@ def grade_tools(client_mod, tasks, max_turns=6, on_task=None):
     return {"passed": score == 1.0, "turns": len(results), "trace": results, "score": score, "by_lang": {}}
 
 
+def _code_system_prompt(lang):
+    """Instrucció de format comuna a totes les tasques de codi. Centralitzada aquí
+    per no haver de repetir-la a cada fitxer de tasca i per donar a tots els models
+    les mateixes condicions (es testa 'sap implementar la funció?', no 'endevina
+    el nostre format d'extracció')."""
+    extra = ""
+    if lang == "typescript":
+        extra = " You MUST export it (e.g. `export function add(...)`)."
+    elif lang == "java":
+        extra = " Provide the full class with the required method."
+    return ("Reply with ONLY a single fenced ```{l} code block implementing the requested "
+            "function. No prose, no explanation, no text outside the code block.{e}"
+            ).format(l=lang, e=extra)
+
+
 def grade_code(client_mod, tasks, max_turns=8, on_task=None, model_slug=None):
     results, by_lang = [], {}
     for t in tasks:
         stored = token_budget.get("code", model_slug, t["lang"], t["id"])
         budgets = [stored] if stored else CODE_LADDER
+        msgs = [{"role": "system", "content": _code_system_prompt(t["lang"])},
+                {"role": "user", "content": t["prompt"]}]
         text, code, server_err = "", None, None
         for budget in budgets:
             try:
-                resp = client_mod.chat([{"role": "user", "content": t["prompt"]}], max_tokens=budget)
+                resp = client_mod.chat(msgs, max_tokens=budget)
             except _TRANSIENT as e:
                 server_err = str(e)
                 break

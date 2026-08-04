@@ -92,6 +92,19 @@ class TestCodeEscalation(unittest.TestCase):
         graders.grade_code(c, tasks, model_slug="m")
         self.assertIsNone(token_budget.get("code", "m", "python", "t2"))  # no cal anotar res
 
+    def test_system_prompt_asks_for_export_on_typescript(self):
+        captured = {}
+        class Cap:
+            def chat(self, messages, **k):
+                captured["messages"] = messages
+                return {"choices": [{"message": {"content":
+                        "```typescript\nexport function add(a,b){return a+b}\n```"}}]}
+        graders.grade_code(Cap(), [{"id": "t", "lang": "typescript", "prompt": "p",
+                                    "test_code": "import{add}from'./solution'"}], model_slug="x")
+        sysmsg = [m for m in captured["messages"] if m["role"] == "system"][0]["content"]
+        self.assertIn("export", sysmsg.lower())
+        self.assertIn("```typescript", sysmsg)
+
 class TestSpeedGrader(unittest.TestCase):
     def test_median(self):
         def make(ms): return {"timings":{"predicted_ms": ms}}
