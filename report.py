@@ -28,13 +28,17 @@ def save_result(result):
 def load_pool():
     if not POOL_FILE.exists():
         return []
-    pool = []
+    # Dedup per slug mantenint l'última ocurrència (la més recent: el fitxer és
+    # cronològic). Aïsla entrades duplicades llegades de l'època append-only.
+    by_slug = {}
     with open(POOL_FILE) as f:
         for line in f:
             line = line.strip()
-            if line:
-                pool.append(json.loads(line))
-    return pool
+            if not line:
+                continue
+            r = json.loads(line)
+            by_slug[_slug_of(r)] = r
+    return list(by_slug.values())
 
 
 def forget(model_name):

@@ -1,4 +1,4 @@
-import unittest, tempfile, shutil
+import unittest, json, tempfile, shutil
 from pathlib import Path
 from benchmark import report, config
 
@@ -41,6 +41,18 @@ class TestReport(unittest.TestCase):
         pool = report.load_pool()
         self.assertEqual(len(pool), 1)
         self.assertEqual(pool[0]["speed"]["speed_ms"], 99)
+
+    def test_load_pool_dedups_stale_duplicates(self):
+        # Entrades llegades de l'època append-only: vàries línies amb el mateix slug.
+        path = report.POOL_FILE
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w") as f:
+            f.write(json.dumps(mk("m", speed_ms=10, tools=0.1)) + "\n")
+            f.write(json.dumps(mk("m", speed_ms=20, tools=0.2)) + "\n")
+            f.write(json.dumps(mk("m", speed_ms=30, tools=0.3)) + "\n")  # última -> guanya
+        pool = report.load_pool()
+        self.assertEqual(len(pool), 1)              # colapsades a una
+        self.assertEqual(pool[0]["speed"]["speed_ms"], 30)  # l'última (més recent)
 
     def test_render_shows_per_model_scores(self):
         report.save_result(mk("alpha", speed_ms=100, tools=0.5, code=1.0, agent=0.0))
