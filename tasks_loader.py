@@ -1,7 +1,9 @@
-import importlib.util, pathlib
+import importlib.util
+
 from . import config
 
 _DIM_DIR = {"speed": "speed", "tools": "tools", "code": "code", "agent": "agent"}
+
 
 def _load_module(path):
     spec = importlib.util.spec_from_file_location(path.stem, str(path))
@@ -9,10 +11,12 @@ def _load_module(path):
     spec.loader.exec_module(mod)
     return mod
 
+
 def load(dimension, lang_filter=None):
     base = config.BENCH_DIR / "tasks" / _DIM_DIR[dimension]
     out = []
-    files = sorted(p for p in base.rglob("*.py") if not p.name.startswith("_") and p.name != "__init__.py")
+    files = sorted(p for p in base.rglob("*.py")
+                   if not p.name.startswith("_") and p.name != "__init__.py")
     for p in files:
         if lang_filter:
             rel = p.relative_to(base)
@@ -21,15 +25,16 @@ def load(dimension, lang_filter=None):
                 continue
         m = _load_module(p)
         if dimension == "tools":
-            out.append({"id": getattr(m, "ID", p.stem), "prompt": m.PROMPT,
+            out.append({"id": getattr(m, "ID", p.stem), "prompt": getattr(m, "PROMPT", ""),
                         "tools": getattr(m, "TOOLS", []), "expected": getattr(m, "EXPECTED", None)})
         elif dimension == "speed":
             out.append({"id": getattr(m, "ID", p.stem), "prompt": getattr(m, "PROMPT", "")})
         elif dimension == "code":
-            out.append({"id": getattr(m, "ID", p.stem), "lang": m.LANG,
-                        "prompt": m.PROMPT, "test_code": m.TEST_CODE})
+            out.append({"id": getattr(m, "ID", p.stem), "lang": getattr(m, "LANG", "python"),
+                        "prompt": getattr(m, "PROMPT", ""), "test_code": getattr(m, "TEST_CODE", "")})
         elif dimension == "agent":
-            out.append({"id": getattr(m, "ID", p.stem), "lang": m.LANG, "goal": m.GOAL,
+            out.append({"id": getattr(m, "ID", p.stem), "lang": getattr(m, "LANG", "python"),
+                        "goal": getattr(m, "GOAL", ""),
                         "initial_files": getattr(m, "INITIAL_FILES", {}),
                         "test_file": getattr(m, "TEST_FILE", "test_solution.py"),
                         "max_turns": getattr(m, "MAX_TURNS", 8)})

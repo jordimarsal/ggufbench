@@ -1,3 +1,4 @@
+from enum import Enum
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -11,6 +12,12 @@ RESULTS_RUNS = RESULTS_DIR / "runs"
 PORT = 8999
 CONTEXT_FIXED = 16384
 
+# Mateixes condicions per a tots els models: temp/seed fixos. El client també els
+# envia per petició (vegeu client.chat) per garantir repetibilitat encara que el
+# servidor canviï de configuració.
+TEMPERATURE = 0.2
+SEED = 42
+
 SERVER_FLAGS = [
     "-ngl", "999",
     "--flash-attn", "auto",
@@ -18,11 +25,11 @@ SERVER_FLAGS = [
     "--jinja",
     "--parallel", "1",
     "-b", "512",
-    "--temp", "0.2",
+    "--temp", str(TEMPERATURE),
     "--top-p", "0.95",
     "--repeat-penalty", "1.1",
     "--repeat-last-n", "256",
-    "--seed", "42",
+    "--seed", str(SEED),
     "--cache-type-k", "q4_0",
     "--cache-type-v", "q4_0",
     "--host", "127.0.0.1",
@@ -31,6 +38,23 @@ SERVER_FLAGS = [
 WEIGHTS = {"tools": 0.30, "code": 0.30, "agent": 0.25, "speed": 0.15}
 
 LANG_OK_THRESHOLD = 0.75
+
+
+class Lang(str, Enum):
+    """Llenguatges suportats. Hereta de str per interoperar amb els strings
+    que emeten els fitxers de tasques (``LANG = "python"``): ``Lang.PYTHON == "python"``
+    i es pot fer servir com a clau de dict indistintiblement."""
+
+    PYTHON = "python"
+    BASH = "bash"
+    JAVA = "java"
+    TYPESCRIPT = "typescript"
+
+    @classmethod
+    def exts(cls) -> dict[str, str]:
+        return {cls.PYTHON: ".py", cls.BASH: ".sh",
+                cls.JAVA: ".java", cls.TYPESCRIPT: ".ts"}
+
 
 def slug(name: str) -> str:
     s = name
@@ -47,7 +71,8 @@ def slug(name: str) -> str:
     s = s.replace(",", "")
     return s
 
-def resolve_context(context_mode, model_path):
+
+def resolve_context(context_mode, model_path=None) -> int:
     if isinstance(context_mode, int):
         return context_mode
     if context_mode == "fixed":

@@ -5,12 +5,13 @@ class TestLoad(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         d = os.path.join(os.path.dirname(__file__), "..", "tasks", "tools")
-        open(os.path.join(d, "_tmpexample.py"), "w").write(textwrap.dedent('''
-            ID = "tmp"
-            PROMPT = "hi"
-            TOOLS = []
-            EXPECTED = None
-        '''))
+        with open(os.path.join(d, "_tmpexample.py"), "w") as f:
+            f.write(textwrap.dedent('''
+                ID = "tmp"
+                PROMPT = "hi"
+                TOOLS = []
+                EXPECTED = None
+            '''))
     @classmethod
     def tearDownClass(cls):
         p = os.path.join(os.path.dirname(__file__), "..", "tasks", "tools", "_tmpexample.py")

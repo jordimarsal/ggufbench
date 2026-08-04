@@ -1,19 +1,47 @@
-import subprocess, tempfile, os, time, shutil
+import subprocess
+import tempfile
+import os
+import time
+import shutil
 
-def _sandbox_prefix(timeout):
-    """Command prefix per aïllar: timeout + xarxa bloquejada si unshare hi és."""
+from . import config
+
+
+def _sandbox_prefix(timeout: int) -> list[str]:
+    """Prefix de comanda per aïllar: timeout + xarxa bloquejada si unshare hi és."""
     prefix = ["timeout", str(timeout)]
-    # unshare -n bloqueja xarxa (requot permís de user namespace); si falla, s'omet.
+    # unshare -n bloqueja xarxa (requerim permís de user namespace); si falla, s'omet.
     if shutil.which("unshare"):
-        # Test if unshare works first
         try:
-            subprocess.run(["unshare", "-n", "true"], check=True, capture_output=True, timeout=1)
+            subprocess.run(["unshare", "-n", "true"], check=True,
+                           capture_output=True, timeout=1)
             prefix += ["unshare", "-n"]
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
-            pass  # unshare not available or no permission
+            pass
     return prefix
 
-def run(lang, solution_code, test_code, timeout=30):
+
+def _safe_run(cmd: list[str], cwd: str, timeout: int):
+    """Executa subprocess.run sense propagar TimeoutExpired: retorna None si excedeix."""
+    try:
+        return subprocess.run(cmd, cwd=cwd, capture_output=True,
+                              text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return None
+
+
+def _result(passed: bool, output: str, started: float) -> dict:
+    return {"passed": passed, "output": output[-2000:],
+            "elapsed_ms": int((time.time() - started) * 1000)}
+
+
+def _write(tmp: str, files: dict[str, str]) -> None:
+    for name, content in files.items():
+        with open(os.path.join(tmp, name), "w") as f:
+            f.write(content)
+
+
+def run(lang: str, solution_code, test_code, timeout: int = 30) -> dict:
     """Escriu solution+test en tempdir, executa segons lang, retorna resultat."""
     if solution_code is None:
         return {"passed": False, "output": "no solution code block found", "elapsed_ms": 0}
@@ -24,58 +52,49 @@ def run(lang, solution_code, test_code, timeout=30):
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
-def _run_in(tmp, lang, solution_code, test_code, timeout, started):
-    runners = {"python": _python, "bash": _bash, "java": _java, "typescript": _typescript}
+
+def _run_in(tmp: str, lang: str, solution_code: str, test_code: str,
+            timeout: int, started: float) -> dict:
+    runners = {config.Lang.PYTHON: _python, config.Lang.BASH: _bash,
+               config.Lang.JAVA: _java, config.Lang.TYPESCRIPT: _typescript}
     if lang not in runners:
         raise ValueError(f"lang not supported: {lang}")
     return runners[lang](tmp, solution_code, test_code, timeout, started)
 
+
 def _python(tmp, solution_code, test_code, timeout, started):
-    with open(os.path.join(tmp, "solution.py"), "w") as f:
-        f.write(solution_code)
-    with open(os.path.join(tmp, "test_solution.py"), "w") as f:
-        f.write(test_code)
-    cmd = _sandbox_prefix(timeout) + ["python3", "test_solution.py"]
-    p = subprocess.run(cmd, cwd=tmp, capture_output=True, text=True, timeout=timeout + 5)
-    out = (p.stdout + p.stderr).strip()
-    return {"passed": p.returncode == 0, "output": out[-2000:],
-            "elapsed_ms": int((time.time() - started) * 1000)}
+    _write(tmp, {"solution.py": solution_code, "test_solution.py": test_code})
+    p = _safe_run(_sandbox_prefix(timeout) + ["python3", "test_solution.py"], tmp, timeout + 5)
+    if p is None:
+        return _result(False, "timed out", started)
+    return _result(p.returncode == 0, (p.stdout + p.stderr).strip(), started)
+
 
 def _bash(tmp, solution_code, test_code, timeout, started):
-    with open(os.path.join(tmp, "solution.sh"), "w") as f:
-        f.write(solution_code)
-    with open(os.path.join(tmp, "test_solution.sh"), "w") as f:
-        f.write(test_code)
-    cmd = _sandbox_prefix(timeout) + ["bash", "test_solution.sh"]
-    p = subprocess.run(cmd, cwd=tmp, capture_output=True, text=True, timeout=timeout + 5)
-    out = (p.stdout + p.stderr).strip()
-    return {"passed": p.returncode == 0, "output": out[-2000:],
-            "elapsed_ms": int((time.time() - started) * 1000)}
+    _write(tmp, {"solution.sh": solution_code, "test_solution.sh": test_code})
+    p = _safe_run(_sandbox_prefix(timeout) + ["bash", "test_solution.sh"], tmp, timeout + 5)
+    if p is None:
+        return _result(False, "timed out", started)
+    return _result(p.returncode == 0, (p.stdout + p.stderr).strip(), started)
+
 
 def _java(tmp, solution_code, test_code, timeout, started):
-    with open(os.path.join(tmp, "Solution.java"), "w") as f:
-        f.write(solution_code)
-    with open(os.path.join(tmp, "Test.java"), "w") as f:
-        f.write(test_code)
+    _write(tmp, {"Solution.java": solution_code, "Test.java": test_code})
     pre = _sandbox_prefix(timeout)
-    comp = subprocess.run(pre + ["javac", "Solution.java", "Test.java"],
-                          cwd=tmp, capture_output=True, text=True, timeout=timeout + 5)
+    comp = _safe_run(pre + ["javac", "Solution.java", "Test.java"], tmp, timeout + 5)
+    if comp is None:
+        return _result(False, "compile timed out", started)
     if comp.returncode != 0:
-        return {"passed": False, "output": ("compile error:\n" + comp.stderr)[:2000],
-                "elapsed_ms": int((time.time() - started) * 1000)}
-    run = subprocess.run(pre + ["java", "Test"], cwd=tmp,
-                         capture_output=True, text=True, timeout=timeout + 5)
-    out = (run.stdout + run.stderr).strip()
-    return {"passed": run.returncode == 0, "output": out[-2000:],
-            "elapsed_ms": int((time.time() - started) * 1000)}
+        return _result(False, "compile error:\n" + comp.stderr, started)
+    run = _safe_run(pre + ["java", "Test"], tmp, timeout + 5)
+    if run is None:
+        return _result(False, "timed out", started)
+    return _result(run.returncode == 0, (run.stdout + run.stderr).strip(), started)
+
 
 def _typescript(tmp, solution_code, test_code, timeout, started):
-    with open(os.path.join(tmp, "solution.ts"), "w") as f:
-        f.write(solution_code)
-    with open(os.path.join(tmp, "test_solution.ts"), "w") as f:
-        f.write(test_code)
-    cmd = _sandbox_prefix(timeout) + ["bun", "test_solution.ts"]
-    p = subprocess.run(cmd, cwd=tmp, capture_output=True, text=True, timeout=timeout + 5)
-    out = (p.stdout + p.stderr).strip()
-    return {"passed": p.returncode == 0, "output": out[-2000:],
-            "elapsed_ms": int((time.time() - started) * 1000)}
+    _write(tmp, {"solution.ts": solution_code, "test_solution.ts": test_code})
+    p = _safe_run(_sandbox_prefix(timeout) + ["bun", "test_solution.ts"], tmp, timeout + 5)
+    if p is None:
+        return _result(False, "timed out", started)
+    return _result(p.returncode == 0, (p.stdout + p.stderr).strip(), started)

@@ -10,9 +10,14 @@ def _slug_of(result):
 def save_result(result):
     config.RESULTS_MODELS.mkdir(parents=True, exist_ok=True)
     config.RESULTS_RUNS.mkdir(parents=True, exist_ok=True)
-    with open(POOL_FILE, "a") as f:
-        f.write(json.dumps(result, ensure_ascii=False) + "\n")
     slug = _slug_of(result)
+    # Upsert per slug: reescriu pool.jsonl substituint l'entrada prèvia d'aquest model
+    # (abans era append-only i re-executar inflava el scoreboard amb duplicats).
+    pool = [r for r in load_pool() if _slug_of(r) != slug]
+    pool.append(result)
+    with open(POOL_FILE, "w") as f:
+        for r in pool:
+            f.write(json.dumps(r, ensure_ascii=False) + "\n")
     ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     (config.RESULTS_RUNS / f"{ts}-{slug}.json").write_text(json.dumps(result, indent=2, ensure_ascii=False))
 

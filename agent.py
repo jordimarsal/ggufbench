@@ -1,5 +1,6 @@
 import json
-from . import executors
+
+from . import config, executors
 
 # Esquema de les tools que es passen al model.
 TOOLS = [
@@ -20,6 +21,7 @@ TOOLS = [
                        "required": []}}},
 ]
 
+
 class MockEnv:
     def __init__(self, files, lang, test_file="test_solution.py"):
         self.files = dict(files)
@@ -36,23 +38,15 @@ class MockEnv:
         return f"wrote {len(content)} bytes to {path}"
 
     def run_tests(self):
-        # Executa tots els fitxers en tempdir via executor del llenguatge.
-        # Per simplicitat: junta solució+test segons llenguatge.
-        if self.lang == "python":
-            sol = self.files.get("solution.py", "")
-            tst = self.files.get(self.test_file, "")
-            r = executors.run("python", sol, tst)
-        else:
-            # altres langs: delega a executors amb solució+test convenció
-            r = self._run_other()
+        # Conveni unificat per tots els llenguatges: solution.<ext> + test_solution.<ext>
+        # (amb fallback a self.test_file). Abans python estava especialitzat; ara tot
+        # passa pel mateix camí perquè la convenció és coherent.
+        ext = config.Lang.exts()[self.lang]
+        sol = self.files.get(f"solution{ext}", "")
+        tst = self.files.get(f"test_solution{ext}", self.files.get(self.test_file, ""))
+        r = executors.run(self.lang, sol, tst)
         return (r["passed"], r["output"])
 
-    def _run_other(self):
-        # Conveni: solution.<ext> + test_solution.<ext>
-        ext = {"bash": ".sh", "java": ".java", "typescript": ".ts"}[self.lang]
-        sol = self.files.get("solution" + ext, "")
-        tst = self.files.get("test_solution" + ext, self.files.get(self.test_file, ""))
-        return executors.run(self.lang, sol, tst)
 
 def _exec_tool(name, args, env):
     if name == "read_file":
@@ -64,13 +58,16 @@ def _exec_tool(name, args, env):
         return ("TESTS PASS" if ok else "TESTS FAIL") + f"\n{out[-1500:]}"
     return f"error: unknown tool {name}"
 
+
 def run_agent(client_mod, task, max_turns=8):
     env = MockEnv(task["initial_files"], task["lang"], task.get("test_file", "test_solution.py"))
     history = [{"role": "system", "content":
                 "You solve coding tasks using tools. When done, reply with a short summary."},
                {"role": "user", "content": task["goal"]}]
     tool_calls = 0
+    actual_turns = 0
     for _turn in range(max_turns):
+        actual_turns = _turn + 1
         resp = client_mod.chat(history, tools=TOOLS, tool_choice="auto", max_tokens=512)
         msg = (resp.get("choices", [{}])[0]).get("message", {})
         tcs = msg.get("tool_calls") or []
@@ -80,13 +77,13 @@ def run_agent(client_mod, task, max_turns=8):
         for tc in tcs:
             fn = tc.get("function", tc)
             name = fn.get("name")
+            raw = fn.get("arguments", "{}")
             try:
-                args = json.loads(fn.get("arguments", "{}")) if isinstance(fn.get("arguments"), str) else (fn.get("arguments") or {})
-            except Exception:
+                args = json.loads(raw) if isinstance(raw, str) else (raw or {})
+            except json.JSONDecodeError:
                 args = {}
             tool_calls += 1
             result = _exec_tool(name, args, env)
             history.append({"role": "tool", "tool_call_id": tc.get("id", "x"), "content": result})
     ok, _ = env.run_tests()
-    return {"success": ok, "turns": _turn + 1 if not tcs else _turn + 1,
-            "tool_calls": tool_calls}
+    return {"success": ok, "turns": actual_turns, "tool_calls": tool_calls}

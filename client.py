@@ -1,10 +1,14 @@
 import json
-import urllib.request
 import urllib.error
+import urllib.request
+
+from . import config
+
 
 def chat(messages, tools=None, tool_choice=None, max_tokens=256,
          base_url="http://127.0.0.1:8999", timeout=60):
-    body = {"messages": messages, "max_tokens": max_tokens, "temperature": 0.2, "seed": 42}
+    body = {"messages": messages, "max_tokens": max_tokens,
+            "temperature": config.TEMPERATURE, "seed": config.SEED}
     if tools:
         body["tools"] = tools
         body["tool_choice"] = tool_choice or "auto"
@@ -13,6 +17,7 @@ def chat(messages, tools=None, tool_choice=None, max_tokens=256,
                                  headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.loads(r.read().decode("utf-8"))
+
 
 def parse_timings(resp):
     t = (resp or {}).get("timings") or {}
@@ -29,6 +34,7 @@ def parse_timings(resp):
     return {"gen_tps": tps, "prompt_tps": ptps,
             "prompt_ms": p_ms, "completion_ms": c_ms, "total_ms": p_ms + c_ms if p_ms and c_ms else None}
 
+
 def extract_tool_call(resp):
     try:
         m = resp["choices"][0]["message"]
@@ -44,9 +50,10 @@ def extract_tool_call(resp):
     args = fn.get("arguments")
     try:
         args_parsed = json.loads(args) if isinstance(args, str) else args
-    except Exception:
+    except (json.JSONDecodeError, ValueError):
         args_parsed = None
     return {"name": fn.get("name"), "arguments": args_parsed}
+
 
 def first_text(resp):
     try:

@@ -1,12 +1,21 @@
-import argparse, json, sys, datetime
+import argparse
+import datetime
+import json
+import subprocess
+import sys
+
 from . import config, server as S, client as C, graders as G, tasks_loader as T, report as R
 
+
 def parse_weights(s):
-    if not s: return dict(config.WEIGHTS)
+    if not s:
+        return dict(config.WEIGHTS)
     w = {}
     for part in s.split(","):
-        k, v = part.split("="); w[k.strip()] = float(v)
+        k, v = part.split("=")
+        w[k.strip()] = float(v)
     return w
+
 
 def resolve_models(spec):
     if spec == "all":
@@ -15,17 +24,19 @@ def resolve_models(spec):
         spec = [x.strip() for x in spec.split(",")]
     return spec
 
+
 def warmup(client_mod, model_url, n=3):
     times = []
     for i in range(n):
         start = datetime.datetime.now()
         try:
-            C.chat([{"role":"user","content":"hi"}], max_tokens=4, base_url=model_url)
-        except Exception:
+            C.chat([{"role": "user", "content": "hi"}], max_tokens=4, base_url=model_url)
+        except (OSError, ValueError):
+            # Best-effort: urlopen -> OSError (URLError), json -> ValueError; només mesurem temps.
             pass
         elapsed = (datetime.datetime.now() - start).total_seconds()
         times.append(elapsed)
-        print(f"  warmup {i+1}/{n}: {elapsed:.2f}s")
+        print(f"  warmup {i + 1}/{n}: {elapsed:.2f}s")
     return times
 
 def _bench_one(model_path, pool, dims, lang_filter, port):
@@ -40,7 +51,7 @@ def _bench_one(model_path, pool, dims, lang_filter, port):
             def __init__(self, base_url):
                 self.base_url = base_url
             def chat(self, *a, **k):
-                return C.chat(*a, base_url=self.base_url, **{**k})
+                return C.chat(*a, base_url=self.base_url, **k)
         c = ClientWrapper(model_url)
         times = warmup(c, model_url, n=3)
         result = {"model": model_path, "ts": datetime.datetime.now().isoformat(timespec="seconds"),
@@ -61,11 +72,13 @@ def _bench_one(model_path, pool, dims, lang_filter, port):
 
 def _server_build():
     try:
-        import subprocess
-        out = subprocess.run([str(config.SERVER_BIN), "--version"], capture_output=True, text=True, timeout=10)
+        out = subprocess.run([str(config.SERVER_BIN), "--version"],
+                             capture_output=True, text=True, timeout=10)
         for line in out.stdout.splitlines():
-            if line.startswith("version:"): return line.split()[1]
-    except Exception: pass
+            if line.startswith("version:"):
+                return line.split()[1]
+    except (OSError, subprocess.TimeoutExpired):
+        pass
     return "unknown"
 
 def main(argv=None):
@@ -107,6 +120,7 @@ def main(argv=None):
             agent = res.get("agent", {}).get("score", 0)
             print(f"✓ {slug}: speed={speed}ms tools={tools:.2f} code={code:.2f} agent={agent:.2f}")
         except Exception as e:
+            # Xarxa de seguretat del batch: aïlla la fallada d'un model per no tomba tota la run.
             print(f"✗ {mp}: {e}")
     pool = R.load_pool()
     if args.json:

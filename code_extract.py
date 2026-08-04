@@ -1,11 +1,14 @@
 import re
 
-_ALIASES = {
-    "python": ["python", "py"],
-    "bash": ["bash", "sh", "shell"],
-    "java": ["java"],
-    "typescript": ["typescript", "ts", "js"],
+from . import config
+
+_ALIASES: dict[str, list[str]] = {
+    config.Lang.PYTHON: ["python", "py"],
+    config.Lang.BASH: ["bash", "sh", "shell"],
+    config.Lang.JAVA: ["java"],
+    config.Lang.TYPESCRIPT: ["typescript", "ts", "js"],
 }
+
 
 def extract(text, lang):
     if not text:

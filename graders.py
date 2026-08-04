@@ -1,7 +1,9 @@
 import statistics
-from . import client as C, code_extract, executors, agent as A
+
+from . import agent as A, client as C, code_extract, executors
 
 SPEED_MAX_TOKENS = 128
+
 
 def grade_speed(client_mod, tasks):
     results = []
@@ -18,10 +20,14 @@ def grade_speed(client_mod, tasks):
             "passed": True,
             "turns": 0,
             "trace": [],
-            "speed_ms": int(avg_speed_ms) if avg_speed_ms else 0
+            "speed_ms": int(avg_speed_ms) if avg_speed_ms else 0,
         })
-    total_speed_ms = statistics.mean([r["speed_ms"] for r in results if r["speed_ms"]]) if results and any(r["speed_ms"] for r in results) else 0
-    return {"passed": True, "turns": 0, "trace": results, "speed_ms": int(total_speed_ms) if total_speed_ms else 0}
+    if results and any(r["speed_ms"] for r in results):
+        total_speed_ms = statistics.mean(r["speed_ms"] for r in results if r["speed_ms"])
+    else:
+        total_speed_ms = 0
+    return {"passed": True, "turns": 0, "trace": results,
+            "speed_ms": int(total_speed_ms) if total_speed_ms else 0}
 
 def _args_equal(got, expected):
     if expected is None:
@@ -64,9 +70,9 @@ def grade_agent(client_mod, tasks, max_turns=8):
     results, by_lang = [], {}
     for t in tasks:
         r = A.run_agent(client_mod, t, max_turns=t.get("max_turns", max_turns))
-        results.append({"id": t["id"], "passed": r["success"],
+        results.append({"id": t["id"], "passed": r["success"], "turns": r["turns"],
                         "detail": f"turns={r['turns']} tool_calls={r['tool_calls']}"})
         by_lang.setdefault(t["lang"], []).append(r["success"])
     bl = {k: (sum(v) / len(v)) for k, v in by_lang.items()}
     score = sum(1 for r in results if r["passed"]) / len(results) if results else 0.0
-    return {"passed": score == 1.0, "turns": sum(r["turns"] for r in results), "trace": results, "by_lang": bl}
+    return {"passed": score == 1.0, "turns": sum(r["turns"] for r in results), "trace": results, "by_lang": bl, "score": score}
