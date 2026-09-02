@@ -1,5 +1,6 @@
 import json
 import datetime
+import os
 
 from . import config
 
@@ -41,15 +42,42 @@ def load_pool():
     return list(by_slug.values())
 
 
+def _model_stem(model_field):
+    """Nom del fitxer del model sense camí ni l'extensió (.gguf/.GGUF).
+    'models/foo.gguf' -> 'foo'; 'foo' -> 'foo'. Robust davant noms amb punts interns
+    ('Qwen3.8', 'Ornith-1.5'): només s'estira l'extensió del model, mai un punt del nom.
+    Permet identificar el mateix model encara que el camp 'model' s'emmagitzema com a
+    camí relatiu o absolut, i per oblid-lo pel nom net."""
+    base = os.path.basename(str(model_field))
+    for ext in (".gguf", ".GGUF"):
+        if base.endswith(ext):
+            return base[:-len(ext)]
+    return base
+
+
+def _forget_matches(r, term):
+    # Encaixa pel slug (com abans) O pel nom del fitxer, perquè el camp 'model' pot estar
+    # emmagatzemat com a camí relatiu/absolut mentre l'usuari passi el nom net.
+    return (config.slug(r["model"]) == config.slug(term)
+            or _model_stem(r["model"]) == _model_stem(term))
+
+
 def forget(model_name):
+    """Borra del pool totes les entrades que coincideixen amb ``model_name``.
+
+    Retorna el nombre d'entrades borrades (0 si no hi ha cap coincidència), de manera
+    que el caller pot informar correctament l'usuari. Abans retornava ``None`` i feia
+    silenci quan no trobava res, cosa que feia que el CLI digués falsament "esborrat"."""
     if not POOL_FILE.exists():
-        return
+        return 0
     pool = load_pool()
-    slug = config.slug(model_name)
-    pool = [r for r in pool if config.slug(r["model"]) != slug]
-    with open(POOL_FILE, "w") as f:
-        for r in pool:
-            f.write(json.dumps(r, ensure_ascii=False) + "\n")
+    keep = [r for r in pool if not _forget_matches(r, model_name)]
+    removed = len(pool) - len(keep)
+    if removed:
+        with open(POOL_FILE, "w") as f:
+            for r in keep:
+                f.write(json.dumps(r, ensure_ascii=False) + "\n")
+    return removed
 
 
 def _scores(r):
@@ -85,12 +113,16 @@ def lang_profile(pool, lang):
     return prof
 
 
-def render(pool, weights, title="Benchmark Results"):
-    """Marcador per model (SPEC, Taula 1): una fila per model amb el score de cada
+def _fmt_pct(x):
+    """Formata un percentatge (0..1 -> %) o '—' si no hi ha dada."""
+    return f"{x:.0%}" if x is not None else "—"
+
+
+def _render_global_rows(pool, weights, title):
+    """Taula 1 + secció de tokens (SPEC 4.6). Una fila per model amb el score de cada
     dimensió i un global ponderat, ordenat de millor a pitjor."""
-    if not pool:
-        return "(no results in pool)"
-    speed_values = [(r.get("speed") or {}).get("speed_ms", 0) for r in pool]
+    # Coerceix None -> 0 perquè un model sense velocitat (run parcial) no tombi el render.
+    speed_values = [int((r.get("speed") or {}).get("speed_ms") or 0) for r in pool]
     min_speed = min((v for v in speed_values if v > 0), default=0)
     rows = []
     for r in pool:
@@ -113,4 +145,71 @@ def render(pool, weights, title="Benchmark Results"):
         gen = f"{sc['gen_tps']:.1f}" if sc["gen_tps"] else "—"
         prom = f"{sc['prompt_tps']:.1f}" if sc["prompt_tps"] else "—"
         out.append(f"{name:40.40} {gen:>10} {prom:>12}")
+    return out
+
+
+def _render_tasks(pool):
+    """Taula 3 — detall per tasca (SPEC 4.6). Una fila per (model, dimensió, tasca).
+    Tolerant: un model sense dimensió o una dimensió sense trace no falla."""
+    out = ["", "=== Detall per tasca ===",
+           f"{'MODEL':40} {'DIM':8} {'LANG':12} {'TASK':20} {'OK':4} DETALL",
+           "-" * 100]
+    for r in pool:
+        name = config.slug(r["model"])
+        for dim in ("tools", "code", "agent"):
+            d = r.get(dim) or {}
+            for t in d.get("trace") or []:
+                lang = str(t.get("lang") or "—")[:11]
+                tid = str(t.get("id") or "")[:20]
+                mark = "✓" if t.get("passed") else "✗"
+                detail = " ".join(str(t.get("detail") or "").split())[:30]
+                if t.get("excluded"):
+                    detail += " [exclo]"
+                out.append(f"{name:40.40} {dim:8} {lang:12} {tid:20} {mark} {detail}")
+    return out
+
+
+def _render_by_lang(pool):
+    """Taula 2 — desglossament per llenguatge de code/agent (SPEC 4.6). Cel·la '—'
+    quan no hi ha tasques d'aquell idioma per aquella dimensió."""
+    langs = ["python", "bash", "java", "typescript"]
+    dims = ["code", "agent"]
+    header = f"{'MODEL':40}"
+    for dim in dims:
+        for lang in langs:
+            header += f" {dim}:{lang:>11}"
+    out = ["", "=== Per llenguatge (code/agent) ===", header, "-" * len(header)]
+    for r in pool:
+        name = config.slug(r["model"])
+        row = f"{name:40.40}"
+        for dim in dims:
+            bl = (r.get(dim) or {}).get("by_lang") or {}
+            for lang in langs:
+                row += f" {_fmt_pct(bl.get(lang)):>11}"
+        out.append(row)
+    return out
+
+
+def render(pool, weights, title="Benchmark Results", level="default", show_tasks=False):
+    """Marcador per model amb granularitat descomposta en eixos independents (SPEC 4.6):
+
+    - ``level='default'`` : Taula 1 (scores globals) + secció de tokens.
+    - ``level='info'``    : Taula 1 + Taula 3 (detall per tasca). Respon "en què un
+      model és bo/malament".
+    - ``level='verbose'`` : Taula 1 + Taula 2 (per llenguatge). NO inclou el detall
+      de tasques; és el nivell més fi sense per-tasca.
+
+    El detall de tasques (Taula 3) es mostra si `show_tasks=True` (via `--task`) o si
+    el nivell ja l'inclou (`info`). Així `--verbose` no el mai sol i cal `--task` per
+    veure'l; les dues opcions es composen: es pot fer servir `--verbose` (per-llenguatge)
+    juntament amb `--task`. Les dimensions o les tasques que faltin a un model (runs
+    parcials, models sense encara aquesta granularitat) no provoquen errors: totes
+    les cells es calculen amb valors per defecte."""
+    if not pool:
+        return "(no results in pool)"
+    out = _render_global_rows(pool, weights, title)
+    if level == "verbose":
+        out += _render_by_lang(pool)
+    if show_tasks or level == "info":
+        out += _render_tasks(pool)
     return "\n".join(out)

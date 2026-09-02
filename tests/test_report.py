@@ -118,6 +118,98 @@ class TestReport(unittest.TestCase):
         report.forget("m")
         self.assertEqual(len(report.load_pool()), 0)
 
+    def test_forget_by_bare_name_when_stored_as_relative_path(self):
+        # El camp 'model' s'emmagatzema com a camí relatiu; oblidar pel nom net ha de funcionar.
+        report.save_result(mk("models/foo.gguf"))
+        self.assertEqual(len(report.load_pool()), 1)
+        report.forget("foo")
+        self.assertEqual(len(report.load_pool()), 0)
+
+    def test_forget_by_absolute_path_when_stored_as_relative_path(self):
+        report.save_result(mk("models/bar.gguf"))
+        report.forget("/home/jordi/ia/llama/models/bar.gguf")
+        self.assertEqual(len(report.load_pool()), 0)
+
+    def test_forget_by_full_relative_path(self):
+        report.save_result(mk("models/baz.gguf"))
+        report.forget("models/baz.gguf")
+        self.assertEqual(len(report.load_pool()), 0)
+
+    def test_forget_bare_name_when_model_name_has_dots(self):
+        # Regressió: noms amb punts interns ('Qwen3.8', 'Ornith-1.5') han de funcionar.
+        # _model_stem ha de treure NOMÉS l'extensió .gguf, no un punt del nom.
+        report.save_result(mk("models/Qwen3.8-27B-Heretic-Q4_K_M.gguf"))
+        self.assertEqual(len(report.load_pool()), 1)
+        report.forget("Qwen3.8-27B-Heretic-Q4_K_M")   # nom net del fitxer
+        self.assertEqual(len(report.load_pool()), 0)
+
+    def test_forget_returns_removed_count(self):
+        # El caller ha de poder saber si s'ha esbarrat res: retorna el nº d'entrades
+        # borrades (0 quan no coincideix). Evita el fals "esborrat" del CLI.
+        report.save_result(mk("m"))
+        report.save_result(mk("other"))
+        self.assertEqual(len(report.load_pool()), 2)
+        self.assertEqual(report.forget("m"), 1)          # borra 1
+        self.assertEqual(len(report.load_pool()), 1)     # en queda un altre
+        self.assertEqual(report.forget("noexistent"), 0)  # no coincideix -> 0
+        self.assertEqual(len(report.load_pool()), 1)      # no canvia
+
+    # --- Granularitat: --info (per-tasca) / --verbose (+per-llenguatge) ----------
+    def _with_traces(self, model="m", tools=True, code=True, agent=True):
+        r = mk(model, speed_ms=100, tools=1.0 if tools else 0.5,
+               code=1.0 if code else 0.5, agent=1.0 if agent else 0.0)
+        if tools:
+            r["tools"]["trace"] = [{"id": "multi-arg", "passed": True,
+                                    "detail": "got=get_weather expected=get_weather"}]
+        if code:
+            r["code"]["trace"] = [{"id": "stack", "lang": "java", "passed": False,
+                                   "detail": "AssertionError line 12"},
+                                  {"id": "func", "lang": "python", "passed": True,
+                                   "detail": "ok"}]
+            r["code"]["by_lang"] = {"java": 0.0, "python": 1.0}
+        if agent:
+            r["agent"]["trace"] = [{"id": "fix-fib", "lang": "python", "passed": True,
+                                    "turns": 3}]
+            r["agent"]["by_lang"] = {"python": 1.0}
+        return r
+
+    def test_info_shows_per_task_detail(self):
+        report.save_result(self._with_traces())
+        out = report.render(report.load_pool(), W, level="info")
+        self.assertIn("Detall per tasca", out)
+        self.assertIn("✓", out)   # fix-fib / func passats
+        self.assertIn("✗", out)   # stack falla
+        self.assertIn("multi-arg", out)
+
+    def test_default_level_has_no_task_detail(self):
+        report.save_result(self._with_traces())
+        out = report.render(report.load_pool(), W)  # level default
+        self.assertNotIn("Detall per tasca", out)
+
+    def test_verbose_adds_by_lang_table(self):
+        report.save_result(self._with_traces())
+        out_info = report.render(report.load_pool(), W, level="info")
+        out_verbose = report.render(report.load_pool(), W, level="verbose")
+        # verbose inclou Taula 2 (per llengua), info no la té
+        self.assertIn("Per llengua", out_verbose)
+        self.assertNotIn("Per llengua", out_info)
+        # verbose JA NO inclou el detall de tasca; cal show_tasks=True per veure'l.
+        self.assertNotIn("Detall per tasca", out_verbose)
+        out_verbose_task = report.render(report.load_pool(), W, level="verbose",
+                                         show_tasks=True)
+        self.assertIn("Detall per tasca", out_verbose_task)
+
+    def test_render_robust_to_missing_granularity(self):
+        # Model parcial: sense dimensions/code/agent, o directament sense trace.
+        report.save_result({"model": "partial1"})                       # gairebé res
+        report.save_result(mk("partial2", tools=0.0))                   # sense code/agent
+        report.save_result(mk("partial3", tools=1.0, code=1.0, agent=1.0,
+                              code_lang={}, agent_lang={}))              # traces buides
+        # Ni --info ni --verbose han de fallar.
+        for lvl in ("info", "verbose"):
+            out = report.render(report.load_pool(), W, level=lvl)
+            self.assertIn("MODEL", out)
+
 
 if __name__ == "__main__":
     unittest.main()

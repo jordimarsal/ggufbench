@@ -116,7 +116,12 @@ def main(argv=None):
     ap.add_argument("--dims", default="speed,tools,code,agent")
     ap.add_argument("--lang", default=None)
     ap.add_argument("--quick", action="store_true")
-    ap.add_argument("-v", "--verbose", action="store_true")
+    ap.add_argument("-v", "--verbose", action="store_true",
+                   help="granularitat: Taula 1 + per-llenguatge (Taula 2); NO inclou tasques")
+    ap.add_argument("--task", action="store_true",
+                   help="detall de tasca (Taula 3): mostra on acerta/falla cada model; es composa amb --verbose")
+    ap.add_argument("--info", action="store_true",
+                   help="Taula 1 + Taula 3 (detall de tasca)")
     ap.add_argument("--scoreboard", action="store_true")
     ap.add_argument("--forget")
     ap.add_argument("--json", action="store_true")
@@ -124,12 +129,22 @@ def main(argv=None):
     ap.add_argument("--weights", default=None)
     args = ap.parse_args(argv)
     weights = parse_weights(args.weights)
+    # Granularitat: --verbose afegix la Taula 2 (per-llenguatge); --task l'afegiment del
+    # detall de tasques (Taula 3). Són independents i es poden combinar (--verbose +
+    # --task = Taula 1 + Taula 2 + Taula 3).
+    level = "verbose" if args.verbose else ("info" if args.info else "default")
 
     if args.forget:
-        R.forget(args.forget); print(f"esborrat {args.forget} del pool"); return
+        removed = R.forget(args.forget)
+        if removed:
+            print(f"esborrat {removed} model(s) del pool", file=sys.stderr, flush=True)
+        else:
+            print(f"no s'ha trobat cap model coincident amb '{args.forget}'",
+                  file=sys.stderr, flush=True)
+        return
     if args.scoreboard:
         pool = R.load_pool()
-        print(R.render(pool, weights, title="Scoreboard"))
+        print(R.render(pool, weights, title="Scoreboard", level=level, show_tasks=args.task))
         return
 
     dims = [d.strip() for d in args.dims.split(",") if d.strip()]
@@ -159,7 +174,7 @@ def main(argv=None):
     if args.json:
         print(json.dumps(pool, indent=2, ensure_ascii=False))
     else:
-        print(R.render(pool, weights, title="Benchmark Results"))
+        print(R.render(pool, weights, title="Benchmark Results", level=level, show_tasks=args.task))
 
 if __name__ == "__main__":
     main()
