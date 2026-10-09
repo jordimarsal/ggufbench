@@ -1,0 +1,11 @@
+APPROVED — Gates de timeout_scaling
+
+Data: 2026-10-09
+Revisor: Jordi (human gate, via sessio interactiva)
+
+- Spec Gate: aprovat amb la formula exacta escollida pel revisor
+  (clamp(90, 60 + (budget/gen_tps)*1.25, 600)) dins la decisio "Atura i arregla"
+  sobre la re-mesura en curs (vegeu spec-gate.md).
+- Completion Gate: la mateixa instruccio explicita aprovava implementacio + ADR-0001
+  + re-lancament de la re-mesura. Evidencies: suite 139 tests OK, tracabilitat 4/4
+  PASS (traceability-check.txt), harness/init.sh verd, ADR-0001 a harness/decisions/.

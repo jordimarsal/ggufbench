@@ -1,0 +1,2 @@
+## timeout_scaling: 4/4 requirements covered
+VERDICT: PASS

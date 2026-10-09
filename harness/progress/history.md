@@ -22,3 +22,12 @@ tasks_version v2. 137 tests OK. Commit 6054036.
 
 Proper feature: 2 remeasure_pool (pending) — re-mesura de tots els models
 amb nivell hard i el harness arreglat (~1 h GPU, mai els dos motors alhora).
+
+## 2026-10-09 — timeout_scaling (done)
+
+Feature 3 (exprés, dins la re-mesura): 60 s fixes deixaven sense cobertura les tasques
+hard als models lents que pensen (20 exclusions a mig run). Nou code_timeout(budget,
+gen_tps) = clamp(90, 60 + (budget/gen_tps)*1.25, 600): pressupost en tokens igual per
+a tothom, rellotge anti-penjam derivat de la velocitat mesurada; timeouts segueixen
+sendo exclusions. ADR-0001. Run de remeasure_pool avortada i repetida amb el protocol
+nou. 139 tests OK, tracabilitat 4/4 PASS.

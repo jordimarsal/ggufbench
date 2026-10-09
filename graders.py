@@ -111,7 +111,16 @@ def _code_system_prompt(lang):
             ).format(l=lang, e=extra)
 
 
-def grade_code(client_mod, tasks, max_turns=8, on_task=None, model_slug=None):
+def code_timeout(budget, gen_tps):
+    """Temps maxim (s) d'un intent de chat de code: el pressupost real es en tokens
+    (mateix per a tots els models) i el rellotge nomes es guarda anti-penjam, derivat
+    de la velocitat mesurada del model (ADR-0001). Sense gen_tps -> 90 s fixes."""
+    if not gen_tps:
+        return 90
+    return int(min(600, max(90, 60 + (budget / gen_tps) * 1.25)))
+
+
+def grade_code(client_mod, tasks, max_turns=8, on_task=None, model_slug=None, gen_tps=None):
     results, by_lang = [], {}
     for t in tasks:
         stored = token_budget.get("code", model_slug, t["lang"], t["id"])
@@ -121,7 +130,8 @@ def grade_code(client_mod, tasks, max_turns=8, on_task=None, model_slug=None):
         text, code, server_err = "", None, None
         for budget in budgets:
             try:
-                resp = client_mod.chat(msgs, max_tokens=budget)
+                resp = client_mod.chat(msgs, max_tokens=budget,
+                                       timeout=code_timeout(budget, gen_tps))
             except _TRANSIENT as e:
                 server_err = str(e)
                 break

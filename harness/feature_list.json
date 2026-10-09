@@ -38,7 +38,21 @@
         "R4: scoreboard i report.html regenerats i coherents amb el pool nou (mateixa matemàtica de report.py)",
         "R5: les runs es fan sense cap altre servidor a les GPU (mai llama i Strata alhora)"
       ],
-      "status": "pending"
+      "status": "in_progress"
+    },
+    {
+      "id": 3,
+      "name": "timeout_scaling",
+      "title": "Timeout de code escalat per velocitat (pressupost en tokens, rellotge anti-penjam)",
+      "description": "Amb 60 s fixes, els models lents (38-44 t/s) que pensen en --jinja perden sistemàticament les tasques hard per timeout (20 exclusions en un model a mig run): cobertura que correlaciona amb velocitat = biaix silenciós. El rellotge ha de derivar de la velocitat mesurada del model i el pressupost real és el de tokens (mateix per a tothom).",
+      "acceptance": [
+        "R1: code_timeout(budget, gen_tps) = clamp(90, 60 + (budget/gen_tps)*1.25, 600) i 90 si no hi ha gen_tps",
+        "R2: grade_code fa servir aquest timeout per cada intent de l'escala (2048/4096/8192); tools, agent i speed mantenen el seu timeout",
+        "R3: les exclusions per timeout continuen sent exclusions (mai fails) — només canvia quant s'espera",
+        "R4: ADR-0001 a harness/decisions/ documentant la decisió i les alternatives",
+        "R5: suite unittest verda amb tests de la fórmula i del timeout rebut pel client fake"
+      ],
+      "status": "done"
     }
   ]
 }

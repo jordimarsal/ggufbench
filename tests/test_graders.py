@@ -84,6 +84,53 @@ class TestCodeGrader(unittest.TestCase):
         r = graders.grade_code(FakeClient([resp]), tasks)
         self.assertEqual(r["by_level"], {"easy": 1.0})
 
+class TestCodeTimeout(unittest.TestCase):
+    """R1/R2/R3 de timeout_scaling: pressupost en tokens, rellotge anti-penjam escalat."""
+
+    def test_formula_floors_ceils_and_falls_back(self):
+        self.assertEqual(graders.code_timeout(2048, None), 90)      # sense gen_tps
+        self.assertEqual(graders.code_timeout(2048, 1000), 90)      # pis de 90 s
+        self.assertEqual(graders.code_timeout(2048, 41), 122)       # 60 + 62.4
+        self.assertEqual(graders.code_timeout(8192, 10), 600)       # sostre de 600 s
+
+    def test_ladder_uses_scaled_timeouts(self):
+        # R2: cada intent de l'escala (2048/4096/8192) rep el timeout escalat. La
+        # resposta sense bloc extreuible fa correr l'escala sencera i acaba en
+        # exclusio (R3: exclusio, mai fail).
+        tmp = tempfile.mkdtemp()
+        old_file, old_cache = token_budget.BUDGET_FILE, token_budget._cache
+        token_budget.BUDGET_FILE = Path(tmp) / "tb.json"
+        token_budget._cache = None
+        try:
+            tasks = [{"id":"x","lang":"python","prompt":"p","test_code":"t","level":"hard"}]
+            cap_timeouts = []
+
+            class Prose:
+                def chat(self, *a, **k):
+                    cap_timeouts.append(k.get("timeout"))
+                    return {"choices":[{"message":{"content":"prosa sense bloc de codi"}}]}
+
+            r = graders.grade_code(Prose(), tasks, gen_tps=41)
+            self.assertEqual(cap_timeouts, [122, 184, 309])
+            self.assertEqual(r["trace"][0]["excluded"], True)
+        finally:
+            shutil.rmtree(tmp)
+            token_budget.BUDGET_FILE = old_file
+            token_budget._cache = old_cache
+
+    def test_transient_timeout_still_excludes(self):
+        # R3: un timeout de transport continua sent exclusio (mai fail); amb error
+        # transient l'escala no re-intenta (mes tokens no arreglen el transport).
+        tasks = [{"id":"x","lang":"python","prompt":"p","test_code":"t","level":"hard"}]
+
+        class Boom:
+            def chat(self, *a, **k):
+                raise urllib.error.URLError("timeout simulat")
+
+        r = graders.grade_code(Boom(), tasks, gen_tps=41)
+        self.assertEqual(r["trace"][0]["excluded"], True)
+        self.assertTrue(r["trace"][0]["detail"].startswith("server error"))
+
 
 class TestCodeEscalation(unittest.TestCase):
     """Quan una tasca no extreu bloc de codi (model truncat), el grader escala el

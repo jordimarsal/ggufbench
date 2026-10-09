@@ -169,7 +169,8 @@ def _bench_one(model_path, pool, dims, lang_filter, port, quick=False, engine="l
             if level and not code_tasks:
                 print(f"⚠️  cap tasca code level={level}", file=sys.stderr, flush=True)
             result["code"] = G.grade_code(c, code_tasks,
-                                          on_task=_print_task, model_slug=slug)
+                                          on_task=_print_task, model_slug=slug,
+                                          gen_tps=result["speed"]["gen_tps"] if "speed" in result else None)
         if "agent" in dims:
             result["agent"] = G.grade_agent(c, _limit(T.load("agent", lang_filter=lf), quick), on_task=_print_task)
         return result
