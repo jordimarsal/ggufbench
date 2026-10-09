@@ -77,6 +77,10 @@ def load_model_config_args(model_path) -> list:
 
 WEIGHTS = {"tools": 0.30, "code": 0.30, "agent": 0.25, "speed": 0.15}
 
+# Versió de la suite de tasques: puja quan canvia el conjunt (hard_code_tier R7:
+# v2 = +16 tasques hard). El pool la guarda per distingir condicions pre/post.
+TASKS_VERSION = "v2"
+
 LANG_OK_THRESHOLD = 0.75
 
 

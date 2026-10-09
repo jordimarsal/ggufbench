@@ -1,0 +1,2 @@
+## hard_code_tier: 8/8 requirements covered
+VERDICT: PASS

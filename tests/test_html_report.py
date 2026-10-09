@@ -51,6 +51,19 @@ class TestRender(unittest.TestCase):
         html = html_report.render([_mk()])   # només python a by_lang
         self.assertIn('class="miss">—</td>', html)
 
+    def test_code_by_level_shown_when_present(self):
+        # R5 hard_code_tier: el desglossament easy/hard es veu a la fitxa del model
+        m = _mk()
+        m["code"]["by_level"] = {"easy": 1.0, "hard": 0.25}
+        html = html_report.render([m])
+        self.assertIn("code per nivell:", html)
+        self.assertIn("easy 100%", html)
+        self.assertIn("hard 25%", html)
+
+    def test_no_by_level_section_when_absent(self):
+        html = html_report.render([_mk()])   # pool vell sense by_level
+        self.assertNotIn("code per nivell", html)
+
     def test_escaped_flags(self):
         """model_config_flags és text lliure del .txt: ha d'arribar escapament."""
         m = _mk()

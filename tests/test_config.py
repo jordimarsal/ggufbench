@@ -22,3 +22,14 @@ class TestConfig(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+class TestTasksVersion(unittest.TestCase):
+    def test_v2_marks_hard_tier(self):
+        # hard_code_tier R7: el canvi de conjunt de tasques (+16 hard) ha de pujar
+        # la versió; el pool la fa servir per distingir condicions pre/post.
+        self.assertEqual(config.TASKS_VERSION, "v2")
+
+class TestWeightsUnchanged(unittest.TestCase):
+    def test_weights_unchanged(self):
+        # R8 hard_code_tier: el nivell hard no toca els pesos ni la resta de dimensions
+        self.assertEqual(config.WEIGHTS,
+                         {"tools": 0.30, "code": 0.30, "agent": 0.25, "speed": 0.15})

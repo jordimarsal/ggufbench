@@ -154,5 +154,23 @@ class TestModelId(unittest.TestCase):
         self.assertEqual(run.config.slug(mid), "strata-iq3_xxs")
 
 
+class TestLevelForCode(unittest.TestCase):
+    """--level només afecta code (R2 de hard_code_tier); fora de code, avís i fora."""
+
+    def test_level_passes_through_with_code(self):
+        self.assertEqual(run._level_for_code(["code", "tools"], "hard"), "hard")
+        self.assertEqual(run._level_for_code(["code"], "easy"), "easy")
+
+    def test_level_dropped_without_code(self):
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.assertIsNone(run._level_for_code(["tools", "agent"], "hard"))
+        self.assertIn("code no és a --dims", err.getvalue())
+
+    def test_none_level_is_passthrough(self):
+        self.assertIsNone(run._level_for_code(["tools"], None))
+        self.assertIsNone(run._level_for_code(["code"], None))
+
+
 if __name__ == "__main__":
     unittest.main()

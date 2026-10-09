@@ -21,7 +21,7 @@
         "R4: suite unittest verda amb nous tests del loader i del CLI (patró test_tasks_loader.py / test_run_cli.py)",
         "R5: docs (SPEC §tasques, AGENTS.md) actualitzats amb la convenció del nivell hard"
       ],
-      "status": "pending"
+      "status": "in_progress"
     },
     {
       "id": 2,

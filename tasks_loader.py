@@ -12,7 +12,7 @@ def _load_module(path):
     return mod
 
 
-def load(dimension, lang_filter=None):
+def load(dimension, lang_filter=None, level=None):
     base = config.BENCH_DIR / "tasks" / _DIM_DIR[dimension]
     out = []
     files = sorted(p for p in base.rglob("*.py")
@@ -24,6 +24,11 @@ def load(dimension, lang_filter=None):
             if lang_part and lang_part not in lang_filter:
                 continue
         m = _load_module(p)
+        # Nivell (hard_code_tier): només code el porta; el sufix _hard a l'ID el decideix.
+        task_id = str(getattr(m, "ID", p.stem))
+        level_value = "hard" if task_id.endswith("_hard") else "easy"
+        if dimension == "code" and level and level_value != level:
+            continue
         if dimension == "tools":
             out.append({"id": getattr(m, "ID", p.stem), "prompt": getattr(m, "PROMPT", ""),
                         "tools": getattr(m, "TOOLS", []), "expected": getattr(m, "EXPECTED", None)})
@@ -31,7 +36,8 @@ def load(dimension, lang_filter=None):
             out.append({"id": getattr(m, "ID", p.stem), "prompt": getattr(m, "PROMPT", "")})
         elif dimension == "code":
             out.append({"id": getattr(m, "ID", p.stem), "lang": getattr(m, "LANG", "python"),
-                        "prompt": getattr(m, "PROMPT", ""), "test_code": getattr(m, "TEST_CODE", "")})
+                        "prompt": getattr(m, "PROMPT", ""), "test_code": getattr(m, "TEST_CODE", ""),
+                        "level": level_value})
         elif dimension == "agent":
             out.append({"id": getattr(m, "ID", p.stem), "lang": getattr(m, "LANG", "python"),
                         "goal": getattr(m, "GOAL", ""),

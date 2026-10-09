@@ -60,6 +60,30 @@ class TestCodeGrader(unittest.TestCase):
         self.assertEqual(r["score"], 1.0)
         self.assertEqual(r["by_lang"], {"python": 1.0})
 
+    def test_by_level_folded_score_and_breakdown(self):
+        # R3/R4 hard_code_tier: easy+hard plegades al mateix score (mateix pes per
+        # tasca); by_level desglossa per nivell sobre les tasques puntuables.
+        tasks = [
+            {"id":"easy_a","lang":"python","prompt":"p","level":"easy",
+             "test_code":"from solution import *\nassert add(1,2)==3\n"},
+            {"id":"hard_a","lang":"python","prompt":"p","level":"hard",
+             "test_code":"from solution import *\nassert add(1,2)==3\n"},
+        ]
+        resp_ok = {"choices":[{"message":{"content":"```python\ndef add(a,b):\n    return a+b\n```"}}]}
+        resp_bad = {"choices":[{"message":{"content":"```python\ndef add(a,b):\n    return a-b\n```"}}]}
+        r = graders.grade_code(FakeClient([resp_ok, resp_bad]), tasks)
+        self.assertEqual(r["score"], 0.5)
+        self.assertEqual(r["by_level"], {"easy": 1.0, "hard": 0.0})
+        self.assertEqual([t["level"] for t in r["trace"]], ["easy", "hard"])
+
+    def test_by_level_defaults_to_easy_without_key(self):
+        # tasques sense clau level (fitxers antics): easy (R1)
+        tasks = [{"id":"old","lang":"python","prompt":"p",
+                  "test_code":"from solution import *\nassert add(1,2)==3\n"}]
+        resp = {"choices":[{"message":{"content":"```python\ndef add(a,b):\n    return a+b\n```"}}]}
+        r = graders.grade_code(FakeClient([resp]), tasks)
+        self.assertEqual(r["by_level"], {"easy": 1.0})
+
 
 class TestCodeEscalation(unittest.TestCase):
     """Quan una tasca no extreu bloc de codi (model truncat), el grader escala el

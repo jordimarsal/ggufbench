@@ -50,6 +50,7 @@ def _rows(pool):
             "build": str(r.get("server_build") or "?"),
             "ts": (r.get("ts") or "")[:10],
             "by_lang": {d: (r.get(d) or {}).get("by_lang") or {} for d in ("code", "agent")},
+            "code_by_level": (r.get("code") or {}).get("by_level") or {},
             "tasks": {d: len((r.get(d) or {}).get("trace") or [])
                       for d in ("tools", "code", "agent")},
             "flags": r.get("model_config_flags"),
@@ -203,10 +204,15 @@ def render(pool):
     details = []
     for r in rows:
         flags = _esc(r["flags"]) if r["flags"] else "flags per defecte del harness"
+        bl = r["code_by_level"]
+        by_level_line = ""
+        if bl:
+            by_level_line = "code per nivell: " + " · ".join(
+                f"{k} {v:.0%}" for k, v in sorted(bl.items())) + "\n"
         details.append(
             f'<details><summary>{_esc(r["name"])} <span class="badge{" strata" if r["engine"] == "strata" else ""}">'
             f'{_esc(r["engine"])} {_esc(r["build"])}</span> <span class="miss">{_esc(r["ts"])}</span></summary>'
-            f'<pre>{flags}</pre></details>')
+            f'<pre>{by_level_line}{flags}</pre></details>')
 
     banner = ""
     if len(dates) > 1:

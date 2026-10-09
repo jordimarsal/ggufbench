@@ -307,6 +307,8 @@ benchmark/run.py [opcions]
   --context fixed|adapted      # default: fixed (16384)
   --dims speed,tools,code,agent  # subset; default: totes
   --lang python,java,...       # filtra tasques de codi/agent per idioma
+  --level easy|hard            # filtra NOMES les tasques de code per nivell (sufix _hard;
+                               # sense --level s'executen les dos i el score de code es plega)
   --quick                      # 1 tasca per dimensió (smoke test del harness)
    -v, --verbose                # Taula 1 + per-llenguatge (Taula 2); NO inclou tasques
    --task                       # Taula 3 (detall de tasca): mostra on acerta/falla cada model; es composa amb --verbose

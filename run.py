@@ -118,7 +118,19 @@ def _print_task(dim, info):
           file=sys.stderr, flush=True)
 
 
-def _bench_one(model_path, pool, dims, lang_filter, port, quick=False, engine="llama"):
+def _level_for_code(dims, level):
+    """--level només afecta la dimensió code; si code no hi és, avisa i el descarta."""
+    if not level:
+        return None
+    if "code" not in dims:
+        print(f"⚠️  --level {level}: code no és a --dims, s'ignora",
+              file=sys.stderr, flush=True)
+        return None
+    return level
+
+
+def _bench_one(model_path, pool, dims, lang_filter, port, quick=False, engine="llama",
+               level=None):
     sm = S.ServerManager(model_path, context_mode="fixed", port=port, engine=engine)
     mid = model_id(engine, model_path)
     slug = config.slug(mid)
@@ -144,7 +156,7 @@ def _bench_one(model_path, pool, dims, lang_filter, port, quick=False, engine="l
         times = warmup(c, model_url, n=3, extra=extra)
         result = {"model": mid, "engine": engine,
                   "ts": datetime.datetime.now().isoformat(timespec="seconds"),
-                  "context_mode": "fixed", "tasks_version": "v1",
+                  "context_mode": "fixed", "tasks_version": config.TASKS_VERSION,
                   "server_build": _server_build(engine), "warmup_times": times,
                   "model_config_flags": S.describe_config(model_path, engine=engine)}
         lf = set(lang_filter) if lang_filter else None
@@ -153,8 +165,11 @@ def _bench_one(model_path, pool, dims, lang_filter, port, quick=False, engine="l
         if "tools" in dims:
             result["tools"] = G.grade_tools(c, _limit(T.load("tools"), quick), on_task=_print_task)
         if "code" in dims:
-            result["code"] = G.grade_code(c, _limit(T.load("code", lang_filter=lf), quick),
-                                           on_task=_print_task, model_slug=slug)
+            code_tasks = _limit(T.load("code", lang_filter=lf, level=level), quick)
+            if level and not code_tasks:
+                print(f"⚠️  cap tasca code level={level}", file=sys.stderr, flush=True)
+            result["code"] = G.grade_code(c, code_tasks,
+                                          on_task=_print_task, model_slug=slug)
         if "agent" in dims:
             result["agent"] = G.grade_agent(c, _limit(T.load("agent", lang_filter=lf), quick), on_task=_print_task)
         return result
@@ -196,6 +211,8 @@ def main(argv=None):
     ap.add_argument("--context", default="fixed", choices=["fixed", "adapted"])
     ap.add_argument("--dims", default="speed,tools,code,agent")
     ap.add_argument("--lang", default=None)
+    ap.add_argument("--level", choices=["easy", "hard"], default=None,
+                    help="filtra NOMÉS les tasques de code per nivell (sufix _hard a l'ID)")
     ap.add_argument("--quick", action="store_true",
                     help="1 tasca per dimensió (smoke test del harness)")
     ap.add_argument("-v", "--verbose", action="store_true",
@@ -233,6 +250,7 @@ def main(argv=None):
 
     dims = [d.strip() for d in args.dims.split(",") if d.strip()]
     lang_filter = args.lang.split(",") if args.lang else None
+    level = _level_for_code(dims, args.level)
     models = resolve_models(args.models, engine=args.engine)
     if not models:
         print("cap model a executar (revisa --models)", file=sys.stderr, flush=True)
@@ -240,7 +258,7 @@ def main(argv=None):
     for mp in models:
         try:
             res = _bench_one(mp, [], dims, lang_filter, port, quick=args.quick,
-                             engine=args.engine)
+                             engine=args.engine, level=level)
             if res.get("serve_failed"):
                 print(f"✗ {mp}: no carrega", file=sys.stderr, flush=True); continue
             R.save_result(res)
