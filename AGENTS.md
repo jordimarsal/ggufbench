@@ -59,7 +59,12 @@ The harness shells out to system binaries; absence causes specific failures, not
   flat. Add a task by dropping in one such file — no registry to update. Note: the loader looks up
   **uppercase** `ID`/`PROMPT` (lowercase silently falls back to defaults), and for the tools dimension
   `TOOLS` must be a full OpenAI function schema (`{"type":"function","function":{...}}`) — the client
-  passes it straight to the API, so a shorthand like `{"name": ...}` is invalid.
+  passes it straight to the API, so a shorthand like `{"name": ...}` is invalid. In `EXPECTED`, a
+  missing `arguments` key checks the **tool name only**; `arguments: {}` demands an argument-less
+  call (the old behaviour treated absence as "arguments must be absent", which made get_env/get_time
+  unwinnable for every model). The agent's `run_tests` locates the solution/test files
+  **case-insensitively** — java tasks name them `Solution.java`/`Test.java` because javac requires
+  file name == public class, and looking for `solution.java` exactly left the solution empty.
 - **Language strings are centralized** in `config.Lang` (a `str`-based enum, so `Lang.PYTHON == "python"`
   and it interops with task-file strings). It backs the executor dispatch table in `executors.py` and
   `Lang.exts()` (used by the agent's `run_tests`). Add a new language there, not as a bare string.

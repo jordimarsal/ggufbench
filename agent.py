@@ -22,6 +22,20 @@ TOOLS = [
 ]
 
 
+def _get_file(files, name, default=""):
+    """Cerca 'name' a files; si no hi és exacte, prova sense distingir majúscules:
+    java anomena els seus fitxers Solution.java/Test.java (javac exigeix que el
+    fitxer es digui com la classe pública) i cercar-hi 'solution.java' exacte
+    deixava la solució buida: cap tasca d'agent java havia passat mai."""
+    if name in files:
+        return files[name]
+    low = name.lower()
+    for k, v in files.items():
+        if k.lower() == low:
+            return v
+    return default
+
+
 class MockEnv:
     def __init__(self, files, lang, test_file="test_solution.py"):
         self.files = dict(files)
@@ -40,10 +54,12 @@ class MockEnv:
     def run_tests(self):
         # Conveni unificat per tots els llenguatges: solution.<ext> + test_solution.<ext>
         # (amb fallback a self.test_file). Abans python estava especialitzat; ara tot
-        # passa pel mateix camí perquè la convenció és coherent.
+        # passa pel mateix camí perquè la convenció és coherent. La cerca no distingeix
+        # majúscules (vegeu _get_file: les tasques de java usen Solution.java/Test.java).
         ext = config.Lang.exts()[self.lang]
-        sol = self.files.get(f"solution{ext}", "")
-        tst = self.files.get(f"test_solution{ext}", self.files.get(self.test_file, ""))
+        sol = _get_file(self.files, f"solution{ext}")
+        tst = _get_file(self.files, f"test_solution{ext}",
+                        _get_file(self.files, self.test_file))
         r = executors.run(self.lang, sol, tst)
         return (r["passed"], r["output"])
 

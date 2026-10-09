@@ -23,6 +23,39 @@ class TestMockEnv(unittest.TestCase):
         ok, out = e.run_tests()
         self.assertFalse(ok)
 
+
+class TestRunTestsFileLookup(unittest.TestCase):
+    """La cerca del fitxer de solució no distingeix majúscules: les tasques de
+    java usen Solution.java/Test.java (javac exigeix file == classe pública) i
+    cercar-hi 'solution.java' exacte deixava la solució buida: mai passaven."""
+
+    def test_java_capitalized_files(self):
+        sol = 'public class Solution { public static int add(int a,int b){ return a+b; } }\n'
+        tst = ('public class Test { public static void main(String[] a){\n'
+               '  if (Solution.add(2,3) != 5) throw new RuntimeException("fail");\n'
+               '  System.out.println("OK");\n}}\n')
+        e = agent.MockEnv({"Solution.java": sol, "Test.java": tst},
+                          "java", test_file="Test.java")
+        ok, out = e.run_tests()
+        self.assertTrue(ok, out)
+
+    def test_java_broken_solution_still_fails(self):
+        # la tolerància no ha d'inflar el score: una solució trencada falla
+        sol = 'public class Solution { public static int add(int a,int b){ return a-b; } }\n'
+        tst = ('public class Test { public static void main(String[] a){\n'
+               '  if (Solution.add(2,3) != 5) throw new RuntimeException("fail");\n'
+               '  System.out.println("OK");\n}}\n')
+        e = agent.MockEnv({"Solution.java": sol, "Test.java": tst},
+                          "java", test_file="Test.java")
+        ok, out = e.run_tests()
+        self.assertFalse(ok)
+
+    def test_lowercase_convention_unchanged(self):
+        e = agent.MockEnv({"solution.py": "x = 1\n",
+                           "test_solution.py": "from solution import x\nassert x == 1\n"}, "python")
+        ok, out = e.run_tests()
+        self.assertTrue(ok, out)
+
 class TestRunAgentScripted(unittest.TestCase):
     def test_scripted_success(self):
         # client fake: primer crida write_file amb la solució correcta, després atura
