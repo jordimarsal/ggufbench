@@ -129,18 +129,19 @@ def _render_global_rows(pool, weights, title):
         sc = _scores(r)
         rows.append((config.slug(r["model"]), sc, _global_score(r, weights, min_speed)))
     rows.sort(key=lambda x: x[2], reverse=True)
-    out = [f"=== {title} ===",
-           f"{'MODEL':40} {'tools':>6} {'code':>6} {'agent':>6} {'speed':>9} {'GLOBAL':>7}",
-           "-" * 74]
+    nw = max((len(r[0]) for r in rows), default=5)
+    header = f"{'MODEL':{nw}} {'tools':>6} {'code':>6} {'agent':>6} {'speed':>9} {'GLOBAL':>7}"
+    out = [f"=== {title} ===", header, "-" * len(header)]
     for name, sc, g in rows:
         sp = f"{sc['speed_ms']}ms" if sc["speed_ms"] else "—"
-        out.append(f"{name:40.40} {sc['tools']:>5.0%} {sc['code']:>5.0%} "
+        out.append(f"{name:{nw}} {sc['tools']:>5.0%} {sc['code']:>5.0%} "
                    f"{sc['agent']:>5.0%} {sp:>9} {g:>7.2f}")
     # Epígraf de tokens per segon (output i input).
     out.append("")
     out.append("=== Tokens per segon (t/s) ===")
-    out.append(f"{'MODEL':40} {'gen (out)':>10} {'prompt (in)':>12}")
-    out.append("-" * 64)
+    theader = f"{'MODEL':{nw}} {'gen (out)':>10} {'prompt (in)':>12}"
+    out.append(theader)
+    out.append("-" * len(theader))
     for name, sc, g in rows:
         gen = f"{sc['gen_tps']:.1f}" if sc["gen_tps"] else "—"
         prom = f"{sc['prompt_tps']:.1f}" if sc["prompt_tps"] else "—"
@@ -151,9 +152,9 @@ def _render_global_rows(pool, weights, title):
 def _render_tasks(pool):
     """Taula 3 — detall per tasca (SPEC 4.6). Una fila per (model, dimensió, tasca).
     Tolerant: un model sense dimensió o una dimensió sense trace no falla."""
-    out = ["", "=== Detall per tasca ===",
-           f"{'MODEL':40} {'DIM':8} {'LANG':12} {'TASK':20} {'OK':4} DETALL",
-           "-" * 100]
+    nw = max((len(config.slug(r["model"])) for r in pool), default=5)
+    header = f"{'MODEL':{nw}} {'DIM':8} {'LANG':12} {'TASK':20} {'OK':4} DETALL"
+    out = ["", "=== Detall per tasca ===", header, "-" * len(header)]
     for r in pool:
         name = config.slug(r["model"])
         for dim in ("tools", "code", "agent"):
@@ -174,14 +175,15 @@ def _render_by_lang(pool):
     quan no hi ha tasques d'aquell idioma per aquella dimensió."""
     langs = ["python", "bash", "java", "typescript"]
     dims = ["code", "agent"]
-    header = f"{'MODEL':40}"
+    nw = max((len(config.slug(r["model"])) for r in pool), default=5)
+    header = f"{'MODEL':{nw}}"
     for dim in dims:
         for lang in langs:
             header += f" {dim}:{lang:>11}"
     out = ["", "=== Per llenguatge (code/agent) ===", header, "-" * len(header)]
     for r in pool:
         name = config.slug(r["model"])
-        row = f"{name:40.40}"
+        row = f"{name:{nw}}"
         for dim in dims:
             bl = (r.get(dim) or {}).get("by_lang") or {}
             for lang in langs:
