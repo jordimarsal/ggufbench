@@ -2,7 +2,10 @@
   "project": {
     "name": "benchmark",
     "parallel": false,
-    "modules": ["performance-benchmarks", "decision-memory"],
+    "modules": [
+      "performance-benchmarks",
+      "decision-memory"
+    ],
     "audit_level": "basic",
     "workflow": "hybrid",
     "harness_version": "v0.8.0",
@@ -21,7 +24,7 @@
         "R4: suite unittest verda amb nous tests del loader i del CLI (patró test_tasks_loader.py / test_run_cli.py)",
         "R5: docs (SPEC §tasques, AGENTS.md) actualitzats amb la convenció del nivell hard"
       ],
-      "status": "in_progress"
+      "status": "done"
     },
     {
       "id": 2,

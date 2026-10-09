@@ -1,0 +1,14 @@
+APPROVED — Completion Gate: hard_code_tier
+
+Data: 2026-10-09
+Revisor: Jordi (human gate)
+Decisio: in_progress -> done
+
+Evidencies revisades:
+- Traçabilitat 8/8 PASS (harness/specs/hard_code_tier/traceability-check.txt)
+- Suite completa: 137 tests OK (1 skip preexistent)
+- harness/init.sh: verd
+- Validacio d'autor de les 16 tasques hard: referencia OK, ingenua FALLA
+  (harness/logs/hard_code_tier/batch-4.log, batch-5.log)
+- Commit: 6054036 feat(code): hard task tier (_hard) with --level filter and
+  by_level breakdown
