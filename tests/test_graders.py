@@ -93,30 +93,19 @@ class TestCodeTimeout(unittest.TestCase):
         self.assertEqual(graders.code_timeout(2048, 41), 122)       # 60 + 62.4
         self.assertEqual(graders.code_timeout(8192, 10), 600)       # sostre de 600 s
 
-    def test_ladder_uses_scaled_timeouts(self):
-        # R2: cada intent de l'escala (2048/4096/8192) rep el timeout escalat. La
-        # resposta sense bloc extreuible fa correr l'escala sencera i acaba en
-        # exclusio (R3: exclusio, mai fail).
-        tmp = tempfile.mkdtemp()
-        old_file, old_cache = token_budget.BUDGET_FILE, token_budget._cache
-        token_budget.BUDGET_FILE = Path(tmp) / "tb.json"
-        token_budget._cache = None
-        try:
-            tasks = [{"id":"x","lang":"python","prompt":"p","test_code":"t","level":"hard"}]
-            cap_timeouts = []
+    def test_scaled_timeout_applied_to_the_single_attempt(self):
+        # R2: l'unic intent de code rep el timeout escalat (16384 a 41 t/s -> 559 s)
+        tasks = [{"id":"x","lang":"python","prompt":"p","test_code":"t","level":"hard"}]
+        cap_timeouts = []
 
-            class Prose:
-                def chat(self, *a, **k):
-                    cap_timeouts.append(k.get("timeout"))
-                    return {"choices":[{"message":{"content":"prosa sense bloc de codi"}}]}
+        class Prose:
+            def chat(self, *a, **k):
+                cap_timeouts.append(k.get("timeout"))
+                return {"choices":[{"message":{"content":"prosa sense bloc de codi"}}]}
 
-            r = graders.grade_code(Prose(), tasks, gen_tps=41)
-            self.assertEqual(cap_timeouts, [122, 184, 309])
-            self.assertEqual(r["trace"][0]["excluded"], True)
-        finally:
-            shutil.rmtree(tmp)
-            token_budget.BUDGET_FILE = old_file
-            token_budget._cache = old_cache
+        r = graders.grade_code(Prose(), tasks, gen_tps=41)
+        self.assertEqual(cap_timeouts, [559])
+        self.assertEqual(r["trace"][0]["excluded"], True)
 
     def test_transient_timeout_still_excludes(self):
         # R3: un timeout de transport continua sent exclusio (mai fail); amb error
@@ -132,9 +121,11 @@ class TestCodeTimeout(unittest.TestCase):
         self.assertTrue(r["trace"][0]["detail"].startswith("server error"))
 
 
-class TestCodeEscalation(unittest.TestCase):
-    """Quan una tasca no extreu bloc de codi (model truncat), el grader escala el
-    pressupost de tokens i persisteix el valor calibrat a token_budget."""
+class TestCodeBudget(unittest.TestCase):
+    """ADR-0002: un unic pressupost generos (8192). Amb seed/temp fixos, max_tokens
+    es un sostre, no un objectiu: un intent a 8192 produeix la mateixa generacio que
+    l'antiga escala 2048->4096->8192, sense peticions malgastades amb models que
+    pensen. Els tokens de sortida queden registrats a la tracca (eficiencia)."""
     def setUp(self):
         self.tmpdir = Path(tempfile.mkdtemp())
         self.old_file = token_budget.BUDGET_FILE
@@ -158,25 +149,34 @@ class TestCodeEscalation(unittest.TestCase):
                 return {"choices": [{"message": {"content": code if mt >= threshold else prose * 50}}]}
         return C()
 
-    def test_escalation_saves_budget(self):
+    def test_single_generous_budget_resolves_long_output(self):
+        # abans calien 2 peticions (escala 2048->4096); ara una sola amb el sostre
         c = self._client(threshold=4096)
         tasks = [{"id": "t1", "lang": "python", "prompt": "p",
                   "test_code": "from solution import *\nassert f()==1\n"}]
         graders.grade_code(c, tasks, model_slug="skyrl")
-        self.assertEqual(token_budget.get("code", "skyrl", "python", "t1"), 4096)
-        self.assertGreater(c.calls, 1)  # ha escalat
+        self.assertEqual(c.calls, 1)
+        self.assertIsNone(token_budget.get("code", "skyrl", "python", "t1"))  # el default ja basta
 
-    def test_stored_budget_skips_escalation(self):
+    def test_stored_budget_still_honoured(self):
         token_budget.put("code", "skyrl", "python", "t1", 4096)
         token_budget.reset_cache()
         c = self._client(threshold=4096)
         tasks = [{"id": "t1", "lang": "python", "prompt": "p",
                   "test_code": "from solution import *\nassert f()==1\n"}]
         graders.grade_code(c, tasks, model_slug="skyrl")
-        self.assertEqual(c.calls, 1)  # pressupost guardat -> una sola crida
+        self.assertEqual(c.calls, 1)
+
+    def test_output_tokens_recorded_in_trace(self):
+        tasks = [{"id": "t3", "lang": "python", "prompt": "p",
+                  "test_code": "from solution import *\nassert f()==1\n"}]
+        resp = {"choices": [{"message": {"content": "```python\ndef f():\n    return 1\n```"}}],
+                "usage": {"completion_tokens": 321}}
+        r = graders.grade_code(FakeClient([resp]), tasks)
+        self.assertEqual(r["trace"][0]["out_tokens"], 321)
 
     def test_no_save_when_default_suffices(self):
-        c = self._client(threshold=1024)  # el bloc apareix fins i tot a 2048
+        c = self._client(threshold=1024)  # el bloc apareix fins i tot sense pressupost extra
         tasks = [{"id": "t2", "lang": "python", "prompt": "p",
                   "test_code": "from solution import *\nassert f()==1\n"}]
         graders.grade_code(c, tasks, model_slug="m")

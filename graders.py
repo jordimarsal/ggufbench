@@ -4,9 +4,13 @@ import urllib.error
 from . import agent as A, client as C, code_extract, executors, token_budget
 
 SPEED_MAX_TOKENS = 128
-CODE_MAX_TOKENS = 2048
-# Escalat de pressupost quan una tasca de codi no extreu bloc (model truncat).
-CODE_LADDER = [CODE_MAX_TOKENS, 4096, 8192]
+# Un unic pressupost generos (ADR-0002): amb seed/temp fixos, max_tokens es un sostre,
+# no un objectiu. 16384 = el sostre del context del harness (CONTEXT_FIXED menys prompt):
+# cobreix la cua de pensament llarg dels models que pensen i no penalitza els concisos
+# (paren a l'EOS igualment). Els tokens de sortida queden registrats a la tracca
+# (out_tokens) com a metrica d'eficiencia, no com a castig.
+CODE_MAX_TOKENS = 16384
+CODE_LADDER = [CODE_MAX_TOKENS]
 
 # Errors transients del servidor/xarxa (500, timeouts, connexió tombada...).
 # Aïllar-los per tasca: una resposta 500 només ha de fallar aquella tasca, no avortar tota la run.
@@ -154,20 +158,23 @@ def grade_code(client_mod, tasks, max_turns=8, on_task=None, model_slug=None, ge
                 on_task("code", {"id": t["id"], "lang": t["lang"], "passed": False,
                                  "excluded": True, "detail": detail})
             continue
+        out_tokens = (resp.get("usage") or {}).get("completion_tokens")
         if code is None:
             # Truncament o format sense bloc extrebable: NO demostra capacitat del
             # model, per tant s'exclou del score (es marca excluded=True).
             snippet = " ".join(text.split())[:120]
             detail = f"no code block ({t['lang']}, no comptat); reply: {snippet}"[:160]
             results.append({"id": t["id"], "lang": t["lang"], "level": t.get("level", "easy"),
-                            "passed": False, "excluded": True, "detail": detail})
+                            "passed": False, "excluded": True, "detail": detail,
+                            "out_tokens": out_tokens})
             if on_task:
                 on_task("code", {"id": t["id"], "lang": t["lang"], "passed": False,
                                  "excluded": True, "detail": detail})
             continue
         r = executors.run(t["lang"], code, t.get("test_code"))
         results.append({"id": t["id"], "lang": t["lang"], "level": t.get("level", "easy"),
-                        "passed": r["passed"], "excluded": False, "detail": r["output"][:160]})
+                        "passed": r["passed"], "excluded": False, "detail": r["output"][:160],
+                        "out_tokens": out_tokens})
         by_lang.setdefault(t["lang"], []).append(r["passed"])
         if on_task:
             on_task("code", {"id": t["id"], "lang": t["lang"], "excluded": False,

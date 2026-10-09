@@ -31,3 +31,11 @@ gen_tps) = clamp(90, 60 + (budget/gen_tps)*1.25, 600): pressupost en tokens igua
 a tothom, rellotge anti-penjam derivat de la velocitat mesurada; timeouts segueixen
 sendo exclusions. ADR-0001. Run de remeasure_pool avortada i repetida amb el protocol
 nou. 139 tests OK, tracabilitat 4/4 PASS.
+
+## 2026-10-09 — single_token_budget (done)
+
+Feature 4 (proposta del revisor): un unic pressupost de 16384 tokens (sostre de context)
+en lloc de l'escala 2048->4096->8192. Amb seed/temp fixos el score es identic (prefix
+determinista) pero s'eliminen 1-2 peticions mortes per tasca amb models que pensen, i
+la cua de pensament llarg (8-16k) queda mesurada. out_tokens registrat a la tracca com
+a metrica d'eficiencia. ADR-0002. 139 tests OK, tracabilitat 4/4 PASS.

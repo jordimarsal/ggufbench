@@ -1,0 +1,11 @@
+APPROVED — Gates de single_token_budget
+
+Data: 2026-10-09
+Revisor: Jordi (human gate, via sessio interactiva)
+
+- Spec Gate: aprovat via directive directa ("jo comencaria a 8192"), refinat en el
+  dialog posterior al unic 16384 = sostre de context (CONTEXT_FIXED menys prompt):
+  mateix score per determinisme, cua de pensament llarg coberta, sense reintroduir
+  l'escala.
+- Completion Gate: implementacio + tests (TestCodeBudget) + ADR-0002 amendent +
+  tracabilitat 4/4 PASS + suite verda. La re-mesura es llanca amb aquest pressupost.

@@ -53,6 +53,19 @@
         "R5: suite unittest verda amb tests de la fórmula i del timeout rebut pel client fake"
       ],
       "status": "done"
+    },
+    {
+      "id": 4,
+      "name": "single_token_budget",
+      "title": "Un unic pressupost de 16384 tokens per a code (el sostre del context; fi de l'escala)",
+      "description": "Proposta del revisor en plena re-mesura (2x8192), absorbit com a unic 16384: amb seed/temp fixos, max_tokens es un sostre i no un objectiu; l'escala reprodueix la mateixa generacio amb peticions mortes. 16384 = CONTEXT_FIXED menys prompt, cobreix la cua de pensament llarg. L'eficiencia (out_tokens) queda registrada a la tracca.",
+      "acceptance": [
+        "R1: CODE_LADDER == [16384] == CODE_MAX_TOKENS; una tasca que nomes extreu bloc amb >= 4096 tokens es resol en UNA peticio",
+        "R2: la tracca de code registra out_tokens (completion_tokens) de cada intent sense error de transport",
+        "R3: el pressupost guardat (token_budgets) continua honorant-se",
+        "R4: ADR-0002 + suite unittest verda"
+      ],
+      "status": "done"
     }
   ]
 }
