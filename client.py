@@ -6,12 +6,17 @@ from . import config
 
 
 def chat(messages, tools=None, tool_choice=None, max_tokens=256,
-         base_url="http://127.0.0.1:8999", timeout=60):
+         base_url="http://127.0.0.1:8999", timeout=60, extra=None):
+    """Un chat a /v1/chat/completions. `extra` sobreescriu/afegeix camps del cos
+    (vegeu config.STRATA_EXTRA_BODY: Strata necessita apagar la cadena de pensament
+    perquè les tasques es mesurin en les mateixes condicions que la resta de models)."""
     body = {"messages": messages, "max_tokens": max_tokens,
             "temperature": config.TEMPERATURE, "seed": config.SEED}
     if tools:
         body["tools"] = tools
         body["tool_choice"] = tool_choice or "auto"
+    if extra:
+        body.update(extra)
     data = json.dumps(body).encode("utf-8")
     req = urllib.request.Request(f"{base_url}/v1/chat/completions", data=data,
                                  headers={"Content-Type": "application/json"})

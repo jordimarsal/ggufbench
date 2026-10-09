@@ -36,5 +36,54 @@ class TestClient(unittest.TestCase):
         self.assertEqual(client.first_text(SAMPLE), "")
         self.assertEqual(client.first_text({"choices":[{"message":{"content":"x"}}]}), "x")
 
+class TestChatExtra(unittest.TestCase):
+    """`extra` afegeix/sobreescriu camps del cos (config.STRATA_EXTRA_BODY)."""
+
+    def _capture(self, **kwargs):
+        import json as _json
+        captured = {}
+
+        class _Resp:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def read(self):
+                return b'{"choices": [{"message": {"content": "hola"}}]}'
+
+        def fake_urlopen(req, timeout=None):
+            captured["body"] = _json.loads(req.data.decode("utf-8"))
+            captured["timeout"] = timeout
+            return _Resp()
+
+        orig = client.urllib.request.urlopen
+        client.urllib.request.urlopen = fake_urlopen
+        try:
+            client.chat([{"role": "user", "content": "hola"}], **kwargs)
+        finally:
+            client.urllib.request.urlopen = orig
+        return captured["body"]
+
+    def test_defaults_without_extra(self):
+        from benchmark import config
+        body = self._capture()
+        self.assertEqual(body["temperature"], config.TEMPERATURE)
+        self.assertEqual(body["seed"], config.SEED)
+        self.assertNotIn("chat_template_kwargs", body)
+
+    def test_extra_merges_into_body(self):
+        from benchmark import config
+        from benchmark import config as cfg
+        body = self._capture(extra=cfg.STRATA_EXTRA_BODY)
+        # el camp nou hi és...
+        self.assertEqual(body["chat_template_kwargs"], {"enable_thinking": False})
+        # ...i els camps base es conserven (el cos s'ha de seguir essent complet)
+        self.assertEqual(body["temperature"], config.TEMPERATURE)
+        self.assertEqual(body["max_tokens"], 256)
+        self.assertIn("messages", body)
+
+
 if __name__ == "__main__":
     unittest.main()

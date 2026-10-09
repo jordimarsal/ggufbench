@@ -104,5 +104,55 @@ class TestResolveModelsResolution(unittest.TestCase):
         self.assertEqual(run.resolve_models("inexistent.gguf"), ["inexistent.gguf"])
 
 
+class TestResolveStrataModels(unittest.TestCase):
+    """--engine strata: 'model' = un config strata-<nom>.json de STRATA_DIR."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.old_dir = run.config.STRATA_DIR
+        run.config.STRATA_DIR = self.tmp
+        for n in ("strata-iq3_xxs.json", "strata-iq3_s.json"):
+            (self.tmp / n).write_text("{}")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp)
+        run.config.STRATA_DIR = self.old_dir
+
+    def test_all_globs_strata_configs(self):
+        ms = run.resolve_models("all", engine="strata")
+        self.assertEqual([Path(m).name for m in ms],
+                         ["strata-iq3_s.json", "strata-iq3_xxs.json"])
+
+    def test_bare_name(self):
+        self.assertEqual(run.resolve_models("iq3_xxs", engine="strata"),
+                         [str(self.tmp / "strata-iq3_xxs.json")])
+
+    def test_full_config_name(self):
+        self.assertEqual(run.resolve_models("strata-iq3_s", engine="strata"),
+                         [str(self.tmp / "strata-iq3_s.json")])
+
+    def test_existing_path_passthrough(self):
+        p = self.tmp / "config-propio.json"
+        p.write_text("{}")
+        self.assertEqual(run.resolve_models(str(p), engine="strata"), [str(p)])
+
+    def test_unknown_passes_through(self):
+        # mateix criteri que amb llama: passa tal qual i el servidor dona l'error
+        self.assertEqual(run.resolve_models("inexistent", engine="strata"), ["inexistent"])
+
+
+class TestModelId(unittest.TestCase):
+    """Identitat del model al pool: camí .gguf per a llama, nom del config per a Strata."""
+
+    def test_llama_keeps_path(self):
+        self.assertEqual(run.model_id("llama", "models/foo.gguf"), "models/foo.gguf")
+
+    def test_strata_uses_config_stem(self):
+        mid = run.model_id("strata", "/x/Strata/strata-iq3_xxs.json")
+        self.assertEqual(mid, "strata-iq3_xxs")
+        # és el que arriba al marcador: un slug net, sense camí ni extensió
+        self.assertEqual(run.config.slug(mid), "strata-iq3_xxs")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -13,6 +13,20 @@ TOKEN_BUDGETS = RESULTS_DIR / "token_budgets.json"
 PORT = 8999
 CONTEXT_FIXED = 16384
 
+# --- Segon motor: Strata (Qwen3.8-Flash-Next) ----------------------------------------
+# Strata no és llama-server: motor propi (engine/strata) servit per serve/server.py,
+# amb un config JSON per model (strata-<model>.json: pack, context, GPUs, MTP...) i un
+# sol model carregat alhora. Parla el mateix contracte OpenAI i emet `timings` amb els
+# noms de llama.cpp, així que les 4 dimensions li serveixen tal qual (SPEC §2).
+STRATA_DIR = BASE_DIR / "Strata"
+STRATA_PORT = 8080            # el seu port habitual; --port el pot canviar
+# Arrencada: carrega 34-43 GB a RAM (1-3 min), molt més lent que un llama-server
+STRATA_READY_TIMEOUT = 600
+# Strata pensa en HIGH per defecte: amb els max_tokens petits de les tasques (128/256)
+# es menja el pressupost de generació i no arriba a escriure res. Mesurem sense cadena
+# de pensament, igual que la resta de models i que el bench_vs_llama.py d'Strata.
+STRATA_EXTRA_BODY = {"chat_template_kwargs": {"enable_thinking": False}}
+
 # Mateixes condicions per a tots els models: temp/seed fixos. El client també els
 # envia per petició (vegeu client.chat) per garantir repetibilitat encara que el
 # servidor canviï de configuració.

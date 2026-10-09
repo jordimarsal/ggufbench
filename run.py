@@ -18,14 +18,19 @@ def parse_weights(s):
     return w
 
 
-def resolve_models(spec):
+def resolve_models(spec, engine="llama"):
     """all -> glob del directori de models. Altrament, cada item (separat per
     comes) pot ser:
       - un camí existent (s'usa tal qual),
       - un nom de fitxer curt o parcial ('Ornith-...APEX-MTP-Quality[.gguf]'),
         que es resol contra models/*.gguf (mateix esperit que --forget);
         si coincideix amb més d'un fitxer, s'avisa i s'ignora (ambigu),
-      - un camí inexistent: passa tal qual i llama-server en donarà l'error."""
+      - un camí inexistent: passa tal qual i llama-server en donarà l'error.
+
+    Amb ``engine='strata'`` el 'model' és un config: 'iq3_xxs' ->
+    Strata/strata-iq3_xxs.json (i 'all' = tots els strata-*.json)."""
+    if engine == "strata":
+        return _resolve_strata_models(spec)
     if spec == "all":
         return sorted(str(p) for p in config.MODELS_DIR.glob("*.gguf"))
     if isinstance(spec, str):
@@ -47,12 +52,43 @@ def resolve_models(spec):
     return resolved
 
 
-def warmup(client_mod, model_url, n=3):
+def _resolve_strata_models(spec):
+    """Resol l'especificació de models d'Strata contra STRATA_DIR. Accepta 'all',
+    el nom curt ('iq3_xxs'), el nom del fitxer ('strata-iq3_xxs[.json]') o un camí
+    complet. Sense cap coincidència passa tal qual (server.py en donarà l'error)."""
+    if spec == "all":
+        return sorted(str(p) for p in config.STRATA_DIR.glob("strata-*.json"))
+    if isinstance(spec, str):
+        spec = [x.strip() for x in spec.split(",") if x.strip()]
+    resolved = []
+    for item in spec:
+        if Path(item).is_file():
+            resolved.append(item)
+            continue
+        name = item if item.endswith(".json") else item + ".json"
+        if not name.startswith("strata-"):
+            name = "strata-" + name
+        cand = config.STRATA_DIR / name
+        resolved.append(str(cand) if cand.is_file() else item)
+    return resolved
+
+
+def model_id(engine, model_path):
+    """Identificador del model al pool (i per al slug del marcador): el camí .gguf
+    tal qual per a llama-server; per a Strata, el nom del config sense extensió
+    ('strata-iq3_xxs') — que és el que identifica model + pack + configuració."""
+    if engine == "strata":
+        return Path(model_path).stem
+    return model_path
+
+
+def warmup(client_mod, model_url, n=3, extra=None):
     times = []
     for i in range(n):
         start = datetime.datetime.now()
         try:
-            C.chat([{"role": "user", "content": "hi"}], max_tokens=4, base_url=model_url)
+            C.chat([{"role": "user", "content": "hi"}], max_tokens=4,
+                   base_url=model_url, extra=extra)
         except (OSError, ValueError):
             # Best-effort: urlopen -> OSError (URLError), json -> ValueError; només mesurem temps.
             pass
@@ -82,26 +118,35 @@ def _print_task(dim, info):
           file=sys.stderr, flush=True)
 
 
-def _bench_one(model_path, pool, dims, lang_filter, port, quick=False):
-    sm = S.ServerManager(model_path, context_mode="fixed", port=port)
-    slug = config.slug(model_path)
-    print(f"→ {slug}: arrencant servidor...", file=sys.stderr, flush=True)
+def _bench_one(model_path, pool, dims, lang_filter, port, quick=False, engine="llama"):
+    sm = S.ServerManager(model_path, context_mode="fixed", port=port, engine=engine)
+    mid = model_id(engine, model_path)
+    slug = config.slug(mid)
+    print(f"→ {slug}: arrencant servidor ({engine})...", file=sys.stderr, flush=True)
     sm.start()
-    if not sm.wait_ready(timeout=240):
-        sm.stop(); return {"model": model_path, "serve_failed": True}
+    if not sm.wait_ready():
+        sm.stop(); return {"model": mid, "engine": engine, "serve_failed": True}
     try:
         model_url = f"http://127.0.0.1:{port}"
+        # Strata: sense aquest cos, el model pensa (HIGH) i amb els max_tokens petits
+        # de les tasques no arriba a respondre (config.STRATA_EXTRA_BODY).
+        extra = config.STRATA_EXTRA_BODY if engine == "strata" else None
+
         class ClientWrapper:
-            def __init__(self, base_url):
-                self.base_url = base_url
+            def __init__(self, base_url, extra=None):
+                self.base_url, self.extra = base_url, extra
+
             def chat(self, *a, **k):
+                if self.extra:
+                    k.setdefault("extra", self.extra)
                 return C.chat(*a, base_url=self.base_url, **k)
-        c = ClientWrapper(model_url)
-        times = warmup(c, model_url, n=3)
-        result = {"model": model_path, "ts": datetime.datetime.now().isoformat(timespec="seconds"),
+        c = ClientWrapper(model_url, extra)
+        times = warmup(c, model_url, n=3, extra=extra)
+        result = {"model": mid, "engine": engine,
+                  "ts": datetime.datetime.now().isoformat(timespec="seconds"),
                   "context_mode": "fixed", "tasks_version": "v1",
-                  "server_build": _server_build(), "warmup_times": times,
-                  "model_config_flags": S.describe_config(model_path)}
+                  "server_build": _server_build(engine), "warmup_times": times,
+                  "model_config_flags": S.describe_config(model_path, engine=engine)}
         lf = set(lang_filter) if lang_filter else None
         if "speed" in dims:
             result["speed"] = G.grade_speed(c, _limit(T.load("speed"), quick), on_task=_print_task)
@@ -121,7 +166,15 @@ def _limit(tasks, quick):
     """--quick: només la primera tasca de cada dimensió (smoke test del harness)."""
     return tasks[:1] if quick else tasks
 
-def _server_build():
+def _server_build(engine="llama"):
+    """Versió del motor: la de llama-server per a 'llama'; la de Strata la llegeix
+    d'strata/engine/BUILD.json (versió de l'executable compilat)."""
+    if engine == "strata":
+        try:
+            return str(json.loads((config.STRATA_DIR / "engine" / "BUILD.json")
+                                  .read_text(encoding="utf-8"))["version"])
+        except (OSError, ValueError, KeyError):
+            return "unknown"
     try:
         out = subprocess.run([str(config.SERVER_BIN), "--version"],
                              capture_output=True, text=True, timeout=10)
@@ -135,11 +188,16 @@ def _server_build():
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="benchmark")
     ap.add_argument("--models", default="all",
-                    help="all | camí .gguf | nom (curt o parcial) — separats per comes")
+                    help="all | camí .gguf | nom (curt o parcial) — separats per comes "
+                         "(amb --engine strata: all | nom del config, ex. iq3_xxs)")
+    ap.add_argument("--engine", choices=list(S.ENGINES), default="llama",
+                    help="motor que serveix el model: llama = llama-server (default); "
+                         "strata = serve/server.py amb un config strata-<model>.json")
     ap.add_argument("--context", default="fixed", choices=["fixed", "adapted"])
     ap.add_argument("--dims", default="speed,tools,code,agent")
     ap.add_argument("--lang", default=None)
-    ap.add_argument("--quick", action="store_true")
+    ap.add_argument("--quick", action="store_true",
+                    help="1 tasca per dimensió (smoke test del harness)")
     ap.add_argument("-v", "--verbose", action="store_true",
                    help="granularitat: Taula 1 + per-llenguatge (Taula 2); NO inclou tasques")
     ap.add_argument("--task", action="store_true",
@@ -149,10 +207,12 @@ def main(argv=None):
     ap.add_argument("--scoreboard", action="store_true")
     ap.add_argument("--forget")
     ap.add_argument("--json", action="store_true")
-    ap.add_argument("--port", type=int, default=config.PORT)
+    ap.add_argument("--port", type=int, default=None,
+                    help=f"default {config.PORT} (llama) / {config.STRATA_PORT} (strata)")
     ap.add_argument("--weights", default=None)
     args = ap.parse_args(argv)
     weights = parse_weights(args.weights)
+    port = args.port or (config.STRATA_PORT if args.engine == "strata" else config.PORT)
     # Granularitat: --verbose afegix la Taula 2 (per-llenguatge); --task l'afegiment del
     # detall de tasques (Taula 3). Són independents i es poden combinar (--verbose +
     # --task = Taula 1 + Taula 2 + Taula 3).
@@ -173,17 +233,18 @@ def main(argv=None):
 
     dims = [d.strip() for d in args.dims.split(",") if d.strip()]
     lang_filter = args.lang.split(",") if args.lang else None
-    models = resolve_models(args.models)
+    models = resolve_models(args.models, engine=args.engine)
     if not models:
         print("cap model a executar (revisa --models)", file=sys.stderr, flush=True)
         return
     for mp in models:
         try:
-            res = _bench_one(mp, [], dims, lang_filter, args.port, quick=args.quick)
+            res = _bench_one(mp, [], dims, lang_filter, port, quick=args.quick,
+                             engine=args.engine)
             if res.get("serve_failed"):
                 print(f"✗ {mp}: no carrega", file=sys.stderr, flush=True); continue
             R.save_result(res)
-            slug = config.slug(mp)
+            slug = config.slug(model_id(args.engine, mp))
             speed = res.get("speed", {}).get("speed_ms", 0)
             gen_tps = res.get("speed", {}).get("gen_tps", 0)
             tools = res.get("tools", {}).get("score", 0)

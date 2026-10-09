@@ -37,6 +37,27 @@ L'objectiu final és triar el millor model per a **opencode** (agent programador
   - `fixed` (default): `16384` per tots → KV igual → velocitats comparables.
   - `adapted`: el context viable de cada model (llògica de `start-dev-ai.sh`).
 - `--tensor-split` sí adapta (multi-GPU, proporció de VRAM lliura).
+- **Segon motor (2026-10): `--engine strata`** — mateixes condicions, altre
+  execució. Els punts que no són el mateix:
+  - `--models` rep **noms de config**: `iq3_xxs` -> `Strata/strata-iq3_xxs.json`
+    (`all` = tots els `strata-*.json`; un camí explícit passa tal qual). La
+    identitat al pool és l'arrel del config (`strata-iq3_xxs`), que també és el
+    slug del marcador; el resultat porta `engine` i `server_build` = versió de
+    l'executable (`strata/engine/BUILD.json`).
+  - Port per defecte 8080 (`config.STRATA_PORT`); `--port` el canvia.
+  - **Sense cadena de pensament**: el model pensa en HIGH per defecte i amb els
+    `max_tokens` petits de les tasques (128-512) es menjaria el pressupost sense
+    respondre; el client envia `config.STRATA_EXTRA_BODY`
+    (`chat_template_kwargs: enable_thinking=false`), mateixa política que el
+    `bench/bench_vs_llama.py` d'Strata.
+  - **Readiness**: `/health` ha de dir `loaded` abans de la sonda de chat (les
+    sondes farien cua darrere la càrrega de 34-43 GB); espera `STRATA_READY_TIMEOUT`
+    (600 s).
+  - **Cicle de vida**: arrenca amb `start_new_session` i `stop()` mata el grup de
+    processos sencer — el fill `engine/strata` sobreviuria al pare
+    `serve/server.py` i continuaria retenint la VRAM. La sortida del servidor
+    es desa a `/tmp/benchmark-strata-server-<port>.log` (mai a /dev/null).
+  - **Els dos motors no van mai alhora**: competeixen per les mateixes GPU.
 - **Warmup** de 1 generació abans de mesurar/qualsevol tasca.
 - Mateixos prompts/tests per tots els models.
 
@@ -281,7 +302,8 @@ Una tasca = un fitxer, autònoma i descrivible.
 
 ```
 benchmark/run.py [opcions]
-  --models all|<llista>        # default: all (models/*.gguf)
+  --models all|<llista>        # default: all (models/*.gguf; amb --engine strata: strata-*.json)
+  --engine llama|strata         # motor que serveix el model (default: llama)
   --context fixed|adapted      # default: fixed (16384)
   --dims speed,tools,code,agent  # subset; default: totes
   --lang python,java,...       # filtra tasques de codi/agent per idioma

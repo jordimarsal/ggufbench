@@ -37,6 +37,11 @@ The harness shells out to system binaries; absence causes specific failures, not
 
 - `../llama-server` — the llama.cpp server (symlink to `../llama.cpp/build/bin/llama-server`). Path is
   fixed in `config.SERVER_BIN`; `--models all` globs `../models/*.gguf`.
+- **Strata** (second engine, `--engine strata`) — `../Strata/.venv` (created by its `setup.sh`;
+  `server.strata_python` prefers it because `serve/server.py` needs jinja2/numpy, which the system
+  Python has not) plus an installed `strata-<model>.json` config. Its stdout/stderr goes to
+  `/tmp/benchmark-strata-server-<port>.log`, never to /dev/null: an engine that dies at start has
+  to be diagnosable from the log alone.
 - Language toolchains for the **code** and **agent** dimensions: `python3`, `bash`, `javac`+`java`,
   and `bun` (TypeScript). The speed and tools dimensions don't need them.
 - Linux expected. The end-to-end smoke test is gated on `sys.platform` and auto-skips if no
@@ -61,6 +66,26 @@ The harness shells out to system binaries; absence causes specific failures, not
 - **Server readiness** (`server.py`) is probed via a real `/v1/chat/completions` call, **not**
   `/v1/models` (the latter answers before inference is ready). One model per run; fixed port (8999).
   A 3-shot warmup precedes measurement.
+- **Two engines (2026-10): `--engine llama` (default) vs `--engine strata`.** The llama path is
+  unchanged. The Strata path spawns `serve/server.py --engine strata --config strata-<model>.json
+  --port N` from `config.STRATA_DIR`; `--models` then resolves **config names** (`iq3_xxs` →
+  `strata-iq3_xxs.json`, `all` → every `strata-*.json`, explicit paths pass through). The HTTP
+  contract is shared — Strata serves a request with no `model` field and emits `timings` in
+  llama.cpp's names — so every grader is used unchanged. What differs:
+  - **The model thinks by default** (HIGH): with the tasks' `max_tokens` (128-512) it would spend
+    the budget reasoning and return nothing, so the client sends `config.STRATA_EXTRA_BODY`
+    (`chat_template_kwargs: enable_thinking=false`), the same policy as Strata's own
+    `bench/bench_vs_llama.py`.
+  - **Readiness**: `/health` must say `loaded` before the chat probe (otherwise the probes queue
+    behind a 34-43 GB load); ready timeout 600 s (`config.STRATA_READY_TIMEOUT`).
+  - **Lifecycle**: started with `start_new_session`, so `stop()` SIGTERMs and then kills the whole
+    process group — Strata's `engine/strata` child would otherwise outlive `serve/server.py` and
+    keep the VRAM. Strata's port defaults to 8080 (`config.STRATA_PORT`), `--port` overrides.
+  - **Identity in the pool**: `model` is the config stem (`strata-iq3_xxs`), which is also its slug
+    in the scoreboard, and the result carries `engine` plus `server_build` = Strata's engine version
+    from `strata/engine/BUILD.json`.
+- **Never both engines at once.** They compete for the same GPUs; a run only starts its own server,
+  but don't run a llama batch and a Strata batch concurrently.
 - **Code execution is sandboxed** in a fresh tempdir with `timeout 30s` and best-effort network
   isolation via `unshare -n` (silently skipped if user namespaces aren't permitted).
 - **Token-budget calibration.** Code tasks whose response has no extractable code block (a verbose
