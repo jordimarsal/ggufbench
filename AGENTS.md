@@ -120,6 +120,9 @@ model overwrites its previous entry rather than duplicating it. `--forget <model
 ## Workflow
 
 - `python3 -m benchmark.run --scoreboard` — read-only, reprints accumulated tables from the pool.
+- `python3 -m benchmark.html_report` — writes `results/report.html`, a self-contained (no JS,
+  no network) scoreboard page that reuses `report._scores`/`_global_score`; open it with
+  `xdg-open benchmark/results/report.html`.
 - `python3 -m benchmark.run --models <name>` — run one model, append to pool, print scoreboard.
 - `--dims`, `--lang`, `--quick` (1 task per dim, harness smoke), `-v` (per-task detail), `--json`
   (machine-readable pool dump) are all available; see `--help`.
