@@ -1,133 +1,152 @@
-# AGENTS.md
+# AGENTS.md — Navigation map for AI agents
 
-Local model benchmark for comparing `llama-server`-served models across 4 dimensions
-(speed, tools, code, agent) under identical conditions. Goal: pick the best model for opencode.
-Design spec lives in `docs/SPEC.md` (written in Catalan — code comments and task prompts are too;
-keep that language when editing task content).
+> This file is the **entry point** for any agent working in this repository.
+> It is NOT a rule bible — it is a **map**. Read only what you need, when you need it (progressive disclosure).
 
-## Run from the parent directory, not from here
+---
 
-`benchmark/` is a Python package (relative imports `from . import …`, tests do `from benchmark import …`).
-All commands run from `/home/jordi/ia/llama/`, one level up. Running from inside `benchmark/` fails with
-`ModuleNotFoundError: No module named 'benchmark'`.
+## 1. Before you start (mandatory)
 
-```sh
-# benchmark CLI
-python3 -m benchmark.run [opts]
+1. Run `harness/init.sh` and verify it finishes without errors. If it fails, **stop** and fix the environment before touching code.
+2. Read `harness/progress/current.md` to understand where the last session left off.
+3. Read `harness/feature_list.json`. ALL features follow **Spec Driven Development** — see §4 of this file.
+4. Read `docs/specs.md` before touching any spec or feature.
 
-# full test suite (stdlib unittest — no pytest in the project)
-python3 -m unittest discover -s benchmark/tests -t .
+## 2. Repository map
 
-# single test module (dotted path, not a file path)
-python3 -m unittest benchmark.tests.test_agent
+| File / folder               | What it contains                                                           | When to read it                  |
+|-----------------------------|-----------------------------------------------------------------------------|----------------------------------|
+| `harness/feature_list.json`         | Feature list with status (`pending` / `spec_ready` / `in_progress` / `done` / `blocked`) | Always, at start                 |
+| `harness/progress/current.md`       | Current session state                                                       | Always, at start                 |
+| `harness/progress/history.md`       | Append-only log of previous sessions                                        | When you need historical context |
+| `harness/specs/<feature>/`          | `requirements.md` + `design.md` + `tasks.md` (Kiro-style)                  | Before implementing any feature  |
+| `docs/architecture.md`      | What "doing a good job" means in this project                               | Before implementing              |
+| `docs/conventions.md`       | Style rules, naming, structure, and **Sonar/code-quality rules** (logging, resources, AssertJ, Docker) | Before writing code              |
+| `docs/specs.md`             | SDD process: EARS notation, 3 files, human approval gate                   | Before writing or reading a spec |
+| `docs/verification.md`      | How to verify your work works (including requirement traceability)          | Before marking a task as `done`  |
+| `harness/CHECKPOINTS.md`            | Objective criteria for "correct final state"                                | For self-assessment              |
+| `.opencode/agent/`           | Subagent definitions (`leader`, `spec-author`, `implementer`, `reviewer`)   | If you orchestrate work          |
+| `src/`                      | Application code                                                            | To implement                     |
+| `tests/`                    | Automated tests                                                             | To verify                        |
+| `docs/architecture-options.md` | Architecture pattern catalog (module: architecture-catalog) | When filling design.md Architectural Decisions |
+| `docs/iteration-protocol.md`   | Adaptive iteration + adversarial review protocol (module: iterative-refinement) | During implementer refinement rounds |
+| `docs/log-reader-protocol.md`  | Delegate big-log reading to a cheap read-only subagent + verify evidence (module: log-reader) | When a file under `harness/logs/` is too big to read in session |
+| `harness/tools/`               | Module tools: `audit-security.sh`, `bench.sh`, `scan.py` (if present) | On review (audits) or session start (scan) |
+| `harness/decisions/`           | ADRs worth remembering beyond a feature (if present) | Before proposing a new architectural decision |
+| `harness/wekan.json`           | Wekan ticket-mirror config (if present) | When syncing workflow state to the board |
 
-# single test method
-python3 -m unittest benchmark.tests.test_agent.TestMockEnv.test_read_write
+> Module files are conditional: if a file above exists, its module was installed —
+> follow it. If absent, ignore references to it.
+
+## 3. Hard rules (non-negotiable)
+
+- **One feature at a time.** Never pull a task from another feature into the same session; inside a feature, work in batches of 2–4 tasks (§4).
+- **Do not mark a task `done` without green tests.** Run `harness/init.sh` and ensure the test block passes 100%.
+- **Do not skip the spec phase.** Every feature must go through `spec-author` and obtain human approval before touching code.
+- **Do not skip the human approval gate.** The leader stops the flow at `spec_ready` and waits.
+- **Commits follow Conventional Commits** (`<type>(<scope>)!: <summary>`) — `.git/hooks/commit-msg` enforces it; `--no-verify` is not a way around the rule.
+- **Document what you do** in `harness/progress/current.md` while working, not at the end.
+- **Leave the repository clean** before closing the session (see §5).
+- **If you don't know something, look in `docs/`** before inventing it.
+
+<!-- harness:workflow:start -->
+## 4. Workflow (SDD — hybrid: one in-session agent, same gates)
+
+Same discipline as the full flow, executed by a single in-session agent. Roles
+become modes you play sequentially; evidence replaces dispatches. The two human
+gates are NOT negotiable — hybrid changes who executes, never who approves.
+
+```
+pending → [spec mode] → spec_ready → ⏈ HUMAN → in_progress → [batch mode → verify]×n → ⏈ HUMAN → done
 ```
 
-Python 3.12. A venv exists at `../.venv` but everything is pure stdlib (`urllib.request`, not
-`requests`/`httpx`); system `python3` works fine. There is no `requirements.txt`, `pyproject.toml`,
-or build/codegen step. The smoke test picks the **smallest servable main model** (≥1 GB, excluding
-mmproj/draft/embedding files) and **skips when a server is already listening on the harness port**
-(it cannot compete for VRAM with a running instance).
+1. **Spec mode.** Write `harness/specs/<name>/{requirements,design,tasks.md}`
+   exactly as `spec-author` would — follow `.opencode/agent/spec-author.md` as
+   a script. Mark the feature `spec_ready` and STOP for the human Spec Gate.
+2. **Batch mode.** After approval, implement one batch at a time (2–4
+   consecutive `T<n>` tasks), following `.opencode/agent/implementer.md`.
+   Never a whole feature in one sitting.
+3. **Evidence rule (the core of hybrid).** After every batch:
+   - run the gates yourself (`harness/init.sh` / TEST_CMD) and save the full
+     output to `harness/logs/<feature>/batch-<n>.log`;
+   - tick tasks `[x]` only with that log in place, referencing it in tasks.md;
+   - verify on disk: files present, no task done without green gates.
+   A claim without a log is not evidence — the rule the leader applies to
+   subagents, applied to yourself.
+4. **Review mode.** Before requesting the Completion Gate: run
+   `python3 harness/tools/check-traceability.py --feature <name>` (or `--all`
+   for the whole portfolio — never pass `feature_list.json` as a positional:
+   the tool treats it as `--root` and hard-rejects it with exit 2; a verdict
+   without per-feature `## <name>: n/n` lines is a vacuous PASS),
+   save its output to `harness/specs/<name>/review.md`, and walk
+   `.opencode/agent/reviewer.md` as a checklist. Reject your own work if any
+   `R<n>` lacks evidence.
+   - **Suite assertions stay relative to the manifest**: use `indexOf`
+     ordering or existence checks, never global positions or counts
+     («últim tema», «N kates») — appending new themes/files must not break
+     previous features' suites.
+5. **Escalate to the full dispatch flow when any of these hold:** the feature
+   has more than ~12 tasks; it touches files marked critical in
+   `docs/conventions.md`; a batch stalls twice; or verification is subjective
+   (no mechanical gate covers it). Then act as leader and dispatch a real
+   reviewer subagent — fresh context is the value you are trading away for
+   speed.
 
-## External runtime requirements
+Trade-off, stated plainly: hybrid trades independent-context review for
+velocity. The evidence logs and the traceability check are what keep that
+trade honest.
+<!-- harness:workflow:end -->
+## 5. Session lifecycle (closure)
 
-The harness shells out to system binaries; absence causes specific failures, not a clean skip:
+Before finishing:
 
-- `../llama-server` — the llama.cpp server (symlink to `../llama.cpp/build/bin/llama-server`). Path is
-  fixed in `config.SERVER_BIN`; `--models all` globs `../models/*.gguf`.
-- **Strata** (second engine, `--engine strata`) — `../Strata/.venv` (created by its `setup.sh`;
-  `server.strata_python` prefers it because `serve/server.py` needs jinja2/numpy, which the system
-  Python has not) plus an installed `strata-<model>.json` config. Its stdout/stderr goes to
-  `/tmp/benchmark-strata-server-<port>.log`, never to /dev/null: an engine that dies at start has
-  to be diagnosable from the log alone.
-- Language toolchains for the **code** and **agent** dimensions: `python3`, `bash`, `javac`+`java`,
-  and `bun` (TypeScript). The speed and tools dimensions don't need them.
-- Linux expected. The end-to-end smoke test is gated on `sys.platform` and auto-skips if no
-  `*.gguf` models are present, so `discover` passes on a bare checkout.
+1. Run `harness/init.sh` — all green.
+2. If the task is done: mark `status: "done"` in `harness/feature_list.json`.
+3. Move the summary from `harness/progress/current.md` to the end of `harness/progress/history.md`.
+4. Clear `harness/progress/current.md` leaving only the template.
+5. Do not leave temporary files, debug prints, or context-free TODOs.
 
-## Architecture notes that aren't obvious from filenames
+## 6. If you get stuck
 
-- **Package layout is flat.** Source modules (`run.py`, `server.py`, `client.py`, `executors.py`,
-  `graders.py`, `agent.py`, `tasks_loader.py`, `report.py`, `config.py`) sit directly at the package
-  root, not under `src/`.
-- **Tasks are data-as-code.** `tasks/<dim>/...` files are plain Python modules exporting module-level
-  constants (`ID`, `PROMPT`, `LANG`, `TEST_CODE`, `EXPECTED`, …). `tasks_loader.py` imports them
-  dynamically via `importlib`. Files starting with `_` or named `__init__.py` are skipped. `code/` and
-  `agent/` are nested one level per language (`python|bash|java|typescript`); `speed/` and `tools/` are
-  flat. Add a task by dropping in one such file — no registry to update. Note: the loader looks up
-  **uppercase** `ID`/`PROMPT` (lowercase silently falls back to defaults), and for the tools dimension
-  `TOOLS` must be a full OpenAI function schema (`{"type":"function","function":{...}}`) — the client
-  passes it straight to the API, so a shorthand like `{"name": ...}` is invalid. In `EXPECTED`, a
-  missing `arguments` key checks the **tool name only**; `arguments: {}` demands an argument-less
-  call (the old behaviour treated absence as "arguments must be absent", which made get_env/get_time
-  unwinnable for every model). The agent's `run_tests` locates the solution/test files
-  **case-insensitively** — java tasks name them `Solution.java`/`Test.java` because javac requires
-  file name == public class, and looking for `solution.java` exactly left the solution empty.
-- **Language strings are centralized** in `config.Lang` (a `str`-based enum, so `Lang.PYTHON == "python"`
-  and it interops with task-file strings). It backs the executor dispatch table in `executors.py` and
-  `Lang.exts()` (used by the agent's `run_tests`). Add a new language there, not as a bare string.
-- **Server readiness** (`server.py`) is probed via a real `/v1/chat/completions` call, **not**
-  `/v1/models` (the latter answers before inference is ready). One model per run; fixed port (8999).
-  A 3-shot warmup precedes measurement.
-- **Two engines (2026-10): `--engine llama` (default) vs `--engine strata`.** The llama path is
-  unchanged. The Strata path spawns `serve/server.py --engine strata --config strata-<model>.json
-  --port N` from `config.STRATA_DIR`; `--models` then resolves **config names** (`iq3_xxs` →
-  `strata-iq3_xxs.json`, `all` → every `strata-*.json`, explicit paths pass through). The HTTP
-  contract is shared — Strata serves a request with no `model` field and emits `timings` in
-  llama.cpp's names — so every grader is used unchanged. What differs:
-  - **The model thinks by default** (HIGH): with the tasks' `max_tokens` (128-512) it would spend
-    the budget reasoning and return nothing, so the client sends `config.STRATA_EXTRA_BODY`
-    (`chat_template_kwargs: enable_thinking=false`), the same policy as Strata's own
-    `bench/bench_vs_llama.py`.
-  - **Readiness**: `/health` must say `loaded` before the chat probe (otherwise the probes queue
-    behind a 34-43 GB load); ready timeout 600 s (`config.STRATA_READY_TIMEOUT`).
-  - **Lifecycle**: started with `start_new_session`, so `stop()` SIGTERMs and then kills the whole
-    process group — Strata's `engine/strata` child would otherwise outlive `serve/server.py` and
-    keep the VRAM. Strata's port defaults to 8080 (`config.STRATA_PORT`), `--port` overrides.
-  - **Identity in the pool**: `model` is the config stem (`strata-iq3_xxs`), which is also its slug
-    in the scoreboard, and the result carries `engine` plus `server_build` = Strata's engine version
-    from `strata/engine/BUILD.json`.
-- **Never both engines at once.** They compete for the same GPUs; a run only starts its own server,
-  but don't run a llama batch and a Strata batch concurrently.
-- **Code execution is sandboxed** in a fresh tempdir with `timeout 30s` and best-effort network
-  isolation via `unshare -n` (silently skipped if user namespaces aren't permitted).
-- **Token-budget calibration.** Code tasks whose response has no extractable code block (a verbose
-  model truncated mid-block) are retried with a larger `max_tokens` ladder
-  (`CODE_LADDER` in `graders.py`). The budget that worked for each (model, lang, task) is persisted
-  to `results/token_budgets.json` (gitignored) via `token_budget.py`, so later runs use it directly
-  instead of re-escalating. Keys are per-model; deleting the file forces a fresh calibration.
-- **Per-model server config (2026-10)**: `models/<model>.txt` is applied **last** in
-  `server.build_args` and may override the baseline (same convention as `bin/start-dev-ai.sh`;
-  `#` comments and blank lines are skipped). Dedup is automatic: a `-c`/`--ctx-size` in the .txt
-  drops the harness `-c`; a `--cache-type-k/v` drops the matching baseline one; infra flags
-  (`-m`, `--port`, `--host`) are filtered out. Speculation (`--spec-type draft-mtp`/`draft-dflash`),
-  `-md`, and `--mmproj` pass through as written — models compete with their real best config.
-  Applied flags are printed to stderr at server start and stored in results as
-  `model_config_flags`.
-- **Baseline flags** live in `config.SERVER_FLAGS` (+ `config.CACHE_FLAGS` for the q4_0 KV cache;
-  split out so the .txt can override one side without duplicate-flag warnings). Context mode
-  `--context fixed` (default, 16384) vs `adapted` only applies when the .txt doesn't set `-c`.
+- Re-read the relevant section of `docs/`.
+- If a tool doesn't behave as expected, **do not invent a workaround**: document the block in `harness/progress/current.md` and stop the session.
 
-## Results storage
+<!-- harness:project:start -->
+## Project: banc de proves local de models (llama.cpp + Strata)
 
-`report.save_result` does an **upsert by slug** on `results/models/pool.jsonl` — re-running a
-model overwrites its previous entry rather than duplicating it. `--forget <model>` rewrites
-`pool.jsonl` without that model. Per-run JSON snapshots are appended to
-`results/runs/<ts>-<slug>.json` (history). Both directories are gitignored.
+Compara models locals servits per **llama-server** (GGUF, port 8999) o **Strata**
+(`--engine strata`, config `strata-<nom>.json`, port 8080) en 4 dimensions — speed,
+tools, code, agent — per escollir el millor model per a opencode.
+Disseny: `docs/SPEC.md` · pla de millora: `docs/MILLORA.md` · arquitectura:
+`docs/architecture.md`.
 
-## Workflow
+### Comandes — SEMPRE des de l'arrel del workspace (`/home/jordi/ia/llama/`)
 
-- `python3 -m benchmark.run --scoreboard` — read-only, reprints accumulated tables from the pool.
-- `python3 -m benchmark.html_report` — writes `results/report.html`, a self-contained (no JS,
-  no network) scoreboard page that reuses `report._scores`/`_global_score`; open it with
-  `xdg-open benchmark/results/report.html`.
-- `python3 -m benchmark.run --models <name>` — run one model, append to pool, print scoreboard.
-- `--dims`, `--lang`, `--quick` (1 task per dim, harness smoke), `-v` (per-task detail), `--json`
-  (machine-readable pool dump) are all available; see `--help`.
-- Weights default to `{tools:0.30, code:0.30, agent:0.25, speed:0.15}` in `config.py`; override via
-  `--weights tools=0.3,…`.
-- Progress (server start, warmup, per-task results, per-model ✓/✗) is streamed to **stderr** as it
-  happens; only the final scoreboard — or the JSON dump with `--json` — goes to **stdout**. So
-  `run --json > out.json` keeps stdout clean while still showing live progress on the terminal.
+El paquet s'importa com a `benchmark`; executar des de dins del directori falla amb
+`ModuleNotFoundError`. Notes: el repo git ÉS `benchmark/`; els servidors i els models
+(40+ GB) viuen fora.
+
+```sh
+python3 -m unittest discover -s benchmark/tests -t .    # suite sencera (~6 s, SENSE GPU)
+python3 -m benchmark.run --scoreboard                   # marcador acumulat (read-only)
+python3 -m benchmark.run --models <nom> [--quick]       # run llama (arrenca el servidor sol)
+python3 -m benchmark.run --engine strata --models iq3_xxs [--quick]
+python3 -m benchmark.html_report                        # escriu benchmark/results/report.html
+```
+
+### Regles no negociables
+
+1. **Mai llama-server i Strata alhora** (mateixes GPU, 2× RTX 5080). El harness arrenca
+   i atura el servidor ell mateix (`ServerManager`, killpg inclòs): no en facis córrer
+   cap manualment durant una run.
+2. **Cap canvi de tasques, pesos o flags base sense re-mesura del pool** (upsert per
+   slug a `results/models/pool.jsonl`; històric a `results/runs/`).
+3. **Una tasca = un fitxer** a `tasks/<dim>/...` (constants MAJÚSCULES; el loader llegeix
+   `ID`/`PROMPT` en majúscules). `EXPECTED` sense `arguments` = només nom de tool;
+   `arguments: {}` = crida buida. L'agent resol fitxers case-insensitive (java:
+   `Solution.java`).
+4. **Perfil per model:** `models/<model>.txt` (flags lliures excepte infra). Strata: una
+   config per model a `Strata/strata-<nom>.json`, python del SEU `.venv`.
+5. Els resultats de Strata identifiquen el model per l'arrel del config
+   (`strata-iq3_xxs`) i porten `engine` + `server_build`.
+<!-- harness:project:end -->

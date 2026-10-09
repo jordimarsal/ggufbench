@@ -4,3 +4,4 @@ results/runs/
 results/models/
 results/token_budgets.json
 results/report.html
+harness/backup/

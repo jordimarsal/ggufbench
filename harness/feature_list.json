@@ -1,0 +1,41 @@
+{
+  "project": {
+    "name": "benchmark",
+    "parallel": false,
+    "modules": ["performance-benchmarks", "decision-memory"],
+    "audit_level": "basic",
+    "workflow": "hybrid",
+    "harness_version": "v0.8.0",
+    "architecture": ""
+  },
+  "features": [
+    {
+      "id": 1,
+      "name": "hard_code_tier",
+      "title": "Nivell hard de tasques de codi per trencar el sostre del 100%",
+      "description": "Avui totes les tasques de code són trivials (bubble_sort, fibonacci...) i tots els models seriosos fan 84-100%: la dimensió amb més pes (0.30) no discrimina. Aquesta feature afegeix un nivell 'hard' a tasks/code/<lang>/ — tasques d'arreglar/optimitzar/implementar codi real — filtrable amb --level, sense tocar les fàcils (que segueixen sent el smoke).",
+      "acceptance": [
+        "R1: >= 4 tasques hard per llengua (python, bash, java, typescript) amb ID acabat en _hard, cada una amb TEST_CODE executable en sandbox",
+        "R2: tasks_loader agrupa per level (easy|hard) i run.py --level filtra sense trencar --quick ni --dims",
+        "R3: les tasques hard NO alteren el score de les fàcils: un model amb --level easy dóna el mateix resultat que avui",
+        "R4: suite unittest verda amb nous tests del loader i del CLI (patró test_tasks_loader.py / test_run_cli.py)",
+        "R5: docs (SPEC §tasques, AGENTS.md) actualitzats amb la convenció del nivell hard"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": 2,
+      "name": "remeasure_pool",
+      "title": "Re-mesura de tot el pool amb el harness arreglat + nivell hard",
+      "description": "El pool barreja condicions: els 10 models llama van córrer amb dues tasques impossibles (get_env/get_time) i l'agent java trencat (Solution.java, 0.00 per a tots); Strata hi és mesurat post-fix (0.96 al pool de verificació). Cal re-executar --models all (incloent strata-iq3_xxs) amb el mateix harness per tenir un marcador homogeni, i regenerar report.html sense banner de condicions barrejades.",
+      "acceptance": [
+        "R1: tots els models del pool (10 llama + strata-iq3_xxs) re-mesurats amb el mateix harness i mateixa suite",
+        "R2: cap entrada amb les velles tasques impossibles: get_env/get_time passables i agent java resolvable per a tots",
+        "R3: el pool nou només conté entrades de la mateixa data/harness; el banner de condicions barrejades de report.html desapareix",
+        "R4: scoreboard i report.html regenerats i coherents amb el pool nou (mateixa matemàtica de report.py)",
+        "R5: les runs es fan sense cap altre servidor a les GPU (mai llama i Strata alhora)"
+      ],
+      "status": "pending"
+    }
+  ]
+}
