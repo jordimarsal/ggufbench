@@ -80,8 +80,14 @@ def grade_tools(client_mod, tasks, max_turns=6, on_task=None):
             passed = got is None
             detail = "correctly did not call a tool" if passed else f"unexpected call: {got}"
         else:
+            # 'arguments' absent a EXPECTED -> només es comprova el nom de la tool:
+            # l'autor de la tasca no els fixa (get_env demana 'qualsevol variable').
+            # Exigir-los absents era impossible quan l'schema els marca required i
+            # cap model ho havia passat mai. 'arguments': {} sí que exigeix una
+            # crida sense cap argument.
             passed = (got is not None and got.get("name") == exp.get("name")
-                      and _args_equal(got.get("arguments"), exp.get("arguments")))
+                      and ("arguments" not in exp
+                           or _args_equal(got.get("arguments"), exp["arguments"])))
             detail = f"got={got} expected={exp}"
         results.append({"id": t["id"], "passed": passed, "detail": detail[:160]})
         if on_task:

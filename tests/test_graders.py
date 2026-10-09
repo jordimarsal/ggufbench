@@ -31,6 +31,25 @@ class TestToolsGrader(unittest.TestCase):
         resp = {"choices":[{"finish_reason":"stop","message":{"content":"hola!"}}]}
         r = graders.grade_tools(FakeClient([resp]), tasks)
         self.assertEqual(r["score"], 1.0)
+    def test_expected_without_arguments_checks_name_only(self):
+        # EXPECTED sense clau 'arguments': només es comprova el nom. Abans, la
+        # absència exigia arguments ABSENTS i cap model ho passava (get_env demana
+        # 'qualsevol variable' amb var_name required a l'schema: impossible).
+        tasks = [{"id":"get_env","prompt":"x","tools":[],
+                  "expected":{"name":"get_env"}}]
+        resp = {"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[
+            {"function":{"name":"get_env","arguments":'{"var_name":"PATH"}'}}]}}]}
+        r = graders.grade_tools(FakeClient([resp]), tasks)
+        self.assertEqual(r["score"], 1.0)
+    def test_expected_empty_arguments_still_strict(self):
+        # 'arguments': {} segueix exigint una crida sense arguments: una crida
+        # amb arguments no és igual que una de buida.
+        tasks = [{"id":"get_time","prompt":"x","tools":[],
+                  "expected":{"name":"get_time","arguments":{}}}]
+        resp = {"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[
+            {"function":{"name":"get_time","arguments":'{"tz":"UTC"}'}}]}}]}
+        r = graders.grade_tools(FakeClient([resp]), tasks)
+        self.assertEqual(r["score"], 0.0)
 
 class TestCodeGrader(unittest.TestCase):
     def test_extract_and_run(self):
