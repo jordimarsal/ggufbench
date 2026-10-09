@@ -31,10 +31,35 @@ SERVER_FLAGS = [
     "--repeat-penalty", "1.1",
     "--repeat-last-n", "256",
     "--seed", str(SEED),
-    "--cache-type-k", "q4_0",
-    "--cache-type-v", "q4_0",
     "--host", "127.0.0.1",
 ]
+
+# Cache KV separada de SERVER_FLAGS perquè models/<model>.txt la pot
+# sobreescriure (aleshores cal no duplicar el flag: llama-server avisa).
+CACHE_FLAGS = ["--cache-type-k", "q4_0", "--cache-type-v", "q4_0"]
+
+def load_model_config_args(model_path) -> list:
+    """Llegeix models/<model>.txt: flags extra del servidor, un per línia,
+    mateixa convenció que bin/start-dev-ai.sh (on també s'apliquen al final).
+
+    - Salta línies buides i comentaris (# ...).
+    - Continuació de línia amb \\ final, com al script shell.
+    - No filtra res: el filtratge de flags d'infraestructura (port, host, model)
+      és feina de server.build_args, que sap com connecta el harness."""
+    txt = Path(model_path).with_suffix(".txt")
+    if not txt.is_file():
+        return []
+    args = []
+    for line in txt.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.endswith("\\"):
+            line = line[:-1].rstrip()
+            if not line or line.startswith("#"):
+                continue
+        args.extend(line.split())
+    return args
 
 WEIGHTS = {"tools": 0.30, "code": 0.30, "agent": 0.25, "speed": 0.15}
 

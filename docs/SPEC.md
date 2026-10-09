@@ -16,12 +16,24 @@ Benchmark automàtic per comparar models locals (servits per `llama-server`) sot
 
 L'objectiu final és triar el millor model per a **opencode** (agent programador).
 
-## 2. Principi: "mateixes condicions"
+## 2. Principi: "mateixes condicions" (revisat 2026-10: baselines comunes + perfil per model)
 
-- **Flags fixos** per tots els models (extrets de `start-dev-ai.sh`):
+- **Flags comuns** per tots els models (baseline a `config.SERVER_FLAGS`):
   `temp 0.2`, `top-p 0.95`, `seed 42`, `repeat-penalty 1.1`, `-ngl 999`,
-  `--flash-attn auto`, `--no-mmap`, `--jinja`, cache KV `q4_0/q4_0`, `--parallel 1`.
-- **Context (`-c`)**: dos modes via flag `--context`:
+  `--flash-attn auto`, `--no-mmap`, `--jinja`, cache KV `q4_0/q4_0`
+  (`config.CACHE_FLAGS`), `--parallel 1`.
+- **Perfil per model**: `models/<model>.txt` s'aplica AL FINAL i pot
+  sobreescriure el baseline (mateixa convenció que `start-dev-ai.sh`; els
+  comentaris `#` es salten). Dedup automàtic: si el `.txt` defineix
+  `-c`/`--ctx-size` fora el `-c` del harness; si defineix `--cache-type-k/v`
+  fora el corresponent comú. Flags d'infraestructura (`-m`, `--port`,
+  `--host`) es filtren: els fixa el harness. MTP/DFlash (`--spec-type`,
+  `-md`, `--mmproj`) sí que arriben tal com els tinguis al `.txt` — els
+  models competeixen amb la seva millor configuració real, no en laboratori.
+  Els flags aplicats es mostren a stderr i queden registrats al resultat
+  (`model_config_flags`) per saber com es va mesurar cada model.
+- **Context (`-c`)**: dos modes via flag `--context` (només si el `.txt`
+  no el defineix):
   - `fixed` (default): `16384` per tots → KV igual → velocitats comparables.
   - `adapted`: el context viable de cada model (llògica de `start-dev-ai.sh`).
 - `--tensor-split` sí adapta (multi-GPU, proporció de VRAM lliura).
@@ -174,7 +186,7 @@ qwen3-vl-8b                        100%  50%   0% 100%         50%  —   0% 100
 ```
 Cel·la `—` = sense tasques d'aquell idioma per aquella dimensió.
 
-**Taula 3 — Detall per tasca** (amb `--verbose` / `-v`):
+**Taula 3 — Detall de tasca** (amb `--task`):
 ```
 MODEL            DIM     LANG   TASK              PASS   DETALL
 qwen3-14b        tools   —      multi-arg         ✓      get_weather(city=Paris)
@@ -183,6 +195,15 @@ qwen3-14b        agent   py     fix-bug-fib       ✓      tests pass (2/2)
 qwen3-vl-8b      code    java   implementa-stack  ✗      no code block found
 ...
 ```
+
+**Nivells de granularitat** (`report.render(level=...)`, `run.py --info/--verbose/--task`):
+- **default**: Taula 1 (scores globals) + secció de tokens per segon.
+- **`--info`**: Taula 1 + Taula 3 (detall de tasca). Respon "en què cada model és bo/malament" mostrant ✓/✗ i el detall de cada tasca de tools/code/agent.
+- **`--verbose` (-v)**: Taula 1 + Taula 2 (per llenguatge). NO inclou el detall de tasca; és el nivell més fi sense per-tasca.
+- **`--task`**: afegix el detall de tasca (Taula 3) a qualsevol nivell. La granularitat es composa: es pot combinar `--verbose` (per-llenguatge) amb `--task` per tenir Taula 1 + Taula 2 + Taula 3.
+
+El render és tolerant: un model sense una dimensió o sans trace (run parcial o models
+que encara no tenen aquesta granularitat) no falla; les cells bueres es mostren `—`.
 
 **JSON + emmagatzematge incremental** — les taules creixen model a model sense
 re-executar els altres. Dues capes:
@@ -193,8 +214,10 @@ re-executar els altres. Dues capes:
 
 Cada resultat porta metadata de condicions per poder barregar runs de forma
 justa: `context_mode`, `tasks_version` (hash de la suite), `weights`, `ts`,
-`server_build` (versió de llama.cpp). El scoreboard avisa (o filtra) si es
-barregen resultats amb condicions diferents.
+`server_build` (versió de llama.cpp) i `model_config_flags` (flags extrets de
+`models/<model>.txt`, o null — recorda que des de 2026-10 cada model corre amb
+el seu perfil). El scoreboard avisa (o filtra) si es barregen resultats amb
+condicions diferents.
 
 El JSON per model és:
 ```json
@@ -263,7 +286,9 @@ benchmark/run.py [opcions]
   --dims speed,tools,code,agent  # subset; default: totes
   --lang python,java,...       # filtra tasques de codi/agent per idioma
   --quick                      # 1 tasca per dimensió (smoke test del harness)
-  -v, --verbose                # mostra la Taula 3 (detall per tasca)
+   -v, --verbose                # Taula 1 + per-llenguatge (Taula 2); NO inclou tasques
+   --task                       # Taula 3 (detall de tasca): mostra on acerta/falla cada model; es composa amb --verbose
+   --info                       # Taula 1 + Taula 3 (detall de tasca)
   --scoreboard                 # NOMÉS mostra les taules acumulades (sense executar res)
   --forget <model>             # esborra un model del pool
   --json                       # només escup el JSON final (per scripts)

@@ -3,6 +3,7 @@ import datetime
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 from . import config, server as S, client as C, graders as G, tasks_loader as T, report as R
 
@@ -18,11 +19,32 @@ def parse_weights(s):
 
 
 def resolve_models(spec):
+    """all -> glob del directori de models. Altrament, cada item (separat per
+    comes) pot ser:
+      - un camí existent (s'usa tal qual),
+      - un nom de fitxer curt o parcial ('Ornith-...APEX-MTP-Quality[.gguf]'),
+        que es resol contra models/*.gguf (mateix esperit que --forget);
+        si coincideix amb més d'un fitxer, s'avisa i s'ignora (ambigu),
+      - un camí inexistent: passa tal qual i llama-server en donarà l'error."""
     if spec == "all":
         return sorted(str(p) for p in config.MODELS_DIR.glob("*.gguf"))
     if isinstance(spec, str):
-        spec = [x.strip() for x in spec.split(",")]
-    return spec
+        spec = [x.strip() for x in spec.split(",") if x.strip()]
+    resolved = []
+    for item in spec:
+        if Path(item).is_file():
+            resolved.append(item)
+            continue
+        matches = sorted(config.MODELS_DIR.glob(f"*{item}*"))
+        if len(matches) == 1:
+            resolved.append(str(matches[0]))
+        elif len(matches) > 1:
+            names = ", ".join(m.name for m in matches)
+            print(f"⚠️  '{item}' és ambigu ({names}); cap coincidència única, s'ignora",
+                  file=sys.stderr, flush=True)
+        else:
+            resolved.append(item)
+    return resolved
 
 
 def warmup(client_mod, model_url, n=3):
@@ -78,7 +100,8 @@ def _bench_one(model_path, pool, dims, lang_filter, port, quick=False):
         times = warmup(c, model_url, n=3)
         result = {"model": model_path, "ts": datetime.datetime.now().isoformat(timespec="seconds"),
                   "context_mode": "fixed", "tasks_version": "v1",
-                  "server_build": _server_build(), "warmup_times": times}
+                  "server_build": _server_build(), "warmup_times": times,
+                  "model_config_flags": S.describe_config(model_path)}
         lf = set(lang_filter) if lang_filter else None
         if "speed" in dims:
             result["speed"] = G.grade_speed(c, _limit(T.load("speed"), quick), on_task=_print_task)
@@ -111,7 +134,8 @@ def _server_build():
 
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="benchmark")
-    ap.add_argument("--models", default="all")
+    ap.add_argument("--models", default="all",
+                    help="all | camí .gguf | nom (curt o parcial) — separats per comes")
     ap.add_argument("--context", default="fixed", choices=["fixed", "adapted"])
     ap.add_argument("--dims", default="speed,tools,code,agent")
     ap.add_argument("--lang", default=None)
@@ -150,6 +174,9 @@ def main(argv=None):
     dims = [d.strip() for d in args.dims.split(",") if d.strip()]
     lang_filter = args.lang.split(",") if args.lang else None
     models = resolve_models(args.models)
+    if not models:
+        print("cap model a executar (revisa --models)", file=sys.stderr, flush=True)
+        return
     for mp in models:
         try:
             res = _bench_one(mp, [], dims, lang_filter, args.port, quick=args.quick)

@@ -1,8 +1,10 @@
 import subprocess
+import sys
 import time
 import urllib.error
 import urllib.request
 import json
+from pathlib import Path
 
 from . import config
 
@@ -17,13 +19,61 @@ def resolve_context(context_mode, model_path=None):
     return 8192
 
 
+# Flags d'infraestructura del harness: els connecta run.py/client.py i el .txt
+# del model no els pot canviar (un --port diferent trencaria el ready-check).
+_INFRA_FLAGS = {"-m", "--model", "--port", "--host"}
+
+
+def _strip_infra(args):
+    """Treu --port/--host/-m/--model d'una llista de flags ( formes '--flag valor'
+    i '--flag=valor')."""
+    out, skip = [], False
+    for a in args:
+        if skip:
+            skip = False
+            continue
+        name = a.split("=", 1)[0]
+        if name in _INFRA_FLAGS:
+            if "=" not in a:
+                skip = True  # el valor va com a token separat: salta'l
+            continue
+        out.append(a)
+    return out
+
+
+def _has_flag(args, *names):
+    """True si args conté qualsevol dels flags (forma '--flag' o '--flag=...')."""
+    return any(a.split("=", 1)[0] in names for a in args)
+
+
 def build_args(model_path, context_mode, port):
-    ctx = resolve_context(context_mode, model_path)
-    return [config.SERVER_BIN,
-            "-m", str(model_path),
-            "-c", str(ctx),
-            "--port", str(port),
-            *config.SERVER_FLAGS]
+    """Composa la línia de comandes del servidor.
+
+    Politica 'tal com corre a casa': els flags per defecte (SERVER_FLAGS +
+    CACHE_FLAGS) donen el baseline, i models/<model>.txt s'aplica AL FINAL
+    (mateixa convenció que bin/start-dev-ai.sh), així que pot sobreescriure'ls.
+    Duplicats controlats:
+      - .txt amb -c/--ctx-size  -> fora el -c del harness
+      - .txt amb --cache-type-k/v -> fora el corresponent de CACHE_FLAGS
+      - la resta (--spec-type, -md, --mmproj, ...) simplement s'afegeixen."""
+    extra = _strip_infra(config.load_model_config_args(model_path))
+    args = [str(config.SERVER_BIN), "-m", str(model_path)]
+    if not _has_flag(extra, "-c", "--ctx-size"):
+        args += ["-c", str(resolve_context(context_mode, model_path))]
+    args += ["--port", str(port), *config.SERVER_FLAGS]
+    if not _has_flag(extra, "--cache-type-k"):
+        args += [config.CACHE_FLAGS[0], config.CACHE_FLAGS[1]]
+    if not _has_flag(extra, "--cache-type-v"):
+        args += [config.CACHE_FLAGS[2], config.CACHE_FLAGS[3]]
+    args += extra
+    return args
+
+
+def describe_config(model_path):
+    """Descripció llegible dels flags que aporta models/<model>.txt (per al
+    progrés a stderr). None si el model no en té."""
+    extra = config.load_model_config_args(model_path)
+    return " ".join(extra) if extra else None
 
 
 class ServerManager:
@@ -35,6 +85,10 @@ class ServerManager:
 
     def start(self):
         args = build_args(self.model_path, self.context_mode, self.port)
+        extra = describe_config(self.model_path)
+        if extra:
+            print(f"  config {Path(self.model_path).stem}.txt: {extra}",
+                  file=sys.stderr, flush=True)
         self.proc = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return self.proc
 

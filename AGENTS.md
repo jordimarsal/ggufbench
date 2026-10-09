@@ -27,7 +27,9 @@ python3 -m unittest benchmark.tests.test_agent.TestMockEnv.test_read_write
 
 Python 3.12. A venv exists at `../.venv` but everything is pure stdlib (`urllib.request`, not
 `requests`/`httpx`); system `python3` works fine. There is no `requirements.txt`, `pyproject.toml`,
-or build/codegen step.
+or build/codegen step. The smoke test picks the **smallest servable main model** (≥1 GB, excluding
+mmproj/draft/embedding files) and **skips when a server is already listening on the harness port**
+(it cannot compete for VRAM with a running instance).
 
 ## External runtime requirements
 
@@ -66,10 +68,17 @@ The harness shells out to system binaries; absence causes specific failures, not
   (`CODE_LADDER` in `graders.py`). The budget that worked for each (model, lang, task) is persisted
   to `results/token_budgets.json` (gitignored) via `token_budget.py`, so later runs use it directly
   instead of re-escalating. Keys are per-model; deleting the file forces a fresh calibration.
-- **Same conditions by design**: fixed server flags in `config.SERVER_FLAGS` (temp 0.2, top-p 0.95,
-  seed 42, repeat-penalty 1.1, q4_0 KV cache, `-ngl 999`, `--jinja`). Context mode `--context
-  fixed` (default, 16384 for all) vs `adapted`. Don't change these casually — comparability across
-  models depends on them.
+- **Per-model server config (2026-10)**: `models/<model>.txt` is applied **last** in
+  `server.build_args` and may override the baseline (same convention as `bin/start-dev-ai.sh`;
+  `#` comments and blank lines are skipped). Dedup is automatic: a `-c`/`--ctx-size` in the .txt
+  drops the harness `-c`; a `--cache-type-k/v` drops the matching baseline one; infra flags
+  (`-m`, `--port`, `--host`) are filtered out. Speculation (`--spec-type draft-mtp`/`draft-dflash`),
+  `-md`, and `--mmproj` pass through as written — models compete with their real best config.
+  Applied flags are printed to stderr at server start and stored in results as
+  `model_config_flags`.
+- **Baseline flags** live in `config.SERVER_FLAGS` (+ `config.CACHE_FLAGS` for the q4_0 KV cache;
+  split out so the .txt can override one side without duplicate-flag warnings). Context mode
+  `--context fixed` (default, 16384) vs `adapted` only applies when the .txt doesn't set `-c`.
 
 ## Results storage
 

@@ -64,5 +64,45 @@ class TestParseWeights(unittest.TestCase):
         self.assertEqual(run._limit(tasks, True), [{"id": "a"}])
         self.assertEqual(run._limit(tasks, False), tasks)
 
+class TestResolveModelsResolution(unittest.TestCase):
+    """--models ha d'acceptar noms curts/parcials, no només camins complets."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.old_dir = run.config.MODELS_DIR
+        run.config.MODELS_DIR = self.tmp
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp)
+        run.config.MODELS_DIR = self.old_dir
+
+    def test_resolves_bare_name_without_extension(self):
+        gguf = self.tmp / "Ornith-1.5-35B-A3B-APEX-MTP-Quality.gguf"
+        gguf.write_bytes(b"x")
+        self.assertEqual(run.resolve_models("Ornith-1.5-35B-A3B-APEX-MTP-Quality"),
+                         [str(gguf)])
+
+    def test_resolves_partial_name(self):
+        (self.tmp / "abc-one.gguf").write_bytes(b"x")
+        self.assertEqual(run.resolve_models("abc"), [str(self.tmp / "abc-one.gguf")])
+
+    def test_ambiguous_name_warns_and_skips(self):
+        for n in ("abc-one.gguf", "abc-two.gguf"):
+            (self.tmp / n).write_bytes(b"x")
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.assertEqual(run.resolve_models("abc"), [])
+        self.assertIn("ambigu", err.getvalue())
+
+    def test_existing_path_passthrough(self):
+        f = self.tmp / "real.gguf"
+        f.write_bytes(b"x")
+        self.assertEqual(run.resolve_models(str(f)), [str(f)])
+
+    def test_nonexistent_passthrough(self):
+        # camí inexistent: passa tal qual (llama-server en donarà l'error clar)
+        self.assertEqual(run.resolve_models("inexistent.gguf"), ["inexistent.gguf"])
+
+
 if __name__ == "__main__":
     unittest.main()
