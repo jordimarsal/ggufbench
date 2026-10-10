@@ -3,80 +3,52 @@
 > This file is cleared on session close and moved to `history.md`.
 > Keep it updated in real time while you work — not at the end.
 
-- **Feature in progress:** discriminative_tasks (id 5, in_progress) — i després remeasure_pool (id 2, blocked → in_progress)
+- **Feature in progress:** thinking_batches (id 6, spec_ready — Spec Gate humà pendent)
 - **Started:** 2026-10-10
-- **Agent:** hybrid (un agent, rols sequencials)
+- **Agent:** hybrid (un agent, rols sequencials; ara en mode spec-author)
 
 ## Plan
 
-- Implementar `discriminative_tasks` per batches T1-T10 (spec aprovada al Spec Gate 2026-10-10).
-- Un cop T8 (estructural) verd: desbloquejar `remeasure_pool` i executar la re-mesura completa (llama batch → Strata) — d'aquesta run en surt l'evidència del fum de discriminació (R5).
-- T10: docs (SPEC, AGENTS.md), traçabilitat, review.md → demanar Completion Gate de feature 5; després tancar remeasure_pool (T2-T5).
+- Spec de `thinking_batches` escrita (requirements R1-R7 EARS + design amb 4 ADRs +
+  tasks T1-T7) → `spec_ready`. STOP al Spec Gate humà.
+- Després de l'aprovació: implementar per batches (T1+T2, T3+T4, T5+T6, T7) amb
+  evidències a `harness/logs/thinking_batches/` → Completion Gate.
+- Després del gate: `remeasure_pool` → `in_progress` i doble re-mesura (think/no-think).
 
 ## Log
 
-- T1-T3 (batch-1.log): loader `_expert` → level; `--level easy|hard|expert`; `EXTRA_FILES` als 4 runners (java compila tots els `.java`) + validació de noms plans al loader; `tasks_version = "v3"`; by_level/report amb expert.
-- T4 (batch-2.log): tasques expert python — `vault_engine_expert` (mòdul), `metrics_debug_expert` (debug 3 errors), `readings_etl_expert` (dades + `readings.csv`). Fix test: `3 × 2.25 = 6.75` (revenue 96.65); apòstrof trencat al TEST_CODE de vault.
-- T5 (batch-3.log): tasques expert bash — `num_report_expert`, `log_filter_debug_expert`, `access_agg_expert`. Aprenentatge: `LC_NUMERIC=ca_ES.UTF-8` → coma decimal; el prompt exigeix punt i el ref força `LC_ALL=C`.
-- T6 (batch-4.log): tasques expert java — `interval_codec_expert`, `ledger_debug_expert` (3 errors aïllats amb instància per error al test), `csv_index_expert`.
-- T7 (batch-5.log): tasques expert typescript — `proc_registry_expert`, `event_debug_expert`, `jsonl_agg_expert`. Fix test: stats s'ha de fer amb `max=3` abans de retallar.
-- T8 (batch-6.log): `tests/test_expert_tasks.py` (>=3 per llengua, fixtures, context enganxat).
-- Validació d'autor de les 12: ref=OK i partial=falla al tercer comportament a `harness/logs/discriminative_tasks/author-validation.log` (solucions a /tmp, NO es commiten).
-- Registre a `feature_list.json`: la comanda del checkpoint anterior havia caigut — feature 5 afegida (in_progress) i `remeasure_pool` → `blocked` (coherent amb blocked.md). `validate-feature-list.py` OK.
-- Provisori: `feature_list.json` + specs + tasques encara sense commit.
-- **T9 (fum R5):** llançat amb `--dims code --level expert` sobre 2 models (27B fort vs
-  8B feble) → `harness/logs/discriminative_tasks/smoke-r5.log`. Motiu: el validator
-  prohibeix 2 features `in_progress` a la vegada, així que la re-mesura completa queda
-  per a remeasure_pool un cop discriminative_tasks tanqui el Completion Gate (el
-  `blocked.md` ja ho documenta); el fum R5 (≥2 models) és el que necessita la feature 5.
-  **Intent 1 (`--dims code`) va fallar**: sense `speed` no hi ha `gen_tps` →
-  `code_timeout` = 90 s fixes → les tasques expert timeouteen
-  (`smoke-r5-attempt1.log`; defecte D6 de MILLORA, afegit avui). Intent 2 amb
-  `--dims speed,code` (mateixa cadena `gen_tps` que la re-mesura real).
-  Nota: el pkill de l'intent 1 va deixar un `llama-server` orfe (kill abrupte → el
-  `finally: sm.stop()` no va netejar) — matat a mà; en matar una run, verificar que el
-  servidor cau.
-  Després del fum: restaurar `pool.jsonl` des de `pool.pre-remeasure.jsonl` per no
-  deixar el pool barrejat (condicions homogènies documentades a blocked.md).
-- **T10 (docs, feta):** SPEC.md CLI `--level easy|hard|expert`; `tasks_version` documentat
-  com a etiqueta v1/v2/v3 (abans deia "hash"); `by_level` al example JSON de code;
-  AGENTS.md regla 3 ampliada (nivell expert, EXTRA_FILES, v3).
-- Pròxim: acabar T9 (extreure gap ≥20 pts del fum → test mecànic + tick), `impl_discriminative_tasks.md`
-  (R1-R6 fets, R5 = test sobre el log del fum, R7 = retired), check-traceability → review.md,
-  batch-7.log + tick T10 → demanar Completion Gate.
-- **Fet després (sessió 10-oct, "continua"):** test R7 `test_r7_retired_no_efficiency_dimension`
-  (test_config.py, verd); `impl_discriminative_tasks.md` escrit (R1-R4/R6/R7 done, R5 pending);
-  `check-traceability --feature discriminative_tasks` → **7/7 PASS**; `tests/test_smoke_evidence.py`
-  + `/tmp/opencode/extract_r5.py` (log → `smoke-r5.md` versionable) llestos i provats amb mostra
-  sintètica. Fum intent 2 en curs (27B: 1/12 ✓ log_filter_debug, 3× `no code block`).
-  **Pendent del fum:** generar `smoke-r5.md`, verificar gap, tick T9, `init.sh` → batch-7.log,
-  tick T10, review.md + verdict, commit (`docs`+`tests`) i **Completion Gate**.
-- **Fum acabat (exit 0):** 27B 5✓/7 excloses (`out_tokens=16384` + text buit — hipòtesi
-  `<think>` a `reasoning_content`; client pass-through fidel, exclusió honesta per disseny);
-  8B 3✓/9✗. **R5 complert:** `log_filter_debug_expert` i `proc_registry_expert` separen
-  ✓/✗ (gap 100). `smoke-r5.md` generat → mogut a `harness/specs/` (versionable; logs/
-  és ignorat). Pool restaurat a pre-remeasure (`diff` buit). `test_smoke_evidence` verd.
-  Remapejats 3 IDs obsolets a `impl_*.md` (2 renams meus de `aabff88` + 1 de la feature 4):
-  `--all` PASS. `init.sh` → batch-7.log verd; T9+T10 tickats (10/10); `review.md` =
-  **APPROVED**. Commits `19305d9` (docs) + `4dc88ec` (harness). Arbre net.
-- **Decisió humana (10-oct, pre-gate): DOBLE BATCH think/no-think.** Fets verificats:
-  Strata ja corre amb `enable_thinking: False` assumint "igual que la resta", però el
-  27B crema el pressupost (hipòtesi think); el binari suporta `--reasoning off` i el
-  kwarg `chat_template_kwargs.enable_thinking`. Conseqüències (nova feature SDD abans
-  de la re-mesura): flag `--thinking on|off` a run.py; el pool ha de clavar per
-  (slug, thinking) — l'upsert actual per slug solaparia els dos batchs; `token_budget`
-  clavat igual; report+HTML amb files separades i banner de condicions que contempli
-  `thinking`; Q1 (escalada 2n esglaó 32768, VRAM-neutral, cost temps asimètric) i Q3
-  (marcar exclosos a Taula 1 + HTML, només reporting) hi viuen. Cost GPU ~2× (≈3–4 h).
-  Obert al spec: Strata-think amb max_tokens petits (speed/tools 128/256) pot no
-  arribar a respondre; batch think per a tots o només híbrids.
+- **Batch 1 (T1+T2, verd):** `--thinking on|off` (def. off) + `thinking_body(engine,
+  mode)` (generalitza `STRATA_EXTRA_BODY`, que desapareix) + `thinking` a cada resultat;
+  refactor `_parse_args` pur i testejable; `ServerManager` registra el mode; pool amb
+  clau `(slug, thinking)` + filenames `-on/-off` + legacy `(slug, None)` que conviu;
+  `forget` esborra els dos modes. `batch-1.log`: 179 passed, 1 skipped.
+  Nota: el dir `harness/logs/thinking_batches/` no existia (init.sh no el crea) — el
+  primer intent de gate va fallar per això; ticks T1+T2 validades amb el re-run verd.
+- **Batch 2 (T3+T4, verd):** `token_budget` amb clau `(model, thinking)` + `_schema=2`
+  (l'era 16384 s'ignora i es regenera); `CODE_MAX_TOKENS=32768` + cap 1000 (mateixa
+  fórmula; `8192@10t/s` ara 1000, `32768@41t/s` → 1059 → cap 1000); COS actualitzat
+  als tests afectats, NOMS intactes (traçabilitat timeout_scaling preservada).
+  **Precondició d'entorn:** 3 perfils sense `-c` → `-c 65536` (fora del git, capacitat
+  no logits; verificat amb `build_args`). `batch-2.log`: 182 passed, 1 skipped.
+- **Batch 3 (T5+T6, verd):** Taules 1/2/3 amb columna THINK (`on`/`off`/`—` legacy) +
+  `100% (2 excl.)` al score de code; Taula 3 amb mode per fila; banner intacte
+  (test existent verd). HTML: badge `think:on/off` (legacy sense badge) +
+  `excloses code: N` a ranking i targeta; matriu intacta. Dos lapsus propis detectats
+  per la suite (bucle de tokens amb unpack vell; assert partit entre tests).
+  `batch-3.log`: 187 passed, 1 skipped.
+
+- Completion Gate de `discriminative_tasks` aprovat amb canvi (Q1: code inicia a 32768):
+  `APPROVAL` + `completion-gate.md` + `traceability-check.txt`; feature → `done`;
+  resum a `history.md`; commit `d7253ff`. Suite: 165 tests OK (1 skip preexistent).
+- `remeasure_pool` continua `blocked`; `blocked.md` actualitzat (desbloqueig = gate de
+  `thinking_batches`, pool homogeni v1 verificat).
+- Feature 6 `thinking_batches` registrada (pending) → spec escrita → `spec_ready`
+  (commit `6e732df`). Decisions clau ja preses a l'spec: doble batch uniforme (ADR-1),
+  clau `(slug, thinking)` (ADR-2), 32768 en un sol intent (ADR-3), control think pel
+  cos (ADR-4), cap de rellotge 1000 (cobreix 44 t/s), columna THINK + ` (N excl.)`.
 
 ## Next step
 
-1. Commit de la implementació (Conventional Commits).
-2. Desbloquejar `remeasure_pool` (status → in_progress, anotar blocked.md) i llançar la re-mesura:
-   llama batch (`/tmp/opencode/llama_batch.txt` → `harness/logs/remeasure_pool/batch-llama.log`),
-   després Strata `iq3_xxs` quan el batch llama hagi parat completament. Mai tots dos alhora.
-3. Amb les dades de la run: evidència R5 (>=2 models, >=1 tasca expert amb >=20 punts de gap), T10
-   (docs + `impl_discriminative_tasks.md` + check-traceability → review.md) → Completion Gate de
-   discriminative_tasks; després remeasure_pool T2-T5 (pool v3 + `by_level`, report sense banner, gate).
+T7 (docs + gate): SPEC (`--thinking`, 32768, columna THINK), AGENTS.md, MILLORA (tancar
+D6 com a superat), traçabilitat `--feature` + `--all`, review.md, `init.sh` →
+batch-4.log, tick T7, commit i **Completion Gate**.
