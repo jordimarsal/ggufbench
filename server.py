@@ -119,10 +119,14 @@ def strata_python():
 
 
 class ServerManager:
-    def __init__(self, model_path, context_mode="fixed", port=None, engine="llama"):
+    def __init__(self, model_path, context_mode="fixed", port=None, engine="llama",
+                 thinking="off"):
         if engine not in ENGINES:
             raise ValueError(f"engine desconegut: {engine!r} (esperat un de {ENGINES})")
+        if thinking not in ("on", "off"):
+            raise ValueError(f"thinking desconegut: {thinking!r} (esperat 'on' o 'off')")
         self.engine = engine
+        self.thinking = thinking  # només registre (R1): el control va pel cos (ADR-4)
         self.model_path = str(model_path)
         self.context_mode = context_mode
         self.port = port or (config.STRATA_PORT if engine == "strata" else config.PORT)

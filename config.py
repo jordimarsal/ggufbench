@@ -22,10 +22,24 @@ STRATA_DIR = BASE_DIR / "Strata"
 STRATA_PORT = 8080            # el seu port habitual; --port el pot canviar
 # Arrencada: carrega 34-43 GB a RAM (1-3 min), molt més lent que un llama-server
 STRATA_READY_TIMEOUT = 600
-# Strata pensa en HIGH per defecte: amb els max_tokens petits de les tasques (128/256)
-# es menja el pressupost de generació i no arriba a escriure res. Mesurem sense cadena
-# de pensament, igual que la resta de models i que el bench_vs_llama.py d'Strata.
-STRATA_EXTRA_BODY = {"chat_template_kwargs": {"enable_thinking": False}}
+# Pensament: els híbrids (Qwen3) poden cremar el pressupost pensant mentre altres
+# configuracions mesuren sense cadena de pensament. `--thinking on|off` ho controla
+# pel cos de la petició (el mateix canal que feia servir l'antic STRATA_EXTRA_BODY,
+# pels dos motors): cap .txt de model el pot sobreescriure, a diferència d'un flag
+# de servidor (ADR-4 thinking_batches).
+THINKING_DEFAULT = "off"
+
+def thinking_body(engine, mode):
+    """Cos extra per al mode de pensament (R1 thinking_batches).
+    `off` -> desactiva via chat_template_kwargs; `on` -> {} (lliure). Només toca el
+    canal `extra`: prompts, dims i tasques són idèntics en els dos modes (R6)."""
+    if engine not in ("llama", "strata"):
+        raise ValueError(f"engine desconegut: {engine!r}")
+    if mode == "off":
+        return {"chat_template_kwargs": {"enable_thinking": False}}
+    if mode == "on":
+        return {}
+    raise ValueError(f"thinking desconegut: {mode!r} (esperat 'on' o 'off')")
 
 # Mateixes condicions per a tots els models: temp/seed fixos. El client també els
 # envia per petició (vegeu client.chat) per garantir repetibilitat encara que el

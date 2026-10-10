@@ -154,6 +154,29 @@ class TestModelId(unittest.TestCase):
         self.assertEqual(run.config.slug(mid), "strata-iq3_xxs")
 
 
+class TestThinkingCli(unittest.TestCase):
+    """R1 thinking_batches: --thinking on|off (default off); R6: el mode no toca el protocol."""
+
+    def test_thinking_defaults_off(self):
+        self.assertEqual(run._parse_args(["--forget", "zz"]).thinking, "off")
+
+    def test_thinking_on_off_passthrough(self):
+        self.assertEqual(run._parse_args(["--thinking", "on"]).thinking, "on")
+        self.assertEqual(run._parse_args(["--thinking", "off"]).thinking, "off")
+
+    def test_thinking_bogus_rejected(self):
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                run._parse_args(["--thinking", "maybe"])
+
+    def test_thinking_leaves_protocol_untouched(self):
+        # R6: mateixos dims/langs/levels en els dos modes (el mode només viatja al cos)
+        a = run._parse_args(["--thinking", "on"])
+        b = run._parse_args(["--thinking", "off"])
+        self.assertEqual((a.dims, a.lang, a.level), (b.dims, b.lang, b.level))
+        self.assertEqual((a.dims, a.lang, a.level), ("speed,tools,code,agent", None, None))
+
+
 class TestLevelForCode(unittest.TestCase):
     """--level només afecta code (R2 de hard_code_tier); fora de code, avís i fora."""
 

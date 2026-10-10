@@ -37,3 +37,23 @@ class TestWeightsUnchanged(unittest.TestCase):
         # discriminative_tasks R7 (retired): l'eficiència (tokens per tasca) queda com a
         # mètrica registrada (out_tokens), mai com a dimensió puntuada.
         self.assertEqual(set(config.WEIGHTS), {"speed", "tools", "code", "agent"})
+
+class TestThinkingBody(unittest.TestCase):
+    """R1 thinking_batches: el mode de pensament viatja pel cos, mai pels prompts."""
+    def test_default_is_off(self):
+        self.assertEqual(config.THINKING_DEFAULT, "off")
+    def test_off_disables_for_both_engines(self):
+        for engine in ("llama", "strata"):
+            self.assertEqual(config.thinking_body(engine, "off"),
+                             {"chat_template_kwargs": {"enable_thinking": False}})
+    def test_on_is_empty(self):
+        self.assertEqual(config.thinking_body("llama", "on"), {})
+        self.assertEqual(config.thinking_body("strata", "on"), {})
+    def test_rejects_bogus(self):
+        with self.assertRaises(ValueError):
+            config.thinking_body("llama", "maybe")
+        with self.assertRaises(ValueError):
+            config.thinking_body("vllm", "off")
+    def test_only_touches_extra_channel(self):
+        # R6: el mode no pot contaminar prompts/dims: el dict només porta el kwarg
+        self.assertEqual(set(config.thinking_body("llama", "off")), {"chat_template_kwargs"})

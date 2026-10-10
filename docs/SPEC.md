@@ -45,11 +45,12 @@ L'objectiu final és triar el millor model per a **opencode** (agent programador
     slug del marcador; el resultat porta `engine` i `server_build` = versió de
     l'executable (`strata/engine/BUILD.json`).
   - Port per defecte 8080 (`config.STRATA_PORT`); `--port` el canvia.
-  - **Sense cadena de pensament**: el model pensa en HIGH per defecte i amb els
+  - **Sense cadena de pensament per defecte**: el model pensa en HIGH per defecte i amb els
     `max_tokens` petits de les tasques (128-512) es menjaria el pressupost sense
-    respondre; el client envia `config.STRATA_EXTRA_BODY`
-    (`chat_template_kwargs: enable_thinking=false`), mateixa política que el
-    `bench/bench_vs_llama.py` d'Strata.
+    respondre; el client envia `chat_template_kwargs: enable_thinking=false` (mateixa
+    política que el `bench/bench_vs_llama.py` d'Strata). Des de `thinking_batches` això
+    és el mode `--thinking off` (default, pels dos motors); `--thinking on` el deixa
+    lliure i el pool distingeix els dos modes.
   - **Readiness**: `/health` ha de dir `loaded` abans de la sonda de chat (les
     sondes farien cua darrere la càrrega de 34-43 GB); espera `STRATA_READY_TIMEOUT`
     (600 s).
@@ -131,7 +132,14 @@ Un executor per idioma. Tots comparteixen la mateixa interfície:
 | typescript | `solution.ts` | `test.ts` (import + asserts) | `bun test.ts` |
 
 **Extracció de codi**: de la resposta del model, es pren el primer bloc
-` ```lang ... ``` ` corresponent al llenguatge de la tasca. Si no n'hi ha → fail.
+` ```lang ... ``` ` corresponent al llenguatge de la tasca. Si no n'hi ha → exclosa
+(no compta al score; el motiu queda a la traça).
+
+**Pressupost de code**: un sol intent amb `CODE_MAX_TOKENS = 32768`, igual per a tots
+els models (decisió del revisor: les tasques expert el necessiten). El rellotge és
+només anti-penjam (derivat del `gen_tps` mesurat, cap a 1000 s). Precondició: tot
+perfil ha de donar context per a prompt + 32768 (els perfils sense `-c` cauen a
+`CONTEXT_FIXED = 16384`).
 
 **Sandbox** (per cada execució):
 - tempdir nou i exclusiu.
@@ -235,7 +243,8 @@ re-executar els altres. Dues capes:
 
 Cada resultat porta metadata de condicions per poder barregar runs de forma
 justa: `context_mode`, `tasks_version` (etiqueta de la suite: "v1" base, "v2" amb el
-nivell hard, "v3" amb el nivell expert), `weights`, `ts`,
+nivell hard, "v3" amb el nivell expert), `thinking` (`on`/`off`: cadena de pensament,
+clau del pool junt amb el slug), `weights`, `ts`,
 `server_build` (versió de llama.cpp) i `model_config_flags` (flags extrets de
 `models/<model>.txt`, o null — recorda que des de 2026-10 cada model corre amb
 el seu perfil). El scoreboard avisa (o filtra) si es barregen resultats amb
@@ -247,6 +256,7 @@ El JSON per model és:
   "model": "qwen3-14b",
   "ts": "2026-08-03T20:30:00",
   "context_mode": "fixed",
+  "thinking": "off",
   "tasks_version": "v3",
   "server_build": "10250",
   "global": 0.91,
@@ -311,6 +321,8 @@ benchmark/run.py [opcions]
   --lang python,java,...       # filtra tasques de codi/agent per idioma
   --level easy|hard|expert     # filtra NOMES les tasques de code per nivell (sufix _hard o
                                # _expert; sense --level s'executen els tres i el score de code es plega)
+  --thinking on|off            # cadena de pensament (default off, via chat_template_kwargs);
+                               # es registra a cada resultat; el pool clava per (slug, thinking)
   --quick                      # 1 tasca per dimensió (smoke test del harness)
    -v, --verbose                # Taula 1 + per-llenguatge (Taula 2); NO inclou tasques
    --task                       # Taula 3 (detall de tasca): mostra on acerta/falla cada model; es composa amb --verbose

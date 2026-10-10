@@ -130,8 +130,11 @@ def _level_for_code(dims, level):
 
 
 def _bench_one(model_path, pool, dims, lang_filter, port, quick=False, engine="llama",
-               level=None):
-    sm = S.ServerManager(model_path, context_mode="fixed", port=port, engine=engine)
+               level=None, thinking=None):
+    if thinking is None:
+        thinking = config.THINKING_DEFAULT
+    sm = S.ServerManager(model_path, context_mode="fixed", port=port, engine=engine,
+                         thinking=thinking)
     mid = model_id(engine, model_path)
     slug = config.slug(mid)
     print(f"→ {slug}: arrencant servidor ({engine})...", file=sys.stderr, flush=True)
@@ -140,9 +143,9 @@ def _bench_one(model_path, pool, dims, lang_filter, port, quick=False, engine="l
         sm.stop(); return {"model": mid, "engine": engine, "serve_failed": True}
     try:
         model_url = f"http://127.0.0.1:{port}"
-        # Strata: sense aquest cos, el model pensa (HIGH) i amb els max_tokens petits
-        # de les tasques no arriba a respondre (config.STRATA_EXTRA_BODY).
-        extra = config.STRATA_EXTRA_BODY if engine == "strata" else None
+        # Pensament (R1 thinking_batches): `off` el desactiva pel cos (mateix canal pels
+        # dos motors); `on` el deixa lliure. El protocol (dims, tasques, prompts) no el toca.
+        extra = config.thinking_body(engine, thinking)
 
         class ClientWrapper:
             def __init__(self, base_url, extra=None):
@@ -154,7 +157,7 @@ def _bench_one(model_path, pool, dims, lang_filter, port, quick=False, engine="l
                 return C.chat(*a, base_url=self.base_url, **k)
         c = ClientWrapper(model_url, extra)
         times = warmup(c, model_url, n=3, extra=extra)
-        result = {"model": mid, "engine": engine,
+        result = {"model": mid, "engine": engine, "thinking": thinking,
                   "ts": datetime.datetime.now().isoformat(timespec="seconds"),
                   "context_mode": "fixed", "tasks_version": config.TASKS_VERSION,
                   "server_build": _server_build(engine), "warmup_times": times,
@@ -170,7 +173,8 @@ def _bench_one(model_path, pool, dims, lang_filter, port, quick=False, engine="l
                 print(f"⚠️  cap tasca code level={level}", file=sys.stderr, flush=True)
             result["code"] = G.grade_code(c, code_tasks,
                                           on_task=_print_task, model_slug=slug,
-                                          gen_tps=result["speed"]["gen_tps"] if "speed" in result else None)
+                                          gen_tps=result["speed"]["gen_tps"] if "speed" in result else None,
+                                          thinking=thinking)
         if "agent" in dims:
             result["agent"] = G.grade_agent(c, _limit(T.load("agent", lang_filter=lf), quick), on_task=_print_task)
         return result
@@ -201,7 +205,9 @@ def _server_build(engine="llama"):
         pass
     return "unknown"
 
-def main(argv=None):
+def _parse_args(argv=None):
+    """Parsejat pur de la CLI (testejable sense GPU): totes les opcions, inclòs
+    --thinking. main() només l'executa."""
     ap = argparse.ArgumentParser(prog="benchmark")
     ap.add_argument("--models", default="all",
                     help="all | camí .gguf | nom (curt o parcial) — separats per comes "
@@ -215,6 +221,10 @@ def main(argv=None):
     ap.add_argument("--level", choices=["easy", "hard", "expert"], default=None,
                     help="filtra NOMÉS les tasques de code per nivell "
                          "(sufix _hard o _expert a l'ID)")
+    ap.add_argument("--thinking", choices=["on", "off"], default=config.THINKING_DEFAULT,
+                    help="cadena de pensament del model: off la desactiva via "
+                         "chat_template_kwargs (default); on la deixa lliure. "
+                         "Es registra a cada resultat.")
     ap.add_argument("--quick", action="store_true",
                     help="1 tasca per dimensió (smoke test del harness)")
     ap.add_argument("-v", "--verbose", action="store_true",
@@ -229,7 +239,11 @@ def main(argv=None):
     ap.add_argument("--port", type=int, default=None,
                     help=f"default {config.PORT} (llama) / {config.STRATA_PORT} (strata)")
     ap.add_argument("--weights", default=None)
-    args = ap.parse_args(argv)
+    return ap.parse_args(argv)
+
+
+def main(argv=None):
+    args = _parse_args(argv)
     weights = parse_weights(args.weights)
     port = args.port or (config.STRATA_PORT if args.engine == "strata" else config.PORT)
     # Granularitat: --verbose afegix la Taula 2 (per-llenguatge); --task l'afegiment del
@@ -260,7 +274,7 @@ def main(argv=None):
     for mp in models:
         try:
             res = _bench_one(mp, [], dims, lang_filter, port, quick=args.quick,
-                             engine=args.engine, level=level)
+                             engine=args.engine, level=level, thinking=args.thinking)
             if res.get("serve_failed"):
                 print(f"✗ {mp}: no carrega", file=sys.stderr, flush=True); continue
             R.save_result(res)

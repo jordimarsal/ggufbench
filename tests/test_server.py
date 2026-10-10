@@ -89,6 +89,13 @@ class TestStrata(unittest.TestCase):
         with self.assertRaises(ValueError):
             server.ServerManager("/p/m.gguf", engine="vllm")
 
+    def test_thinking_recorded_and_validated(self):
+        # R1 thinking_batches: el mode es registra (el control va pel cos, ADR-4)
+        self.assertEqual(server.ServerManager("/p/m.gguf").thinking, "off")
+        self.assertEqual(server.ServerManager("/p/m.gguf", thinking="on").thinking, "on")
+        with self.assertRaises(ValueError):
+            server.ServerManager("/p/m.gguf", thinking="maybe")
+
     def test_describe_strata_config(self):
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "strata-iq3_xxs.json"

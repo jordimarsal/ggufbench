@@ -37,7 +37,7 @@ class TestClient(unittest.TestCase):
         self.assertEqual(client.first_text({"choices":[{"message":{"content":"x"}}]}), "x")
 
 class TestChatExtra(unittest.TestCase):
-    """`extra` afegeix/sobreescriu camps del cos (config.STRATA_EXTRA_BODY)."""
+    """`extra` afegeix/sobreescriu camps del cos (config.thinking_body)."""
 
     def _capture(self, **kwargs):
         import json as _json
@@ -76,7 +76,7 @@ class TestChatExtra(unittest.TestCase):
     def test_extra_merges_into_body(self):
         from benchmark import config
         from benchmark import config as cfg
-        body = self._capture(extra=cfg.STRATA_EXTRA_BODY)
+        body = self._capture(extra=cfg.thinking_body("strata", "off"))
         # el camp nou hi és...
         self.assertEqual(body["chat_template_kwargs"], {"enable_thinking": False})
         # ...i els camps base es conserven (el cos s'ha de seguir essent complet)

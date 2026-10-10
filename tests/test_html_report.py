@@ -6,9 +6,11 @@ from pathlib import Path
 from benchmark import config, html_report, report
 
 
-def _mk(name="models/foo.gguf", engine="llama", code_score=0.9, tools_score=0.75):
-    """Resultat mínim però complert (les 4 dimensions + metadades)."""
-    return {"model": name, "engine": engine, "ts": "2026-10-09T10:00:00",
+def _mk(name="models/foo.gguf", engine="llama", code_score=0.9, tools_score=0.75,
+        thinking=None, code_excluded=0):
+    """Resultat mínim però complert (les 4 dimensions + metadades).
+    thinking=None -> sense clau (fila legacy); "on"/"off" -> nova (R4)."""
+    r = {"model": name, "engine": engine, "ts": "2026-10-09T10:00:00",
             "context_mode": "fixed", "tasks_version": "v1", "server_build": "b1234",
             "model_config_flags": "-c 16384 --flash-attn auto",
             "speed": {"passed": True, "turns": 0, "trace": [], "score": 0,
@@ -16,9 +18,12 @@ def _mk(name="models/foo.gguf", engine="llama", code_score=0.9, tools_score=0.75
             "tools": {"passed": True, "turns": 0, "trace": [], "score": tools_score,
                       "by_lang": {}},
             "code": {"passed": True, "turns": 0, "trace": [], "score": code_score,
-                     "by_lang": {"python": code_score}},
+                     "by_lang": {"python": code_score}, "excluded": code_excluded},
             "agent": {"passed": True, "turns": 0, "trace": [], "score": 0.5,
                       "by_lang": {"python": 0.5}}}
+    if thinking is not None:
+        r["thinking"] = thinking
+    return r
 
 
 class TestRender(unittest.TestCase):
@@ -60,6 +65,19 @@ class TestRender(unittest.TestCase):
         self.assertIn("easy 100%", html)
         self.assertIn("hard 25%", html)
         self.assertIn("expert 0%", html)
+
+    def test_think_badges_and_excluded_line(self):
+        # R4+R5 thinking_batches: badge de mode + recompte d'excloses
+        html = html_report.render([_mk(thinking="off", code_excluded=2),
+                                   _mk("models/bar.gguf", thinking="on")])
+        self.assertIn("think:off", html)
+        self.assertIn("think:on", html)
+        self.assertIn("excloses code: 2", html)
+
+    def test_legacy_row_without_thinking_has_no_badge(self):
+        html = html_report.render([_mk()])
+        self.assertNotIn("think:", html)
+        self.assertIn("excloses code: 0", html)
 
     def test_no_by_level_section_when_absent(self):
         html = html_report.render([_mk()])   # pool vell sense by_level

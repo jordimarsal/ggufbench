@@ -47,6 +47,8 @@ def _rows(pool):
             "sc": R._scores(r),
             "global": R._global_score(r, config.WEIGHTS, min_speed),
             "engine": r.get("engine", "llama"),
+            "thinking": r.get("thinking") or "—",  # R4: legacy sense clau
+            "code_excluded": int((r.get("code") or {}).get("excluded") or 0),  # R5
             "build": str(r.get("server_build") or "?"),
             "ts": (r.get("ts") or "")[:10],
             "by_lang": {d: (r.get(d) or {}).get("by_lang") or {} for d in ("code", "agent")},
@@ -165,13 +167,15 @@ def render(pool):
     for i, r in enumerate(rows):
         cls = " top" if i == 0 else ""
         width = (r["global"] / top * 100) if top else 0
+        think = (f' <span class="badge">think:{_esc(r["thinking"])}</span>'
+                 if r["thinking"] != "—" else "")
         ranking.append(
             f'<div class="rank"><div class="pos{cls}">{i + 1}</div>'
             f'<div class="name">{_esc(r["name"])}<small>{_esc(r["ts"])} · {r["tasks"]["tools"]}+'
-            f'{r["tasks"]["code"]}+{r["tasks"]["agent"]} tasques</small></div>'
+            f'{r["tasks"]["code"]}+{r["tasks"]["agent"]} tasques · excloses code: {r["code_excluded"]}</small></div>'
             f'<div class="bar"><div class="fill{cls}" style="width:{width:.1f}%"></div></div>'
             f'<div class="gval{cls}">{r["global"]:.2f} <span class="badge{" strata" if r["engine"] == "strata" else ""}">'
-            f'{_esc(r["engine"])} {_esc(r["build"])}</span></div></div>')
+            f'{_esc(r["engine"])} {_esc(r["build"])}</span>{think}</div></div>')
 
     def dim_bars(key, fmt, lower_is_better=False, acc=False):
         best = min((r["sc"][key] for r in rows if r["sc"][key]), default=0) if lower_is_better \
@@ -209,10 +213,11 @@ def render(pool):
         if bl:
             by_level_line = "code per nivell: " + " · ".join(
                 f"{k} {v:.0%}" for k, v in sorted(bl.items())) + "\n"
+        think_line = (f"think: {r['thinking']}\n" if r["thinking"] != "—" else "")
         details.append(
             f'<details><summary>{_esc(r["name"])} <span class="badge{" strata" if r["engine"] == "strata" else ""}">'
             f'{_esc(r["engine"])} {_esc(r["build"])}</span> <span class="miss">{_esc(r["ts"])}</span></summary>'
-            f'<pre>{by_level_line}{flags}</pre></details>')
+            f'<pre>{by_level_line}{think_line}excloses code: {r["code_excluded"]}\n{flags}</pre></details>')
 
     banner = ""
     if len(dates) > 1:

@@ -4,12 +4,14 @@ import urllib.error
 from . import agent as A, client as C, code_extract, executors, token_budget
 
 SPEED_MAX_TOKENS = 128
-# Un unic pressupost generos (ADR-0002): amb seed/temp fixos, max_tokens es un sostre,
-# no un objectiu. 16384 = el sostre del context del harness (CONTEXT_FIXED menys prompt):
-# cobreix la cua de pensament llarg dels models que pensen i no penalitza els concisos
-# (paren a l'EOS igualment). Els tokens de sortida queden registrats a la tracca
-# (out_tokens) com a metrica d'eficiencia, no com a castig.
-CODE_MAX_TOKENS = 16384
+# Un unic pressupost generos (ADR-0002; R3 thinking_batches: inicia a 32768 per decisió
+# del revisor — les tasques expert el necessiten). Amb seed/temp fixos, max_tokens es un
+# sostre, no un objectiu: no penalitza els concisos (paren a l'EOS igualment).
+# Precondició d'entorn: tot model del pool ha de tenir context per a prompt + 32768
+# (els perfils sense -c cauen a CONTEXT_FIXED=16384 i no hi cabrien; vegeu T4 a impl).
+# Els tokens de sortida queden registrats a la tracca (out_tokens) com a metrica
+# d'eficiencia, no com a castig.
+CODE_MAX_TOKENS = 32768
 CODE_LADDER = [CODE_MAX_TOKENS]
 
 # Errors transients del servidor/xarxa (500, timeouts, connexió tombada...).
@@ -118,16 +120,18 @@ def _code_system_prompt(lang):
 def code_timeout(budget, gen_tps):
     """Temps maxim (s) d'un intent de chat de code: el pressupost real es en tokens
     (mateix per a tots els models) i el rellotge nomes es guarda anti-penjam, derivat
-    de la velocitat mesurada del model (ADR-0001). Sense gen_tps -> 90 s fixes."""
+    de la velocitat mesurada del model (ADR-0001). Sense gen_tps -> 90 s fixes.
+    El sostre cobreix 32768 tokens al model mes lent observat (44 t/s -> 991 s)."""
     if not gen_tps:
         return 90
-    return int(min(600, max(90, 60 + (budget / gen_tps) * 1.25)))
+    return int(min(1000, max(90, 60 + (budget / gen_tps) * 1.25)))
 
 
-def grade_code(client_mod, tasks, max_turns=8, on_task=None, model_slug=None, gen_tps=None):
+def grade_code(client_mod, tasks, max_turns=8, on_task=None, model_slug=None, gen_tps=None,
+             thinking=None):
     results, by_lang = [], {}
     for t in tasks:
-        stored = token_budget.get("code", model_slug, t["lang"], t["id"])
+        stored = token_budget.get("code", model_slug, thinking, t["lang"], t["id"])
         budgets = [stored] if stored else CODE_LADDER
         msgs = [{"role": "system", "content": _code_system_prompt(t["lang"])},
                 {"role": "user", "content": t["prompt"]}]
@@ -149,7 +153,7 @@ def grade_code(client_mod, tasks, max_turns=8, on_task=None, model_slug=None, ge
         if not stored and not server_err:
             resolved = budget if code is not None else budgets[-1]
             if resolved != CODE_MAX_TOKENS:
-                token_budget.put("code", model_slug, t["lang"], t["id"], resolved)
+                token_budget.put("code", model_slug, thinking, t["lang"], t["id"], resolved)
         if server_err:
             detail = f"server error: {server_err}"[:160]
             results.append({"id": t["id"], "lang": t["lang"], "level": t.get("level", "easy"),

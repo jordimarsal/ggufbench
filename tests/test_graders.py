@@ -91,10 +91,10 @@ class TestCodeTimeout(unittest.TestCase):
         self.assertEqual(graders.code_timeout(2048, None), 90)      # sense gen_tps
         self.assertEqual(graders.code_timeout(2048, 1000), 90)      # pis de 90 s
         self.assertEqual(graders.code_timeout(2048, 41), 122)       # 60 + 62.4
-        self.assertEqual(graders.code_timeout(8192, 10), 600)       # sostre de 600 s
+        self.assertEqual(graders.code_timeout(8192, 10), 1000)      # sostre de 1000 s
 
     def test_scaled_timeout_applied_to_the_single_attempt(self):
-        # R2: l'unic intent de code rep el timeout escalat (16384 a 41 t/s -> 559 s)
+        # R2: l'unic intent de code rep el timeout escalat (32768 a 41 t/s -> sostre 1000 s)
         tasks = [{"id":"x","lang":"python","prompt":"p","test_code":"t","level":"hard"}]
         cap_timeouts = []
 
@@ -104,7 +104,7 @@ class TestCodeTimeout(unittest.TestCase):
                 return {"choices":[{"message":{"content":"prosa sense bloc de codi"}}]}
 
         r = graders.grade_code(Prose(), tasks, gen_tps=41)
-        self.assertEqual(cap_timeouts, [559])
+        self.assertEqual(cap_timeouts, [1000])
         self.assertEqual(r["trace"][0]["excluded"], True)
 
     def test_transient_timeout_still_excludes(self):
@@ -122,9 +122,9 @@ class TestCodeTimeout(unittest.TestCase):
 
 
 class TestCodeBudget(unittest.TestCase):
-    """ADR-0002: un unic pressupost generos (8192). Amb seed/temp fixos, max_tokens
-    es un sostre, no un objectiu: un intent a 8192 produeix la mateixa generacio que
-    l'antiga escala 2048->4096->8192, sense peticions malgastades amb models que
+    """ADR-0002 + R3 thinking_batches: un unic pressupost generos (32768). Amb seed/temp
+    fixos, max_tokens es un sostre, no un objectiu: un intent al sostre produeix la
+    mateixa generacio que l'antiga escala, sense peticions malgastades amb models que
     pensen. Els tokens de sortida queden registrats a la tracca (eficiencia)."""
     def setUp(self):
         self.tmpdir = Path(tempfile.mkdtemp())
@@ -156,10 +156,10 @@ class TestCodeBudget(unittest.TestCase):
                   "test_code": "from solution import *\nassert f()==1\n"}]
         graders.grade_code(c, tasks, model_slug="skyrl")
         self.assertEqual(c.calls, 1)
-        self.assertIsNone(token_budget.get("code", "skyrl", "python", "t1"))  # el default ja basta
+        self.assertIsNone(token_budget.get("code", "skyrl", None, "python", "t1"))  # el default ja basta
 
     def test_stored_budget_still_honoured(self):
-        token_budget.put("code", "skyrl", "python", "t1", 4096)
+        token_budget.put("code", "skyrl", None, "python", "t1", 4096)
         token_budget.reset_cache()
         c = self._client(threshold=4096)
         tasks = [{"id": "t1", "lang": "python", "prompt": "p",
@@ -180,7 +180,7 @@ class TestCodeBudget(unittest.TestCase):
         tasks = [{"id": "t2", "lang": "python", "prompt": "p",
                   "test_code": "from solution import *\nassert f()==1\n"}]
         graders.grade_code(c, tasks, model_slug="m")
-        self.assertIsNone(token_budget.get("code", "m", "python", "t2"))  # no cal anotar res
+        self.assertIsNone(token_budget.get("code", "m", None, "python", "t2"))  # no cal anotar res
 
     def test_system_prompt_asks_for_export_on_typescript(self):
         captured = {}

@@ -11,35 +11,44 @@ def _slug_of(result):
     return config.slug(result["model"])
 
 
+def _key_of(result):
+    """Clau d'upsert (R2 thinking_batches): (slug, thinking). Les files legacy sense
+    `thinking` claven (slug, None) i no col·lisionen amb (slug, 'off'). El slug sol
+    continua identificant el model (forget, visualització)."""
+    return (_slug_of(result), result.get("thinking"))
+
+
 def save_result(result):
     config.RESULTS_MODELS.mkdir(parents=True, exist_ok=True)
     config.RESULTS_RUNS.mkdir(parents=True, exist_ok=True)
     slug = _slug_of(result)
-    # Upsert per slug: reescriu pool.jsonl substituint l'entrada prèvia d'aquest model
-    # (abans era append-only i re-executar inflava el scoreboard amb duplicats).
-    pool = [r for r in load_pool() if _slug_of(r) != slug]
+    key = _key_of(result)
+    # Upsert per (slug, thinking): els dos modes conviuen; re-executar el mateix mode
+    # substitueix (abans era per slug sol i el segon batch solaparia el primer).
+    pool = [r for r in load_pool() if _key_of(r) != key]
     pool.append(result)
     with open(POOL_FILE, "w") as f:
         for r in pool:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
     ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    (config.RESULTS_RUNS / f"{ts}-{slug}.json").write_text(json.dumps(result, indent=2, ensure_ascii=False))
+    mode = result.get("thinking") or "na"
+    (config.RESULTS_RUNS / f"{ts}-{slug}-{mode}.json").write_text(json.dumps(result, indent=2, ensure_ascii=False))
 
 
 def load_pool():
     if not POOL_FILE.exists():
         return []
-    # Dedup per slug mantenint l'última ocurrència (la més recent: el fitxer és
-    # cronològic). Aïsla entrades duplicades llegades de l'època append-only.
-    by_slug = {}
+    # Dedup per (slug, thinking) mantenint l'última ocurrència (la més recent:
+    # el fitxer és cronològic). Aïsla duplicats llegats de l'època append-only.
+    by_key = {}
     with open(POOL_FILE) as f:
         for line in f:
             line = line.strip()
             if not line:
                 continue
             r = json.loads(line)
-            by_slug[_slug_of(r)] = r
-    return list(by_slug.values())
+            by_key[_key_of(r)] = r
+    return list(by_key.values())
 
 
 def _model_stem(model_field):
@@ -118,6 +127,11 @@ def _fmt_pct(x):
     return f"{x:.0%}" if x is not None else "—"
 
 
+def _think_mark(result):
+    """Marca de mode (R4 thinking_batches): 'on'/'off'/'—' (legacy sense clau)."""
+    return result.get("thinking") or "—"
+
+
 def _render_global_rows(pool, weights, title):
     """Taula 1 + secció de tokens (SPEC 4.6). Una fila per model amb el score de cada
     dimensió i un global ponderat, ordenat de millor a pitjor."""
@@ -127,14 +141,17 @@ def _render_global_rows(pool, weights, title):
     rows = []
     for r in pool:
         sc = _scores(r)
-        rows.append((config.slug(r["model"]), sc, _global_score(r, weights, min_speed)))
-    rows.sort(key=lambda x: x[2], reverse=True)
+        excl = int((r.get("code") or {}).get("excluded") or 0)
+        rows.append((config.slug(r["model"]), _think_mark(r), excl, sc,
+                     _global_score(r, weights, min_speed)))
+    rows.sort(key=lambda x: x[4], reverse=True)
     nw = max((len(r[0]) for r in rows), default=5)
-    header = f"{'MODEL':{nw}} {'tools':>6} {'code':>6} {'agent':>6} {'speed':>9} {'GLOBAL':>7}"
+    header = f"{'MODEL':{nw}} {'THINK':>5} {'tools':>6} {'code':>13} {'agent':>6} {'speed':>9} {'GLOBAL':>7}"
     out = [f"=== {title} ===", header, "-" * len(header)]
-    for name, sc, g in rows:
+    for name, mode, excl, sc, g in rows:
         sp = f"{sc['speed_ms']}ms" if sc["speed_ms"] else "—"
-        out.append(f"{name:{nw}} {sc['tools']:>5.0%} {sc['code']:>5.0%} "
+        code = f"{sc['code']:>5.0%}" + (f" ({excl} excl.)" if excl else "")
+        out.append(f"{name:{nw}} {mode:>5} {sc['tools']:>5.0%} {code:>13} "
                    f"{sc['agent']:>5.0%} {sp:>9} {g:>7.2f}")
     # Epígraf de tokens per segon (output i input).
     out.append("")
@@ -142,7 +159,7 @@ def _render_global_rows(pool, weights, title):
     theader = f"{'MODEL':{nw}} {'gen (out)':>10} {'prompt (in)':>12}"
     out.append(theader)
     out.append("-" * len(theader))
-    for name, sc, g in rows:
+    for name, _mode, _excl, sc, _g in rows:
         gen = f"{sc['gen_tps']:.1f}" if sc["gen_tps"] else "—"
         prom = f"{sc['prompt_tps']:.1f}" if sc["prompt_tps"] else "—"
         out.append(f"{name:40.40} {gen:>10} {prom:>12}")
@@ -153,10 +170,11 @@ def _render_tasks(pool):
     """Taula 3 — detall per tasca (SPEC 4.6). Una fila per (model, dimensió, tasca).
     Tolerant: un model sense dimensió o una dimensió sense trace no falla."""
     nw = max((len(config.slug(r["model"])) for r in pool), default=5)
-    header = f"{'MODEL':{nw}} {'DIM':8} {'LANG':12} {'TASK':20} {'OK':4} DETALL"
+    header = f"{'MODEL':{nw}} {'THINK':>5} {'DIM':8} {'LANG':12} {'TASK':20} {'OK':4} DETALL"
     out = ["", "=== Detall per tasca ===", header, "-" * len(header)]
     for r in pool:
         name = config.slug(r["model"])
+        mode = _think_mark(r)
         for dim in ("tools", "code", "agent"):
             d = r.get(dim) or {}
             for t in d.get("trace") or []:
@@ -166,7 +184,7 @@ def _render_tasks(pool):
                 detail = " ".join(str(t.get("detail") or "").split())[:30]
                 if t.get("excluded"):
                     detail += " [exclo]"
-                out.append(f"{name:40.40} {dim:8} {lang:12} {tid:20} {mark} {detail}")
+                out.append(f"{name:40.40} {mode:>5} {dim:8} {lang:12} {tid:20} {mark} {detail}")
     return out
 
 
@@ -176,14 +194,14 @@ def _render_by_lang(pool):
     langs = ["python", "bash", "java", "typescript"]
     dims = ["code", "agent"]
     nw = max((len(config.slug(r["model"])) for r in pool), default=5)
-    header = f"{'MODEL':{nw}}"
+    header = f"{'MODEL':{nw}} {'THINK':>5}"
     for dim in dims:
         for lang in langs:
             header += f" {dim}:{lang:>11}"
     out = ["", "=== Per llenguatge (code/agent) ===", header, "-" * len(header)]
     for r in pool:
         name = config.slug(r["model"])
-        row = f"{name:{nw}}"
+        row = f"{name:{nw}} {_think_mark(r):>5}"
         for dim in dims:
             bl = (r.get(dim) or {}).get("by_lang") or {}
             for lang in langs:

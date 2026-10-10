@@ -152,6 +152,12 @@ python3 -m benchmark.html_report                        # escriu benchmark/resul
    score de code queda plegat. `tasks_version` = "v3" des que existeix el nivell expert
    (v2 = hard, v1 = base). Les solucions de referència de les hard i expert NO es
    commiten (no filtrar-les als models).
+   **Pensament:** `--thinking on|off` (default `off`, via `chat_template_kwargs` pels
+   dos motors; cap `.txt` el sobreescriu). Es registra a cada resultat i el pool clava
+   per `(slug, thinking)` — els dos modes conviuen; el marcador els separa en files
+   amb columna `THINK` i els exclosos es compten (`100% (7 excl.)`). Pressupost code:
+   un sol intent de **32768** tokens; tot perfil ha de donar context per a prompt +
+   32768 (sense `-c` cau a `CONTEXT_FIXED = 16384`).
 4. **Perfil per model:** `models/<model>.txt` (flags lliures excepte infra). Strata: una
    config per model a `Strata/strata-<nom>.json`, python del SEU `.venv`.
 5. Els resultats de Strata identifiquen el model per l'arrel del config

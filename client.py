@@ -8,8 +8,8 @@ from . import config
 def chat(messages, tools=None, tool_choice=None, max_tokens=256,
          base_url="http://127.0.0.1:8999", timeout=60, extra=None):
     """Un chat a /v1/chat/completions. `extra` sobreescriu/afegeix camps del cos
-    (vegeu config.STRATA_EXTRA_BODY: Strata necessita apagar la cadena de pensament
-    perquè les tasques es mesurin en les mateixes condicions que la resta de models)."""
+    (vegeu config.thinking_body: apagar la cadena de pensament perquè les tasques
+    es mesurin en les mateixes condicions)."""
     body = {"messages": messages, "max_tokens": max_tokens,
             "temperature": config.TEMPERATURE, "seed": config.SEED}
     if tools:
