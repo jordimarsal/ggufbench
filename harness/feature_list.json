@@ -97,6 +97,20 @@
         "R7: sense canvis de pesos, plegat ni semàntica de score"
       ],
       "status": "done"
+    },
+    {
+      "id": 7,
+      "name": "lora_eval",
+      "title": "Avaluació de models amb adaptador LoRA (mateix model, amb/sense)",
+      "description": "Permet servir un model amb un adaptador LoRA GGUF (llama.cpp --lora, perfil .txt o CLI) i que el pool/report distingeixin model-nu de model+LoRA (clau estesa), per mesurar fine-tunes propis amb el mateix protocol i gates.",
+      "acceptance": [
+        "R1: un LoRA es pot declarar (CLI --lora o perfil .txt) i el servidor arrenca amb --lora",
+        "R2: el resultat registra el LoRA; el pool clava per (slug, thinking, lora); lògica tolerant de legacy",
+        "R3: report/HTML distingeixen model-nu de model+LoRA sense trencar el render existent",
+        "R4: mateix protocol (dims/langs/levels/thinking); disc electiva de comparació nu-vs-LoRA per runs separades",
+        "R5: sense canvis de pesos, plegat ni semàntica de score"
+      ],
+      "status": "spec_ready"
     }
   ]
 }
