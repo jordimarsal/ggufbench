@@ -171,7 +171,8 @@ def grade_code(client_mod, tasks, max_turns=8, on_task=None, model_slug=None, ge
                 on_task("code", {"id": t["id"], "lang": t["lang"], "passed": False,
                                  "excluded": True, "detail": detail})
             continue
-        r = executors.run(t["lang"], code, t.get("test_code"))
+        r = executors.run(t["lang"], code, t.get("test_code"),
+                          extra_files=t.get("extra_files"))
         results.append({"id": t["id"], "lang": t["lang"], "level": t.get("level", "easy"),
                         "passed": r["passed"], "excluded": False, "detail": r["output"][:160],
                         "out_tokens": out_tokens})

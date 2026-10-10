@@ -212,8 +212,9 @@ def main(argv=None):
     ap.add_argument("--context", default="fixed", choices=["fixed", "adapted"])
     ap.add_argument("--dims", default="speed,tools,code,agent")
     ap.add_argument("--lang", default=None)
-    ap.add_argument("--level", choices=["easy", "hard"], default=None,
-                    help="filtra NOMÉS les tasques de code per nivell (sufix _hard a l'ID)")
+    ap.add_argument("--level", choices=["easy", "hard", "expert"], default=None,
+                    help="filtra NOMÉS les tasques de code per nivell "
+                         "(sufix _hard o _expert a l'ID)")
     ap.add_argument("--quick", action="store_true",
                     help="1 tasca per dimensió (smoke test del harness)")
     ap.add_argument("-v", "--verbose", action="store_true",

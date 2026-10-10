@@ -12,6 +12,22 @@ def _load_module(path):
     return mod
 
 
+def _check_extra_files(task_id, extra):
+    """Valida EXTRA_FILES (discriminative_tasks R2): noms plans al sandbox.
+
+    Sense barres ni '..' i sense capturar els noms reservats (solution/test):
+    l'extra mai no pot guanyar els fitxers del runner.
+    """
+    for name in extra:
+        low = str(name).lower()
+        if (not name or "/" in str(name) or "\\" in str(name)
+                or str(name) in (".", "..")
+                or low.startswith(("solution", "test"))):
+            raise ValueError(
+                f"{task_id}: EXTRA_FILES invalid (nom pla requerit, "
+                f"sense solution/test): {name!r}")
+
+
 def load(dimension, lang_filter=None, level=None):
     base = config.BENCH_DIR / "tasks" / _DIM_DIR[dimension]
     out = []
@@ -24,9 +40,15 @@ def load(dimension, lang_filter=None, level=None):
             if lang_part and lang_part not in lang_filter:
                 continue
         m = _load_module(p)
-        # Nivell (hard_code_tier): només code el porta; el sufix _hard a l'ID el decideix.
+        # Nivell (hard_code_tier / discriminative_tasks): només code el porta;
+        # el sufix _hard/_expert a l'ID el decideix.
         task_id = str(getattr(m, "ID", p.stem))
-        level_value = "hard" if task_id.endswith("_hard") else "easy"
+        if task_id.endswith("_expert"):
+            level_value = "expert"
+        elif task_id.endswith("_hard"):
+            level_value = "hard"
+        else:
+            level_value = "easy"
         if dimension == "code" and level and level_value != level:
             continue
         if dimension == "tools":
@@ -35,9 +57,11 @@ def load(dimension, lang_filter=None, level=None):
         elif dimension == "speed":
             out.append({"id": getattr(m, "ID", p.stem), "prompt": getattr(m, "PROMPT", "")})
         elif dimension == "code":
+            extra = dict(getattr(m, "EXTRA_FILES", {}) or {})
+            _check_extra_files(task_id, extra)
             out.append({"id": getattr(m, "ID", p.stem), "lang": getattr(m, "LANG", "python"),
                         "prompt": getattr(m, "PROMPT", ""), "test_code": getattr(m, "TEST_CODE", ""),
-                        "level": level_value})
+                        "level": level_value, "extra_files": extra})
         elif dimension == "agent":
             out.append({"id": getattr(m, "ID", p.stem), "lang": getattr(m, "LANG", "python"),
                         "goal": getattr(m, "GOAL", ""),

@@ -52,13 +52,14 @@ class TestRender(unittest.TestCase):
         self.assertIn('class="miss">—</td>', html)
 
     def test_code_by_level_shown_when_present(self):
-        # R5 hard_code_tier: el desglossament easy/hard es veu a la fitxa del model
+        # R5 hard_code_tier / R4 discriminative_tasks: easy/hard/expert a la fitxa
         m = _mk()
-        m["code"]["by_level"] = {"easy": 1.0, "hard": 0.25}
+        m["code"]["by_level"] = {"easy": 1.0, "hard": 0.25, "expert": 0.0}
         html = html_report.render([m])
         self.assertIn("code per nivell:", html)
         self.assertIn("easy 100%", html)
         self.assertIn("hard 25%", html)
+        self.assertIn("expert 0%", html)
 
     def test_no_by_level_section_when_absent(self):
         html = html_report.render([_mk()])   # pool vell sense by_level

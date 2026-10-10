@@ -23,10 +23,10 @@ class TestConfig(unittest.TestCase):
 if __name__ == "__main__":
     unittest.main()
 class TestTasksVersion(unittest.TestCase):
-    def test_v2_marks_hard_tier(self):
-        # hard_code_tier R7: el canvi de conjunt de tasques (+16 hard) ha de pujar
-        # la versió; el pool la fa servir per distingir condicions pre/post.
-        self.assertEqual(config.TASKS_VERSION, "v2")
+    def test_v3_marks_expert_tier(self):
+        # discriminative_tasks R4: el conjunt expert (+12 tasques, EXTRA_FILES)
+        # ha de pujar la versió; el pool la fa servir per distingir condicions.
+        self.assertEqual(config.TASKS_VERSION, "v3")
 
 class TestWeightsUnchanged(unittest.TestCase):
     def test_weights_unchanged(self):

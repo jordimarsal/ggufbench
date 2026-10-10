@@ -47,5 +47,53 @@ class TestPyExecutor(unittest.TestCase):
         r = executors.run("typescript", sol, tst)
         self.assertTrue(r["passed"], r["output"])
 
+
+class TestExtraFiles(unittest.TestCase):
+    """R2/R3 discriminative_tasks: els fitxers de suport existeixen al sandbox."""
+
+    def test_python_sees_fixture(self):
+        sol = "def first():\n    return open('data.csv').read().strip()\n"
+        tst = "from solution import *\nassert first() == 'alpha\\nbeta'\nprint('OK')\n"
+        r = executors.run("python", sol, tst, extra_files={"data.csv": "alpha\nbeta\n"})
+        self.assertTrue(r["passed"], r["output"])
+
+    def test_bash_sees_fixture(self):
+        sol = 'first() { head -n 1 fixture.txt; }\n'
+        tst = 'source solution.sh\n[ "$(first)" = "alpha" ] || exit 1\necho OK\n'
+        r = executors.run("bash", sol, tst, extra_files={"fixture.txt": "alpha\nbeta\n"})
+        self.assertTrue(r["passed"], r["output"])
+
+    def test_java_helper_class_compiled(self):
+        # R3: EXTRA_FILES pot ser una classe de suport compilada amb solution+test
+        sol = ('public class Solution { public static int twice(int x){ return Helper.dbl(x); } }\n')
+        helper = 'public class Helper { public static int dbl(int x){ return 2*x; } }\n'
+        tst = ('public class Test { public static void main(String[] a){\n'
+               ' if (Solution.twice(21)!=42) throw new RuntimeException("FAIL");\n'
+               ' System.out.println("OK"); } }\n')
+        r = executors.run("java", sol, tst, extra_files={"Helper.java": helper})
+        self.assertTrue(r["passed"], r["output"])
+
+    def test_typescript_imports_extra_module(self):
+        sol = ('import { twice } from "./helper";\n'
+               'export function quad(x: number): number { return twice(twice(x)); }\n')
+        helper = "export function twice(n: number): number { return n * 2; }\n"
+        tst = ('import { quad } from "./solution";\n'
+               'if (quad(3) !== 12) throw new Error("FAIL");\nconsole.log("OK");\n')
+        r = executors.run("typescript", sol, tst, extra_files={"helper.ts": helper})
+        self.assertTrue(r["passed"], r["output"])
+
+    def test_runner_files_win_on_collision(self):
+        # Els noms reservats (solution/test) es escriuen DESPRÉS: l'extra no els pot capturar
+        sol = "def ok():\n    return 1\n"
+        tst = "from solution import *\nassert ok() == 1\nprint('OK')\n"
+        r = executors.run("python", sol, tst, extra_files={"solution.py": "BAD"})
+        self.assertTrue(r["passed"], r["output"])
+
+    def test_missing_extra_file_fails(self):
+        sol = "def first():\n    return open('data.csv').read().strip()\n"
+        tst = "from solution import *\nassert first() == 'alpha'\n"
+        r = executors.run("python", sol, tst)  # sense extra_files: no hi ha fixture
+        self.assertFalse(r["passed"])
+
 if __name__ == "__main__":
     unittest.main()

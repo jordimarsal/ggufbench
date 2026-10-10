@@ -41,13 +41,20 @@ def _write(tmp: str, files: dict[str, str]) -> None:
             f.write(content)
 
 
-def run(lang: str, solution_code, test_code, timeout: int = 30) -> dict:
-    """Escriu solution+test en tempdir, executa segons lang, retorna resultat."""
+def run(lang: str, solution_code, test_code, timeout: int = 30,
+        extra_files=None) -> dict:
+    """Escriu solution+test (+extra_files de suport) en tempdir, executa segons lang.
+
+    Els extra_files es escriuen PRIMER: si un d'ells col·lidís amb solution/test,
+    guanyen els fitxers del runner (el loader ja ho valida).
+    """
     if solution_code is None:
         return {"passed": False, "output": "no solution code block found", "elapsed_ms": 0}
     started = time.time()
     tmp = tempfile.mkdtemp(prefix="mbench_")
     try:
+        if extra_files:
+            _write(tmp, dict(extra_files))
         return _run_in(tmp, lang, solution_code, test_code, timeout, started)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
@@ -81,7 +88,9 @@ def _bash(tmp, solution_code, test_code, timeout, started):
 def _java(tmp, solution_code, test_code, timeout, started):
     _write(tmp, {"Solution.java": solution_code, "Test.java": test_code})
     pre = _sandbox_prefix(timeout)
-    comp = _safe_run(pre + ["javac", "Solution.java", "Test.java"], tmp, timeout + 5)
+    # Compila tots els .java del sandbox: solution + test + extra_files (classes de suport)
+    srcs = sorted(f for f in os.listdir(tmp) if f.endswith(".java"))
+    comp = _safe_run(pre + ["javac"] + srcs, tmp, timeout + 5)
     if comp is None:
         return _result(False, "compile timed out", started)
     if comp.returncode != 0:

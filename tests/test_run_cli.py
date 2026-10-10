@@ -171,6 +171,18 @@ class TestLevelForCode(unittest.TestCase):
         self.assertIsNone(run._level_for_code(["tools"], None))
         self.assertIsNone(run._level_for_code(["code"], None))
 
+    def test_expert_is_a_valid_level(self):
+        # discriminative_tasks R1: el parser accepta expert (i rebutja desconeguts)
+        self.assertEqual(run._level_for_code(["code"], "expert"), "expert")
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                run.main(["--level", "bogus", "--forget", "zz_nothing"])
+        # --level expert parseja bé (el branch --forget no toca res si no hi ha match)
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            run.main(["--level", "expert", "--forget", "zz_nothing"])
+        self.assertNotIn("invalid choice", err.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()

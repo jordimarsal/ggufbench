@@ -38,7 +38,7 @@
         "R4: scoreboard i report.html regenerats i coherents amb el pool nou (mateixa matemàtica de report.py)",
         "R5: les runs es fan sense cap altre servidor a les GPU (mai llama i Strata alhora)"
       ],
-      "status": "in_progress"
+      "status": "blocked"
     },
     {
       "id": 3,
@@ -66,6 +66,21 @@
         "R4: ADR-0002 + suite unittest verda"
       ],
       "status": "done"
+    },
+    {
+      "id": 5,
+      "name": "discriminative_tasks",
+      "title": "Nivell expert: tasques que separen models forts (multi-part, context llarg, EXTRA_FILES)",
+      "description": "La re-mesura del 2026-10-09 confirma que ni les facils ni les hard separen el top-5 (cluster dins ~8 punts). Afegeix el nivell expert (_expert, --level expert): 3 tasques per llengua amb >=3 comportaments relacionats o >=80 linies de context proveit (modul sencer, debug de ~100 linies, dades lleigues via EXTRA_FILES al sandbox), amb resistencia a solucions parcials com a criteri de qualitat.",
+      "acceptance": [
+        "R1: ID acabat en _expert -> level expert; run.py --level accepta easy|hard|expert (default: totes plegades)",
+        "R2: EXTRA_FILES (dict) escrit al sandbox junt a solution i test pels 4 runners; noms plans validats al loader",
+        "R3: >= 3 tasques expert per llengua, cada una multi-part (>= 3 comportaments) i/o >= 80 linies de context proveit; TEST_CODE falla amb solucions parcials",
+        "R4: by_level inclou expert, el report la mostra, tasks_version -> v3",
+        "R5: smoke amb >= 2 models on >= 1 tasca expert separa models per >= 20 punts",
+        "R6: sense canvis de pesos, d'altres dimensions ni de la politica de plegat"
+      ],
+      "status": "in_progress"
     }
   ]
 }
