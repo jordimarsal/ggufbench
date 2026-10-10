@@ -90,11 +90,14 @@ class TestRender(unittest.TestCase):
         self.assertIn("0.90", html)
 
     def test_every_model_row_shows_think_mode(self):
-        # Totes les seccions per model (matriu + barres) marquen el mode.
+        # Totes les seccions per model (matriu + barres) marquen el mode, DAVANT
+        # del nom (l'ellipsis retallava el badge al final en columnes estretes).
         html = html_report.render([_mk(thinking="off"), _mk("models/bar.gguf",
                                                              thinking="on")])
         self.assertEqual(html.count("think:off"), 8)  # ranking + 6 barres + matriu
         self.assertEqual(html.count("think:on"), 8)
+        self.assertIn('<span class="badge">think:off</span> foo', html)
+        self.assertIn('title="foo"', html)
 
     def test_no_by_level_section_when_absent(self):
         html = html_report.render([_mk()])   # pool vell sense by_level

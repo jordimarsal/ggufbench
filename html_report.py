@@ -184,7 +184,7 @@ def render(pool):
                  if r["thinking"] != "—" else "")
         ranking.append(
             f'<div class="rank"><div class="pos{cls}">{i + 1}</div>'
-            f'<div class="name">{_esc(r["name"])}<small>{_esc(r["ts"])} · {r["tasks"]["tools"]}+'
+            f'<div class="name" title="{_esc(r["name"])}">{_esc(r["name"])}<small>{_esc(r["ts"])} · {r["tasks"]["tools"]}+'
             f'{r["tasks"]["code"]}+{r["tasks"]["agent"]} tasques · excloses code: {r["code_excluded"]}</small></div>'
             f'<div class="bar"><div class="fill{cls}" style="width:{width:.1f}%"></div></div>'
             f'<div class="gval{cls}">{r["global"]:.2f} <span class="badge{" strata" if r["engine"] == "strata" else ""}">'
@@ -197,9 +197,11 @@ def render(pool):
         for r in sorted(rows, key=lambda x: x["sc"][key] if not lower_is_better else -(x["sc"][key] or 1e9)):
             v = r["sc"][key]
             pct = (best / v * 100 if v else 0) if lower_is_better else (v / best * 100 if best else 0)
-            think = (f' <span class="badge">think:{_esc(r["thinking"])}</span>'
+            # Badge DAVANT del nom: .name fa ellipsis (nowrap) i el badge al final
+            # quedava retallat en columnes estretes. title = nom sencer en tooltip.
+            think = (f'<span class="badge">think:{_esc(r["thinking"])}</span> '
                      if r["thinking"] != "—" else "")
-            out.append(f'<div class="rank"><div class="name">{_esc(r["name"])}{think}</div>'
+            out.append(f'<div class="rank"><div class="name" title="{_esc(r["name"])}">{think}{_esc(r["name"])}</div>'
                        f'<div class="bar"><div class="fill{" acc" if acc else ""}" style="width:{pct:.1f}%"></div></div>'
                        f'<div class="num" style="text-align:right">{fmt(v)}</div></div>')
         return "".join(out)
@@ -214,9 +216,9 @@ def render(pool):
                     cells.append('<td class="miss">—</td>')
                 else:
                     cells.append(f"<td>{_heat(v)}</td>")
-        think = (f' <span class="badge">think:{_esc(r["thinking"])}</span>'
+        think = (f'<span class="badge">think:{_esc(r["thinking"])}</span> '
                  if r["thinking"] != "—" else "")
-        matrix_rows.append(f'<tr><td class="name">{_esc(r["name"])}{think}</td>'
+        matrix_rows.append(f'<tr><td class="name" title="{_esc(r["name"])}">{think}{_esc(r["name"])}</td>'
                            f'{"".join(cells)}</tr>')
     matrix_head = "".join(f'<th>{dim}:{lang}</th>' for dim in ("code", "agent") for lang in langs)
 
