@@ -145,10 +145,13 @@ python3 -m benchmark.html_report                        # escriu benchmark/resul
    `ID`/`PROMPT` en majúscules). `EXPECTED` sense `arguments` = només nom de tool;
    `arguments: {}` = crida buida. L'agent resol fitxers case-insensitive (java:
    `Solution.java`).
-   **Nivell hard:** les tasques de code amb `ID` acabat en `_hard` són nivell hard
-   (`--level easy|hard` les filtra; sense `--level` s'executen totes i el score de code
-   queda plegat). `tasks_version` = "v2" des que existeix el nivell hard. Les solucions
-   de referència de les hard NO es commiten (no filtrar-les als models).
+   **Nivells de code:** `ID` acabat en `_hard` → nivell hard; acabat en `_expert` →
+   nivell expert (multi-fitxer: poden declarar `EXTRA_FILES`, un dict de fitxers de
+   suport que s'escriuen al sandbox abans de la solució i el test; noms plans, sense
+   camins). `--level easy|hard|expert` les filtra; sense `--level` s'executen totes i el
+   score de code queda plegat. `tasks_version` = "v3" des que existeix el nivell expert
+   (v2 = hard, v1 = base). Les solucions de referència de les hard i expert NO es
+   commiten (no filtrar-les als models).
 4. **Perfil per model:** `models/<model>.txt` (flags lliures excepte infra). Strata: una
    config per model a `Strata/strata-<nom>.json`, python del SEU `.venv`.
 5. Els resultats de Strata identifiquen el model per l'arrel del config

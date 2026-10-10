@@ -234,7 +234,8 @@ re-executar els altres. Dues capes:
   poder comparar runs posteriors).
 
 Cada resultat porta metadata de condicions per poder barregar runs de forma
-justa: `context_mode`, `tasks_version` (hash de la suite), `weights`, `ts`,
+justa: `context_mode`, `tasks_version` (etiqueta de la suite: "v1" base, "v2" amb el
+nivell hard, "v3" amb el nivell expert), `weights`, `ts`,
 `server_build` (versió de llama.cpp) i `model_config_flags` (flags extrets de
 `models/<model>.txt`, o null — recorda que des de 2026-10 cada model corre amb
 el seu perfil). El scoreboard avisa (o filtra) si es barregen resultats amb
@@ -246,7 +247,7 @@ El JSON per model és:
   "model": "qwen3-14b",
   "ts": "2026-08-03T20:30:00",
   "context_mode": "fixed",
-  "tasks_version": "a1b2c3",
+  "tasks_version": "v3",
   "server_build": "10250",
   "global": 0.91,
   "speed": {"gen_tps": 48.0, "prompt_tps": 2600.0, "ttft_ms": 220},
@@ -256,6 +257,7 @@ El JSON per model és:
   "code": {
     "score": 0.88,
     "by_lang": {"python":1.0, "bash":1.0, "java":0.5, "typescript":1.0},
+    "by_level": {"easy":0.92, "hard":0.75, "expert":0.4},
     "tasks": [{"name":"stack","lang":"java","pass":false,"output":"AssertionError...","elapsed_ms":1240}, ...]
   },
   "agent": {
@@ -307,8 +309,8 @@ benchmark/run.py [opcions]
   --context fixed|adapted      # default: fixed (16384)
   --dims speed,tools,code,agent  # subset; default: totes
   --lang python,java,...       # filtra tasques de codi/agent per idioma
-  --level easy|hard            # filtra NOMES les tasques de code per nivell (sufix _hard;
-                               # sense --level s'executen les dos i el score de code es plega)
+  --level easy|hard|expert     # filtra NOMES les tasques de code per nivell (sufix _hard o
+                               # _expert; sense --level s'executen els tres i el score de code es plega)
   --quick                      # 1 tasca per dimensió (smoke test del harness)
    -v, --verbose                # Taula 1 + per-llenguatge (Taula 2); NO inclou tasques
    --task                       # Taula 3 (detall de tasca): mostra on acerta/falla cada model; es composa amb --verbose
