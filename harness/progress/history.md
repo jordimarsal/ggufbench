@@ -68,3 +68,15 @@ rellotge 1000 (mateixa fórmula); columna THINK + `(N excl.)` a Taules 1/2/3; ba
 actualitzat). Precondició trobada i resolta: 3 perfils sense `-c` → `-c 65536`
 (entorn, fora del git). Traçabilitat 7/7 + --all PASS. 187 tests OK. Commits 6e732df
 + 5092aa4 + 541a719. Completion Gate aprovat sense canvis.
+
+## 2026-10-10 — remeasure_pool (done)
+
+Desbloquejat pel gate de thinking_batches. Doble batch amb el harness nou (32768 tok,
+cap 1000 s, clau de pool per mode): llama OFF 10/10 (~31 min) + llama ON 10/10 (restart
+per mort prematura del procés a 3/10, causa indeterminada; setsid+faulthandler estable)
++ Strata OFF + Strata ON, 0 serve_failed, mai dos motors alhora. Pool final: 22 files
+fresques v3 d'una sola data (11 off + 11 on; legacy arxivades). Report regenerat sense
+banner, badges 11+11, exclosos visibles (`96% (4 excl.)`). Resultats: OFF mana en
+GLOBAL; en code els 27B pugen pensant (0.82→0.96) i el MoE petit es crema (5 excloses);
+l'expert mossega (OFF 0.73–0.88). Traçabilitat 5/5 + --all PASS. 187 tests OK.
+Completion Gate aprovat amb desviacions declarades (v3+expert, dues files per model).

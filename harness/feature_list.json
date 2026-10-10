@@ -38,7 +38,7 @@
         "R4: scoreboard i report.html regenerats i coherents amb el pool nou (mateixa matemàtica de report.py)",
         "R5: les runs es fan sense cap altre servidor a les GPU (mai llama i Strata alhora)"
       ],
-      "status": "in_progress"
+      "status": "done"
     },
     {
       "id": 3,

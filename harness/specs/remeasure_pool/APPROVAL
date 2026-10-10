@@ -1,0 +1,15 @@
+APPROVED — Completion Gate: remeasure_pool
+
+Data: 2026-10-10
+Revisor: Jordi (human gate)
+Decisio: in_progress -> done
+
+Evidencies revisades:
+- 4 batchs GPU (10+10+1+1 models, exit 0): batch-llama-off.log, batch-llama-on.log
+  (amb restart documentat), batch-strata-off.log, batch-strata-on.log
+- Pool 22 files fresques v3 (11 off + 11 on), legacy arxivades; summary.log amb
+  scoreboard + comprovacions (sense banner, badges 11+11)
+- Traçabilitat 5/5 PASS + --all PASS (traceability-check.txt, review.md)
+- Suite: 187 tests OK, 1 skip preexistent; harness/init.sh verd
+- Desviacions de l'spec acceptades (v3+expert, dues files per model, llista explícita):
+  documentades a impl_remeasure_pool.md amb aprovacions prèvies
