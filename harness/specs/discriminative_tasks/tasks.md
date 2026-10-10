@@ -34,12 +34,12 @@
       depends_on: T4, T5, T6, T7
       refs: R3
 
-- [ ] T9: Smoke de discriminació amb >= 2 models reals (R5) — s'executa dins la
+- [x] T9: Smoke de discriminació amb >= 2 models reals (R5) — s'executa dins la
       re-mesura desbloquejada
       depends_on: T8
       refs: R5
 
-- [ ] T10: Docs (SPEC, AGENTS.md) + traçabilitat + harness/init.sh + demanar Completion
+- [x] T10: Docs (SPEC, AGENTS.md) + traçabilitat + harness/init.sh + demanar Completion
       Gate
       depends_on: T3, T9
       refs: R1, R2, R4, R6

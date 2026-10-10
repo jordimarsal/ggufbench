@@ -33,3 +33,7 @@ class TestWeightsUnchanged(unittest.TestCase):
         # R8 hard_code_tier: el nivell hard no toca els pesos ni la resta de dimensions
         self.assertEqual(config.WEIGHTS,
                          {"tools": 0.30, "code": 0.30, "agent": 0.25, "speed": 0.15})
+    def test_r7_retired_no_efficiency_dimension(self):
+        # discriminative_tasks R7 (retired): l'eficiència (tokens per tasca) queda com a
+        # mètrica registrada (out_tokens), mai com a dimensió puntuada.
+        self.assertEqual(set(config.WEIGHTS), {"speed", "tools", "code", "agent"})

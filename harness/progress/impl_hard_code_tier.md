@@ -25,8 +25,8 @@ feature: hard_code_tier
 | R3 | test_by_level_folded_score_and_breakdown | graders.py | done |
 | R4 | test_by_level_folded_score_and_breakdown test_by_level_defaults_to_easy_without_key | graders.py | done |
 | R5 | test_code_by_level_shown_when_present test_no_by_level_section_when_absent | html_report.py | done |
-| R6 | test_sixteen_tasks_four_per_lang test_ids_end_with_hard test_each_is_specified_and_judged test_easy_and_hard_are_disjoint_and_complete | tasks/code/python tasks/code/bash tasks/code/java tasks/code/typescript | done |
-| R7 | test_v2_marks_hard_tier | config.py run.py | done |
+| R6 | test_sixteen_tasks_four_per_lang test_ids_end_with_hard test_each_is_specified_and_judged test_levels_are_disjoint_and_complete | tasks/code/python tasks/code/bash tasks/code/java tasks/code/typescript | done |
+| R7 | test_v3_marks_expert_tier | config.py run.py | done |
 | R8 | test_non_code_dims_get_no_level test_none_level_is_passthrough test_weights_unchanged | run.py config.py graders.py | done |
 
 Validació de contingut de les tasques hard (R6): solucions de referència OK i ingènues

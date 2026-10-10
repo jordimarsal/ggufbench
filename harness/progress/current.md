@@ -24,6 +24,33 @@
 - Validació d'autor de les 12: ref=OK i partial=falla al tercer comportament a `harness/logs/discriminative_tasks/author-validation.log` (solucions a /tmp, NO es commiten).
 - Registre a `feature_list.json`: la comanda del checkpoint anterior havia caigut — feature 5 afegida (in_progress) i `remeasure_pool` → `blocked` (coherent amb blocked.md). `validate-feature-list.py` OK.
 - Provisori: `feature_list.json` + specs + tasques encara sense commit.
+- **T9 (fum R5):** llançat amb `--dims code --level expert` sobre 2 models (27B fort vs
+  8B feble) → `harness/logs/discriminative_tasks/smoke-r5.log`. Motiu: el validator
+  prohibeix 2 features `in_progress` a la vegada, així que la re-mesura completa queda
+  per a remeasure_pool un cop discriminative_tasks tanqui el Completion Gate (el
+  `blocked.md` ja ho documenta); el fum R5 (≥2 models) és el que necessita la feature 5.
+  **Intent 1 (`--dims code`) va fallar**: sense `speed` no hi ha `gen_tps` →
+  `code_timeout` = 90 s fixes → les tasques expert timeouteen
+  (`smoke-r5-attempt1.log`; defecte D6 de MILLORA, afegit avui). Intent 2 amb
+  `--dims speed,code` (mateixa cadena `gen_tps` que la re-mesura real).
+  Nota: el pkill de l'intent 1 va deixar un `llama-server` orfe (kill abrupte → el
+  `finally: sm.stop()` no va netejar) — matat a mà; en matar una run, verificar que el
+  servidor cau.
+  Després del fum: restaurar `pool.jsonl` des de `pool.pre-remeasure.jsonl` per no
+  deixar el pool barrejat (condicions homogènies documentades a blocked.md).
+- **T10 (docs, feta):** SPEC.md CLI `--level easy|hard|expert`; `tasks_version` documentat
+  com a etiqueta v1/v2/v3 (abans deia "hash"); `by_level` al example JSON de code;
+  AGENTS.md regla 3 ampliada (nivell expert, EXTRA_FILES, v3).
+- Pròxim: acabar T9 (extreure gap ≥20 pts del fum → test mecànic + tick), `impl_discriminative_tasks.md`
+  (R1-R6 fets, R5 = test sobre el log del fum, R7 = retired), check-traceability → review.md,
+  batch-7.log + tick T10 → demanar Completion Gate.
+- **Fet després (sessió 10-oct, "continua"):** test R7 `test_r7_retired_no_efficiency_dimension`
+  (test_config.py, verd); `impl_discriminative_tasks.md` escrit (R1-R4/R6/R7 done, R5 pending);
+  `check-traceability --feature discriminative_tasks` → **7/7 PASS**; `tests/test_smoke_evidence.py`
+  + `/tmp/opencode/extract_r5.py` (log → `smoke-r5.md` versionable) llestos i provats amb mostra
+  sintètica. Fum intent 2 en curs (27B: 1/12 ✓ log_filter_debug, 3× `no code block`).
+  **Pendent del fum:** generar `smoke-r5.md`, verificar gap, tick T9, `init.sh` → batch-7.log,
+  tick T10, review.md + verdict, commit (`docs`+`tests`) i **Completion Gate**.
 
 ## Next step
 

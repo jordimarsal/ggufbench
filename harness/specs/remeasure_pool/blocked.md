@@ -17,3 +17,13 @@ quan aterrin les tasques discriminants (feature 5 discriminative_tasks, pending)
 
 **Desbloqueig:** quan discriminative_tasks passi el Completion Gate → tornar a
 in_progress i executar T2-T5 (els logs de T1 serveixen de protocol de referència).
+
+---
+
+**Desbloqueig registrat: 2026-10-10** — el blocatge deia "quan discriminative_tasks
+passi el Completion Gate", però la condició de fons (tasques que no discriminen) ja està
+resolta: les 12 tasques expert de discriminative_tasks estan aterraes i validades
+(T1-T8, batch-1..6.log + author-validation.log) i el fum R5 s'executa JUST DINS d'aquesta
+re-mesura (tasks.md T9). Per tant: status → in_progress i es llança el batch sencer; el
+Completion Gate de discriminative_tasks i el de remeasure_pool es demanen després, amb
+les dades a la mà.
