@@ -99,6 +99,14 @@ class TestRender(unittest.TestCase):
         self.assertIn('<span class="badge">think:off</span> foo', html)
         self.assertIn('title="foo"', html)
 
+    def test_bar_rows_align_to_four_column_grid(self):
+        # Sense barres: les files són text (trow: nom + valor), sense .bar/.fill
+        # (el grid .rank de 4 columnes esclafava el nom al track de 22px).
+        html = html_report.render([_mk(thinking="off")])
+        self.assertNotIn('class="bar"', html)
+        self.assertNotIn('class="fill', html)
+        self.assertIn('class="trow"', html)
+
     def test_no_by_level_section_when_absent(self):
         html = html_report.render([_mk()])   # pool vell sense by_level
         self.assertNotIn("code per nivell", html)

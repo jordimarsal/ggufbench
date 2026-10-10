@@ -111,15 +111,11 @@ th{color:var(--muted);text-align:left;font-weight:600;font-size:11.5px;text-tran
 td{padding:6px 8px;border-bottom:1px solid var(--border)}
 tr:hover td{background:rgba(59,130,246,.07)}
 .num{font-family:var(--mono);text-align:right;white-space:nowrap}
-.bar{position:relative;height:16px;background:var(--card2);border:1px solid var(--border);
-  border-radius:6px;overflow:hidden;min-width:110px}
-.fill{height:100%;background:linear-gradient(90deg,var(--primary),var(--primary2))}
-.fill.acc{background:linear-gradient(90deg,#b45309,var(--accent))}
-.fill.good{background:linear-gradient(90deg,#0f766e,var(--good))}
-.rank{display:grid;grid-template-columns:22px minmax(140px,260px) 1fr 120px;gap:10px;
-  align-items:center;padding:7px 4px;border-bottom:1px solid var(--border)}
-.rank:last-child{border-bottom:0}
-.rank:hover{background:rgba(59,130,246,.07)}
+.trow{display:flex;gap:10px;align-items:baseline;padding:5px 4px;border-bottom:1px solid var(--border)}
+.trow:last-child{border-bottom:0}
+.trow:hover{background:rgba(59,130,246,.07)}
+.trow .name{flex:1;min-width:0}
+.trow .num,.trow .gval{margin-left:auto}
 .pos{font:600 13px var(--mono);color:var(--muted);text-align:right}
 .pos.top{color:var(--accent)}
 .name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -146,8 +142,7 @@ code{font-family:var(--mono);color:var(--primary2)}
 :where(a,summary):focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
 @media (max-width:900px){.grid2{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:no-preference){
-  .fill{transition:width .25s ease}
-  tr:hover td,.rank:hover,summary:hover{transition:background .18s ease}
+  tr:hover td,.trow:hover,summary:hover{transition:background .18s ease}
 }
 @media print{header{position:static}body{background:#fff;color:#000}}
 """
@@ -159,7 +154,6 @@ def render(pool):
     now = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
     gpus = _gpu_chips()
     w = config.WEIGHTS
-    top = rows[0]["global"] if rows else 1
     dates = sorted({r["ts"] for r in rows if r["ts"]})
     langs = ["python", "bash", "java", "typescript"]
 
@@ -179,30 +173,25 @@ def render(pool):
     ranking = []
     for i, r in enumerate(rows):
         cls = " top" if i == 0 else ""
-        width = (r["global"] / top * 100) if top else 0
         think = (f' <span class="badge">think:{_esc(r["thinking"])}</span>'
                  if r["thinking"] != "—" else "")
         ranking.append(
-            f'<div class="rank"><div class="pos{cls}">{i + 1}</div>'
+            f'<div class="trow"><div class="pos{cls}">{i + 1}</div>'
             f'<div class="name" title="{_esc(r["name"])}">{_esc(r["name"])}<small>{_esc(r["ts"])} · {r["tasks"]["tools"]}+'
             f'{r["tasks"]["code"]}+{r["tasks"]["agent"]} tasques · excloses code: {r["code_excluded"]}</small></div>'
-            f'<div class="bar"><div class="fill{cls}" style="width:{width:.1f}%"></div></div>'
             f'<div class="gval{cls}">{r["global"]:.2f} <span class="badge{" strata" if r["engine"] == "strata" else ""}">'
             f'{_esc(r["engine"])} {_esc(r["build"])}</span>{think}</div></div>')
 
-    def dim_bars(key, fmt, lower_is_better=False, acc=False):
-        best = min((r["sc"][key] for r in rows if r["sc"][key]), default=0) if lower_is_better \
-            else max((r["sc"][key] for r in rows), default=1)
+    def dim_bars(key, fmt):
         out = []
-        for r in sorted(rows, key=lambda x: x["sc"][key] if not lower_is_better else -(x["sc"][key] or 1e9)):
+        for r in sorted(rows, key=lambda x: -(x["sc"][key] or 1e9) if key == "speed_ms" else (x["sc"][key] or 0)):
             v = r["sc"][key]
-            pct = (best / v * 100 if v else 0) if lower_is_better else (v / best * 100 if best else 0)
             # Badge DAVANT del nom: .name fa ellipsis (nowrap) i el badge al final
             # quedava retallat en columnes estretes. title = nom sencer en tooltip.
             think = (f'<span class="badge">think:{_esc(r["thinking"])}</span> '
                      if r["thinking"] != "—" else "")
-            out.append(f'<div class="rank"><div class="name" title="{_esc(r["name"])}">{think}{_esc(r["name"])}</div>'
-                       f'<div class="bar"><div class="fill{" acc" if acc else ""}" style="width:{pct:.1f}%"></div></div>'
+            out.append(f'<div class="trow">'
+                       f'<div class="name" title="{_esc(r["name"])}">{think}{_esc(r["name"])}</div>'
                        f'<div class="num" style="text-align:right">{fmt(v)}</div></div>')
         return "".join(out)
 
@@ -270,13 +259,13 @@ def render(pool):
 <section><h2>Codi (32 tasques · 4 llenguatges)</h2>{dim_bars("code", lambda v: f"{v:.0%}")}</section>
 <section><h2>Agent multi-pas (24 tasques)</h2>{dim_bars("agent", lambda v: f"{v:.0%}")}</section>
 <section><h2>Tool-calling (8 tasques)</h2>{dim_bars("tools", lambda v: f"{v:.0%}")}</section>
-<section><h2>Velocitat (ms de generació · menys és millor)</h2>{dim_bars("speed_ms", lambda v: f"{v} ms", lower_is_better=True, acc=True)}</section>
+<section><h2>Velocitat (ms de generació · menys és millor)</h2>{dim_bars("speed_ms", lambda v: f"{v} ms")}</section>
 </div>
 
 <section>
   <h2>Tokens per segon</h2>
   <div class="grid2">
-    <div><h2>gen (output)</h2>{dim_bars("gen_tps", lambda v: f"{v:.0f} t/s", acc=True)}</div>
+    <div><h2>gen (output)</h2>{dim_bars("gen_tps", lambda v: f"{v:.0f} t/s")}</div>
     <div><h2>prompt (input)</h2>{dim_bars("prompt_tps", lambda v: f"{v:.0f} t/s")}</div>
   </div>
 </section>
