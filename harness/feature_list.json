@@ -81,6 +81,22 @@
         "R6: sense canvis de pesos, d'altres dimensions ni de la politica de plegat"
       ],
       "status": "done"
+    },
+    {
+      "id": 6,
+      "name": "thinking_batches",
+      "title": "Doble batch think/no-think + pressupost code 32768 + exclosos senyalitzats",
+      "description": "El fum R5 suggereix que els models híbrids (Qwen3) cremen el pressupost pensant mentre Strata mesura amb thinking OFF: condicions desiguals. Dos batchs uniformes (think/no-think) amb clau de pool per (slug, thinking), pressupost code de 32768 des de l'inici (decisió del revisor), i exclosos visibles a Taula 1 + HTML.",
+      "acceptance": [
+        "R1: --thinking on|off aplicat i registrat a cada resultat (default off)",
+        "R2: el pool conserva els dos modes per model (clau slug+thinking); budgets igual",
+        "R3: pressupost code 32768 + invalidació de budgets vells + cap de rellotge que el cobreixi",
+        "R4: Taula 1/2/3 i HTML amb files separades i mode marcat; banner intacte",
+        "R5: exclosos comptats al costat del score (Taula 1 + HTML)",
+        "R6: mateixos dims/langs/levels als dos batchs",
+        "R7: sense canvis de pesos, plegat ni semàntica de score"
+      ],
+      "status": "spec_ready"
     }
   ]
 }
