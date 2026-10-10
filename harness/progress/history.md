@@ -39,3 +39,19 @@ en lloc de l'escala 2048->4096->8192. Amb seed/temp fixos el score es identic (p
 determinista) pero s'eliminen 1-2 peticions mortes per tasca amb models que pensen, i
 la cua de pensament llarg (8-16k) queda mesurada. out_tokens registrat a la tracca com
 a metrica d'eficiencia. ADR-0002. 139 tests OK, tracabilitat 4/4 PASS.
+
+## 2026-10-10 — discriminative_tasks (done)
+
+Feature 5: nivell expert de code (`_expert`, `--level easy|hard|expert`): 12 tasques
+(3 per llengua: mòdul sencer / debug de ~100 línies amb 3 errors / dades lleigues via
+EXTRA_FILES al sandbox), validació d'autor 12/12 (ref OK, partial falla al 3r
+comportament), `by_level` amb expert + report, `tasks_version` v3. Pesos i plegat
+intactes. Fum R5 amb 2 models reals: `log_filter_debug_expert` i `proc_registry_expert`
+separen ✓/✗ amb gap 100 (smoke-r5.md + test mecànic). Troballes: D6 (sense `speed` el
+timeout de code cau a 90 s fixes) i sostre de 16384 amb text buit al 27B (hipòtesi
+think). Traçabilitat 7/7 + --all PASS (3 IDs obsolets remapejats). 165 tests OK.
+Commits aabff88 + 19305d9 + 4dc88ec. Completion Gate aprovat amb canvi: pressupost
+code inicia a 32768 (a la feature següent).
+
+Proper feature: 6 thinking_batches (pending) — doble batch think/no-think +
+pressupost 32768 + exclosos senyalitzats + clau de pool per (slug, thinking).

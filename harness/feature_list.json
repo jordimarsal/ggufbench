@@ -80,7 +80,7 @@
         "R5: smoke amb >= 2 models on >= 1 tasca expert separa models per >= 20 punts",
         "R6: sense canvis de pesos, d'altres dimensions ni de la politica de plegat"
       ],
-      "status": "in_progress"
+      "status": "done"
     }
   ]
 }

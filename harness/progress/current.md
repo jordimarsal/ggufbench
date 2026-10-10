@@ -51,6 +51,25 @@
   sintètica. Fum intent 2 en curs (27B: 1/12 ✓ log_filter_debug, 3× `no code block`).
   **Pendent del fum:** generar `smoke-r5.md`, verificar gap, tick T9, `init.sh` → batch-7.log,
   tick T10, review.md + verdict, commit (`docs`+`tests`) i **Completion Gate**.
+- **Fum acabat (exit 0):** 27B 5✓/7 excloses (`out_tokens=16384` + text buit — hipòtesi
+  `<think>` a `reasoning_content`; client pass-through fidel, exclusió honesta per disseny);
+  8B 3✓/9✗. **R5 complert:** `log_filter_debug_expert` i `proc_registry_expert` separen
+  ✓/✗ (gap 100). `smoke-r5.md` generat → mogut a `harness/specs/` (versionable; logs/
+  és ignorat). Pool restaurat a pre-remeasure (`diff` buit). `test_smoke_evidence` verd.
+  Remapejats 3 IDs obsolets a `impl_*.md` (2 renams meus de `aabff88` + 1 de la feature 4):
+  `--all` PASS. `init.sh` → batch-7.log verd; T9+T10 tickats (10/10); `review.md` =
+  **APPROVED**. Commits `19305d9` (docs) + `4dc88ec` (harness). Arbre net.
+- **Decisió humana (10-oct, pre-gate): DOBLE BATCH think/no-think.** Fets verificats:
+  Strata ja corre amb `enable_thinking: False` assumint "igual que la resta", però el
+  27B crema el pressupost (hipòtesi think); el binari suporta `--reasoning off` i el
+  kwarg `chat_template_kwargs.enable_thinking`. Conseqüències (nova feature SDD abans
+  de la re-mesura): flag `--thinking on|off` a run.py; el pool ha de clavar per
+  (slug, thinking) — l'upsert actual per slug solaparia els dos batchs; `token_budget`
+  clavat igual; report+HTML amb files separades i banner de condicions que contempli
+  `thinking`; Q1 (escalada 2n esglaó 32768, VRAM-neutral, cost temps asimètric) i Q3
+  (marcar exclosos a Taula 1 + HTML, només reporting) hi viuen. Cost GPU ~2× (≈3–4 h).
+  Obert al spec: Strata-think amb max_tokens petits (speed/tools 128/256) pot no
+  arribar a respondre; batch think per a tots o només híbrids.
 
 ## Next step
 

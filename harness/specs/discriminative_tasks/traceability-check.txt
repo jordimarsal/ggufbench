@@ -1,0 +1,2 @@
+## discriminative_tasks: 7/7 requirements covered
+VERDICT: PASS

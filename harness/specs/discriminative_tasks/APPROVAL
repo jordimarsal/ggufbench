@@ -1,0 +1,16 @@
+APPROVED — Completion Gate: discriminative_tasks
+
+Data: 2026-10-10
+Revisor: Jordi (human gate)
+Decisio: in_progress -> done (amb canvis)
+
+Evidencies revisades:
+- Traçabilitat 7/7 PASS + --all PASS (traceability-check.txt, review.md)
+- Suite completa: 165 tests OK, 1 skip preexistent; harness/init.sh verd
+- Validacio d'autor 12/12 expert: ref OK, partial FALLA (author-validation.log)
+- Fum R5: 2 models, 2 tasques separen amb gap 100 (smoke-r5.md)
+- Commits: aabff88 + 19305d9 + 4dc88ec
+
+Canvi imposat pel revisor (fora d'abast de la feature, R6):
+- Q1: el pressupost de tokens de code INICIA a 32768 (no escala 16384->32768).
+  S'implementa a la feature seguent (thinking_batches), abans de la re-mesura.
