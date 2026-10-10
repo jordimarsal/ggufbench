@@ -79,6 +79,23 @@ class TestRender(unittest.TestCase):
         self.assertNotIn("think:", html)
         self.assertIn("excloses code: 0", html)
 
+    def test_heat_cells_have_readable_solid_background(self):
+        # El text de la matriu s'ha de llegir a tot el rang: fons sòlid rgb +
+        # color per lluminància (mai alfa ni inherit).
+        html = html_report.render([_mk(code_score=0.1), _mk("models/bar.gguf",
+                                                           code_score=0.9)])
+        self.assertNotIn("rgba(52,211,153", html)
+        self.assertNotIn("color:inherit", html)
+        self.assertIn("0.10", html)
+        self.assertIn("0.90", html)
+
+    def test_every_model_row_shows_think_mode(self):
+        # Totes les seccions per model (matriu + barres) marquen el mode.
+        html = html_report.render([_mk(thinking="off"), _mk("models/bar.gguf",
+                                                             thinking="on")])
+        self.assertEqual(html.count("think:off"), 8)  # ranking + 6 barres + matriu
+        self.assertEqual(html.count("think:on"), 8)
+
     def test_no_by_level_section_when_absent(self):
         html = html_report.render([_mk()])   # pool vell sense by_level
         self.assertNotIn("code per nivell", html)

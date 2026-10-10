@@ -61,6 +61,19 @@ def _rows(pool):
     return rows
 
 
+def _heat(v):
+    """Píndola sòlida (sense alfa): el text ha de llegir-se a tot el rang 0-1.
+    Barreja verda sobre la targeta, calculada a Python; el color del text surt de
+    la lluminància del resultat (llindar 0.38). L'alfa sobre fons fosc deixava
+    bandes il·legibles (clar sobre verd mig, fosc sobre verd fosc)."""
+    k = 0.15 + 0.85 * max(0.0, min(1.0, v))
+    r, g, b = (16 + (52 - 16) * k, 26 + (211 - 26) * k, 46 + (153 - 46) * k)
+    lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
+    color = "#0b1220" if lum > 0.38 else "#e7eef9"
+    return (f'<span class="heat" style="background:rgb({r:.0f},{g:.0f},{b:.0f});'
+            f'color:{color}">{v:.2f}</span>')
+
+
 _CSS = """
 :root{
   --bg:#0b1220; --card:#101a2e; --card2:#0d1526; --border:#1e2a44;
@@ -184,7 +197,9 @@ def render(pool):
         for r in sorted(rows, key=lambda x: x["sc"][key] if not lower_is_better else -(x["sc"][key] or 1e9)):
             v = r["sc"][key]
             pct = (best / v * 100 if v else 0) if lower_is_better else (v / best * 100 if best else 0)
-            out.append(f'<div class="rank"><div class="name">{_esc(r["name"])}</div>'
+            think = (f' <span class="badge">think:{_esc(r["thinking"])}</span>'
+                     if r["thinking"] != "—" else "")
+            out.append(f'<div class="rank"><div class="name">{_esc(r["name"])}{think}</div>'
                        f'<div class="bar"><div class="fill{" acc" if acc else ""}" style="width:{pct:.1f}%"></div></div>'
                        f'<div class="num" style="text-align:right">{fmt(v)}</div></div>')
         return "".join(out)
@@ -198,11 +213,11 @@ def render(pool):
                 if v is None:
                     cells.append('<td class="miss">—</td>')
                 else:
-                    alpha = 0.10 + 0.55 * v
-                    color = "#0b1220" if v > 0.55 else "inherit"
-                    cells.append(f'<td><span class="heat" style="background:rgba(52,211,153,{alpha:.2f};'
-                                 f'color:{color}">{v:.2f}</span></td>')
-        matrix_rows.append(f'<tr><td class="name">{_esc(r["name"])}</td>{"".join(cells)}</tr>')
+                    cells.append(f"<td>{_heat(v)}</td>")
+        think = (f' <span class="badge">think:{_esc(r["thinking"])}</span>'
+                 if r["thinking"] != "—" else "")
+        matrix_rows.append(f'<tr><td class="name">{_esc(r["name"])}{think}</td>'
+                           f'{"".join(cells)}</tr>')
     matrix_head = "".join(f'<th>{dim}:{lang}</th>' for dim in ("code", "agent") for lang in langs)
 
     details = []
