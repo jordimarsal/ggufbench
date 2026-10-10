@@ -74,6 +74,64 @@ def _heat(v):
             f'color:{color}">{v:.2f}</span>')
 
 
+def _picks(rows):
+    """Guanyadors per categoria (dades, mai noms hardcoded): una card per cada
+    (model, mode) que guanya ≥1 categoria, amb les seves raons d'ús."""
+    cats = [
+        ("global", "Millor global", "treball diari a opencode (equilibri)",
+         lambda r: r["global"]),
+        ("code", "Millor codi", "tasques de codi hard/expert",
+         lambda r: r["sc"]["code"]),
+        ("agent", "Millor agent", "feina autònoma multi-pas",
+         lambda r: r["sc"]["agent"]),
+        ("tools", "Millor tools", "tool-calling i orquestració",
+         lambda r: r["sc"]["tools"]),
+        ("speed", "Més ràpid", "interactivitat (latència mínima)",
+         lambda r: -(r["sc"]["speed_ms"] or 1e9)),
+        ("gen", "Més throughput", "generacions llargues",
+         lambda r: r["sc"]["gen_tps"]),
+        ("think", "Millor pensant", "problemes durs on el think paga la latència",
+         lambda r: r["sc"]["code"] if r["thinking"] == "on" else -1),
+    ]
+    cards, seen = [], {}
+    for key, label, use, metric in cats:
+        cand = [r for r in rows if metric(r) > 0] or rows
+        if not cand:
+            continue
+        best = max(cand, key=metric)
+        ident = (best["name"], best["thinking"])
+        if ident in seen:
+            cards[seen[ident]][1].append((label, use))
+        else:
+            seen[ident] = len(cards)
+            cards.append((best, [(label, use)]))
+    return cards
+
+
+def _rec_section(rows):
+    """Secció final de recomanacions: una card per guanyador amb dades i usos."""
+    cards = _picks(rows)
+    if not cards:
+        return ""
+    out = ['<section>\n  <h2>Recomanacions (per ús)</h2>\n  <div class="grid2">']
+    for r, reasons in cards:
+        think = (f' <span class="badge">think:{_esc(r["thinking"])}</span>'
+                 if r["thinking"] != "—" else "")
+        why = "".join(f"<li><b>{_esc(l)}</b> — {_esc(u)}</li>" for l, u in reasons)
+        out.append(
+            f'<section><h2>{_esc(r["name"])}{think}</h2>'
+            f'<div class="kpi"><div class="v">{r["global"]:.2f}</div>'
+            f'<div class="l">global · {_esc(r["engine"])} {_esc(r["build"])} · {_esc(r["ts"])}</div></div>'
+            f'<div class="kpi"><div class="v">{r["sc"]["code"]:.0%} · {r["sc"]["agent"]:.0%} · '
+            f'{r["sc"]["tools"]:.0%}</div><div class="l">code · agent · tools'
+            f' (excloses code: {r["code_excluded"]})</div></div>'
+            f'<div class="kpi"><div class="v">{r["sc"]["speed_ms"]} ms · {r["sc"]["gen_tps"]:.0f} t/s</div>'
+            f'<div class="l">latència · throughput</div></div>'
+            f"<ul>{why}</ul></section>")
+    out.append("  </div>\n</section>")
+    return "\n".join(out)
+
+
 _CSS = """
 :root{
   --bg:#0b1220; --card:#101a2e; --card2:#0d1526; --border:#1e2a44;
@@ -152,6 +210,7 @@ def render(pool):
     """HTML complet (str) per al pool donat. Sense JS, sense recursos externs."""
     rows = _rows(pool)
     now = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+    rec_section = _rec_section(rows)
     gpus = _gpu_chips()
     w = config.WEIGHTS
     dates = sorted({r["ts"] for r in rows if r["ts"]})
@@ -280,6 +339,7 @@ def render(pool):
   <h2>Condicions per model</h2>
   {''.join(details)}
 </section>
+{rec_section}
 </main>
 <footer>
   Regenera amb <code>python3 -m benchmark.html_report</code> des de l'arrel del workspace.

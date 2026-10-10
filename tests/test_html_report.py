@@ -94,10 +94,13 @@ class TestRender(unittest.TestCase):
         # del nom (l'ellipsis retallava el badge al final en columnes estretes).
         html = html_report.render([_mk(thinking="off"), _mk("models/bar.gguf",
                                                              thinking="on")])
-        self.assertEqual(html.count("think:off"), 8)  # ranking + 6 barres + matriu
-        self.assertEqual(html.count("think:on"), 8)
-        self.assertIn('<span class="badge">think:off</span> foo', html)
-        self.assertIn('title="foo"', html)
+        base, _, rec = html.partition("Recomanacions (per ús)")
+        self.assertEqual(base.count("think:off"), 8)  # ranking + 6 files + matriu
+        self.assertEqual(base.count("think:on"), 8)
+        self.assertIn('<span class="badge">think:off</span> foo', base)
+        self.assertIn('title="foo"', base)
+        self.assertIn("think:off", rec)  # també a les cards
+        self.assertIn("think:on", rec)
 
     def test_bar_rows_align_to_four_column_grid(self):
         # Sense barres: les files són text (trow: nom + valor), sense .bar/.fill
@@ -106,6 +109,24 @@ class TestRender(unittest.TestCase):
         self.assertNotIn('class="bar"', html)
         self.assertNotIn('class="fill', html)
         self.assertIn('class="trow"', html)
+
+    def test_recommendation_cards(self):
+        # Una card per guanyador (model+mode) amb dades, badge i raons d'ús.
+        a = _mk("models/aaa.gguf", code_score=0.5, thinking="off")
+        a["speed"]["speed_ms"] = 10
+        a["speed"]["gen_tps"] = 500.0
+        a["tools"]["score"] = 1.0
+        b = _mk("models/bbb.gguf", code_score=0.9, thinking="on")
+        html = html_report.render([a, b])
+        self.assertIn("Recomanacions (per ús)", html)
+        self.assertIn("aaa", html)  # guanya velocitat/throughput/tools
+        self.assertIn("bbb", html)  # guanya global/codi/pensant
+        self.assertIn("Més ràpid", html)
+        self.assertIn("Millor codi", html)
+        self.assertIn("excloses code:", html)
+
+    def test_recommendations_empty_pool(self):
+        self.assertNotIn("Recomanacions", html_report.render([]))
 
     def test_no_by_level_section_when_absent(self):
         html = html_report.render([_mk()])   # pool vell sense by_level
