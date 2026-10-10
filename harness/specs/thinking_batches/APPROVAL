@@ -1,0 +1,17 @@
+APPROVED — Completion Gate: thinking_batches
+
+Data: 2026-10-10
+Revisor: Jordi (human gate)
+Decisio: in_progress -> done
+
+Evidencies revisades:
+- Traçabilitat 7/7 PASS + --all PASS (traceability-check.txt, review.md)
+- Suite completa: 187 tests OK, 1 skip preexistent; harness/init.sh verd x4
+  (batch-1..4.log)
+- Commits: 6e732df (spec) + 5092aa4 (feat) + 541a719 (harness)
+
+Abast lliurat: --thinking on|off + thinking_body (generalitza STRATA_EXTRA_BODY) +
+thinking a cada resultat; pool (slug, thinking) + filenames -on/-off + legacy (slug,
+None); token_budget clavat + _schema=2; CODE_MAX_TOKENS=32768 + cap 1000; columna
+THINK + (N excl.) a Taula 1/2/3; badge + excloses a l'HTML; docs (SPEC/AGENTS/MILLORA
+D6 tancat, C2 actualitzat). Precondició d'entorn: -c 65536 als 3 perfils sense -c.

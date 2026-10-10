@@ -27,3 +27,8 @@ resolta: les 12 tasques expert de discriminative_tasks estan aterraes i validade
 re-mesura (tasks.md T9). Per tant: status → in_progress i es llança el batch sencer; el
 Completion Gate de discriminative_tasks i el de remeasure_pool es demanen després, amb
 les dades a la mà.
+
+**Desbloqueig 2026-10-10 (Completion Gate de thinking_batches):** status → in_progress.
+La re-mesura es fa amb el harness nou: doble batch (`--thinking off` i `--thinking on`,
+mateixos dims/langs/levels), pressupost code 32768, clau de pool (slug, thinking).
+Precondicions verificades a T1.

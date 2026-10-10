@@ -55,3 +55,16 @@ code inicia a 32768 (a la feature següent).
 
 Proper feature: 6 thinking_batches (pending) — doble batch think/no-think +
 pressupost 32768 + exclosos senyalitzats + clau de pool per (slug, thinking).
+
+## 2026-10-10 — thinking_batches (done)
+
+Feature 6 (decisió del revisor: doble batch think/no-think + Q1 amb 32768): `--thinking
+on|off` (default off) via `thinking_body()` pel cos (generalitza l'antiga
+STRATA_EXTRA_BODY, eliminada); `thinking` a cada resultat; pool amb clau
+(slug, thinking) + filenames `-on/-off` + legacy tolerant; `token_budget` clavat per
+mode amb `_schema = 2` (era 16384 ignorada); `CODE_MAX_TOKENS = 32768` + cap de
+rellotge 1000 (mateixa fórmula); columna THINK + `(N excl.)` a Taules 1/2/3; badge +
+`excloses code` a l'HTML; banner intacte; docs (SPEC/AGENTS/MILLORA: D6 tancat, C2
+actualitzat). Precondició trobada i resolta: 3 perfils sense `-c` → `-c 65536`
+(entorn, fora del git). Traçabilitat 7/7 + --all PASS. 187 tests OK. Commits 6e732df
++ 5092aa4 + 541a719. Completion Gate aprovat sense canvis.
