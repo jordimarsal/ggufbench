@@ -198,7 +198,8 @@ def _server_build(engine="llama"):
     try:
         out = subprocess.run([str(config.SERVER_BIN), "--version"],
                              capture_output=True, text=True, timeout=10)
-        for line in out.stdout.splitlines():
+        # llama-server escriu la versió a stderr, no a stdout: cal mirar els dos.
+        for line in (out.stdout + out.stderr).splitlines():
             if line.startswith("version:"):
                 return line.split()[1]
     except (OSError, subprocess.TimeoutExpired):

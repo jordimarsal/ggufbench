@@ -177,6 +177,37 @@ class TestThinkingCli(unittest.TestCase):
         self.assertEqual((a.dims, a.lang, a.level), ("speed,tools,code,agent", None, None))
 
 
+class TestServerBuild(unittest.TestCase):
+    """_server_build ha de llegir la versió vagi on vagi (llama-server l'escriu a stderr)."""
+
+    def _fake(self, stdout, stderr=""):
+        import subprocess as _sp
+
+        class R:
+            def __init__(self):
+                self.stdout = stdout
+                self.stderr = stderr
+        orig = _sp.run
+        _sp.run = lambda *a, **k: R()
+        return orig
+
+    def test_reads_version_from_stderr(self):
+        import subprocess as _sp
+        orig = self._fake("", "version: 0.4.0-dev (build 10872)\nbuilt with GNU\n")
+        try:
+            self.assertEqual(run._server_build("llama"), "0.4.0-dev")
+        finally:
+            _sp.run = orig
+
+    def test_reads_version_from_stdout(self):
+        import subprocess as _sp
+        orig = self._fake("version: 1.2.3\n")
+        try:
+            self.assertEqual(run._server_build("llama"), "1.2.3")
+        finally:
+            _sp.run = orig
+
+
 class TestLevelForCode(unittest.TestCase):
     """--level només afecta code (R2 de hard_code_tier); fora de code, avís i fora."""
 
