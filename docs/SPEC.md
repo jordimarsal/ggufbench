@@ -1,8 +1,8 @@
-# Model Benchmark — Document de disseny
+# ggufbench — Document de disseny
 
-**Data:** 2026-08-03
+**Data:** 2026-08-03 (en evolució; vegeu `harness/progress/history.md`)
 **Ubicació:** `/home/jordi/ia/llama/benchmark/`
-**Estat:** Disseny aprovat (pendent de pla d'implementació)
+**Estat:** En producció — harness v3, 6 features lliurades (vegeu `harness/feature_list.json`)
 
 ## 1. Objectiu
 
