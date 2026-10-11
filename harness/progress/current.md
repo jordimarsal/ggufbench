@@ -15,6 +15,15 @@ agent multi-fitxer C4; P0 README/CI de MILLORA)._
 ## Log
 
 
+- **Ad-hoc (11-oct, cont.): sweep MTP/split a la flota** (eines a bin/mtp-sweep.py +
+  bin/mtp-probe.py, del repo qwen38-mtp): tensor-split +25-45% als 4 splitters
+  (udq5/heretic/turbofcf/coder390), n4 guanyador (+3-6% vs n3), n6 mata la prosa.
+  Flags aplicats als .txt: --spec-draft-n-max 4 + --split-mode tensor (UD-Q3 només n4,
+  13 GB gairebé single-GPU; tensor sense provar). ATENCIÓ: files del pool d'aquests 4
+  models queden STALE (condicions de serving canviades) — re-mesura pendent quan es
+  vulgui (no ara, ordre humana).
+
+
 - **Ad-hoc (11-oct, cont.): tuning reserve Strata 0.1.42** — res 1400 perdia decode
   OFF (89,3 t/s); res 1000 passa la verificació i guanya a tot: OFF 116,1 t/s gen
   (+8%), prefill 169,4 (+17%), 43 ms; ON 125,4 t/s (+14%), 465 ms, 0 excloses, code
