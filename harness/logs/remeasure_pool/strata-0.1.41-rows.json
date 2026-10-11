@@ -1,0 +1,1594 @@
+[
+ {
+  "model": "strata-iq3_xxs",
+  "engine": "strata",
+  "thinking": "off",
+  "ts": "2026-10-10T11:25:23",
+  "context_mode": "fixed",
+  "tasks_version": "v3",
+  "server_build": "0.1.41",
+  "warmup_times": [
+   0.205548,
+   0.117913,
+   0.119964
+  ],
+  "model_config_flags": "qwen3.8-flash-next-iq3_xxs --pack /home/jordi/ia/llama/Strata-data/packs/iq3_xxs --native /home/jordi/ia/llama/Strata-data/models/IQ3_XXS/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS-00001-of-00002.gguf --ple-gguf /home/jordi/ia/llama/Strata-data/models/IQ3_XXS/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS-00002-of-00002.gguf --expert-profile /home/jordi/ia/llama/Strata/data/expert-profile.bin --expert-cache auto --prefill auto --spec 4 --mtp /home/jordi/ia/llama/Strata-data/mtp/rt --max-context 131072 --kv int8 --control-vector-scaled /home/jordi/ia/llama/Strata/data/experimental-speed-projection/Qwen3.8-Flash-Next-experimental-speed-projection.gguf:1.0 --control-vector-layer-range 4 44 --cvec-mode project --cvec-dir per-layer --spec-min-p 0.5 --pool-workers 4",
+  "speed": {
+   "passed": true,
+   "turns": 0,
+   "trace": [
+    {
+     "passed": true,
+     "turns": 0,
+     "trace": [],
+     "speed_ms": 46,
+     "gen_tps": 107.3,
+     "prompt_tps": 144.1
+    }
+   ],
+   "speed_ms": 46,
+   "gen_tps": 107.3,
+   "prompt_tps": 144.1
+  },
+  "tools": {
+   "passed": false,
+   "turns": 8,
+   "trace": [
+    {
+     "id": "check_solution",
+     "passed": true,
+     "detail": "got={'name': 'check_solution', 'arguments': {'solution_code': 'def add(a,b): return a+b'}} expected={'name': 'check_solution', 'arguments': {'solution_code': 'd"
+    },
+    {
+     "id": "get_env",
+     "passed": true,
+     "detail": "got={'name': 'get_env', 'arguments': {'var_name': 'PATH'}} expected={'name': 'get_env'}"
+    },
+    {
+     "id": "get_time",
+     "passed": true,
+     "detail": "got={'name': 'get_time', 'arguments': {}} expected={'name': 'get_time'}"
+    },
+    {
+     "id": "list_files",
+     "passed": true,
+     "detail": "got={'name': 'list_files', 'arguments': {'path': '.'}} expected={'name': 'list_files', 'arguments': {'path': '.'}}"
+    },
+    {
+     "id": "noop",
+     "passed": true,
+     "detail": "correctly did not call a tool"
+    },
+    {
+     "id": "read_file",
+     "passed": true,
+     "detail": "got={'name': 'read_file', 'arguments': {'path': './hello.py'}} expected={'name': 'read_file', 'arguments': {'path': './hello.py'}}"
+    },
+    {
+     "id": "save_file",
+     "passed": false,
+     "detail": "got=None expected={'name': 'save_file', 'arguments': {'path': './test.txt', 'content': 'Hello!'}}"
+    },
+    {
+     "id": "search",
+     "passed": true,
+     "detail": "got={'name': 'search', 'arguments': {'pattern': 'hello'}} expected={'name': 'search', 'arguments': {'pattern': 'hello'}}"
+    }
+   ],
+   "score": 0.875,
+   "by_lang": {}
+  },
+  "code": {
+   "passed": false,
+   "turns": 60,
+   "trace": [
+    {
+     "id": "access_agg_expert",
+     "lang": "bash",
+     "level": "expert",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 681
+    },
+    {
+     "id": "bubble_sort",
+     "lang": "bash",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 138
+    },
+    {
+     "id": "count_lines_hard",
+     "lang": "bash",
+     "level": "hard",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 89
+    },
+    {
+     "id": "count_words",
+     "lang": "bash",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 22
+    },
+    {
+     "id": "dedup_hard",
+     "lang": "bash",
+     "level": "hard",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 111
+    },
+    {
+     "id": "fibonacci",
+     "lang": "bash",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 134
+    },
+    {
+     "id": "is_prime",
+     "lang": "bash",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 197
+    },
+    {
+     "id": "log_filter_debug_expert",
+     "lang": "bash",
+     "level": "expert",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 211
+    },
+    {
+     "id": "num_report_expert",
+     "lang": "bash",
+     "level": "expert",
+     "passed": false,
+     "excluded": false,
+     "detail": "stats1: 4 10 40 25,00",
+     "out_tokens": 854
+    },
+    {
+     "id": "remove_duplicates",
+     "lang": "bash",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 74
+    },
+    {
+     "id": "reverse_string",
+     "lang": "bash",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 20
+    },
+    {
+     "id": "simple_math",
+     "lang": "bash",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 21
+    },
+    {
+     "id": "subst_hard",
+     "lang": "bash",
+     "level": "hard",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 105
+    },
+    {
+     "id": "sum_col_hard",
+     "lang": "bash",
+     "level": "hard",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 211
+    },
+    {
+     "id": "sum_list",
+     "lang": "bash",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 44
+    },
+    {
+     "id": "bracket_validator_hard",
+     "lang": "java",
+     "level": "hard",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 198
+    },
+    {
+     "id": "bubble_sort",
+     "lang": "java",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 137
+    },
+    {
+     "id": "count_words",
+     "lang": "java",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 66
+    },
+    {
+     "id": "csv_index_expert",
+     "lang": "java",
+     "level": "expert",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 1657
+    },
+    {
+     "id": "fibonacci",
+     "lang": "java",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 110
+    },
+    {
+     "id": "interval_codec_expert",
+     "lang": "java",
+     "level": "expert",
+     "passed": false,
+     "excluded": false,
+     "detail": "Exception in thread \"main\" java.lang.RuntimeException: cobert totalment -> false\n\tat Test.main(Test.java:22)",
+     "out_tokens": 1040
+    },
+    {
+     "id": "is_prime",
+     "lang": "java",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 152
+    },
+    {
+     "id": "ledger_debug_expert",
+     "lang": "java",
+     "level": "expert",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 272
+    },
+    {
+     "id": "lower_upper_bound_hard",
+     "lang": "java",
+     "level": "hard",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 214
+    },
+    {
+     "id": "min_stack_hard",
+     "lang": "java",
+     "level": "hard",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 233
+    },
+    {
+     "id": "remove_duplicates",
+     "lang": "java",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 145
+    },
+    {
+     "id": "reverse_string",
+     "lang": "java",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 37
+    },
+    {
+     "id": "roman_to_int_hard",
+     "lang": "java",
+     "level": "hard",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 242
+    },
+    {
+     "id": "simple_math",
+     "lang": "java",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 34
+    },
+    {
+     "id": "sum_list",
+     "lang": "java",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 59
+    },
+    {
+     "id": "bubble_sort",
+     "lang": "python",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 87
+    },
+    {
+     "id": "count_words",
+     "lang": "python",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 18
+    },
+    {
+     "id": "fibonacci",
+     "lang": "python",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 76
+    },
+    {
+     "id": "fix_apply_discount_hard",
+     "lang": "python",
+     "level": "hard",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 39
+    },
+    {
+     "id": "is_prime",
+     "lang": "python",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 91
+    },
+    {
+     "id": "lru_cache_hard",
+     "lang": "python",
+     "level": "hard",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 364
+    },
+    {
+     "id": "merge_intervals_hard",
+     "lang": "python",
+     "level": "hard",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 108
+    },
+    {
+     "id": "metrics_debug_expert",
+     "lang": "python",
+     "level": "expert",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 279
+    },
+    {
+     "id": "readings_etl_expert",
+     "lang": "python",
+     "level": "expert",
+     "passed": false,
+     "excluded": false,
+     "detail": "Traceback (most recent call last):\n  File \"/tmp/mbench_ty6e9vvr/test_solution.py\", line 6, in <module>\n    assert r['names'] == ['Doe, John', 'Hall, Rita', 'sen",
+     "out_tokens": 1576
+    },
+    {
+     "id": "remove_duplicates",
+     "lang": "python",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 53
+    },
+    {
+     "id": "reverse_string",
+     "lang": "python",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 18
+    },
+    {
+     "id": "simple_math",
+     "lang": "python",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 18
+    },
+    {
+     "id": "sum_list",
+     "lang": "python",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 17
+    },
+    {
+     "id": "two_sum_count_hard",
+     "lang": "python",
+     "level": "hard",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 68
+    },
+    {
+     "id": "vault_engine_expert",
+     "lang": "python",
+     "level": "expert",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 360
+    },
+    {
+     "id": "bubble_sort",
+     "lang": "typescript",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 129
+    },
+    {
+     "id": "count_words",
+     "lang": "typescript",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 51
+    },
+    {
+     "id": "deep_equal_hard",
+     "lang": "typescript",
+     "level": "hard",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 308
+    },
+    {
+     "id": "event_debug_expert",
+     "lang": "typescript",
+     "level": "expert",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 175
+    },
+    {
+     "id": "event_emitter_hard",
+     "lang": "typescript",
+     "level": "hard",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 322
+    },
+    {
+     "id": "fibonacci",
+     "lang": "typescript",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 102
+    },
+    {
+     "id": "flatten_depth_hard",
+     "lang": "typescript",
+     "level": "hard",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 110
+    },
+    {
+     "id": "is_prime",
+     "lang": "typescript",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 101
+    },
+    {
+     "id": "jsonl_agg_expert",
+     "lang": "typescript",
+     "level": "expert",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 339
+    },
+    {
+     "id": "memo_fib_hard",
+     "lang": "typescript",
+     "level": "hard",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 104
+    },
+    {
+     "id": "proc_registry_expert",
+     "lang": "typescript",
+     "level": "expert",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 325
+    },
+    {
+     "id": "remove_duplicates",
+     "lang": "typescript",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 29
+    },
+    {
+     "id": "reverse_string",
+     "lang": "typescript",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 29
+    },
+    {
+     "id": "simple_math",
+     "lang": "typescript",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 28
+    },
+    {
+     "id": "sum_list",
+     "lang": "typescript",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 36
+    }
+   ],
+   "by_lang": {
+    "bash": 0.9333333333333333,
+    "java": 0.9333333333333333,
+    "python": 0.9333333333333333,
+    "typescript": 1.0
+   },
+   "by_level": {
+    "expert": 0.75,
+    "easy": 1.0,
+    "hard": 1.0
+   },
+   "score": 0.95,
+   "excluded": 0
+  },
+  "agent": {
+   "passed": true,
+   "turns": 110,
+   "trace": [
+    {
+     "id": "add_feature",
+     "passed": true,
+     "turns": 4,
+     "detail": "turns=4 tool_calls=3"
+    },
+    {
+     "id": "debug",
+     "passed": true,
+     "turns": 6,
+     "detail": "turns=6 tool_calls=5"
+    },
+    {
+     "id": "document",
+     "passed": true,
+     "turns": 4,
+     "detail": "turns=4 tool_calls=3"
+    },
+    {
+     "id": "fix_bug",
+     "passed": true,
+     "turns": 4,
+     "detail": "turns=4 tool_calls=3"
+    },
+    {
+     "id": "optimize",
+     "passed": true,
+     "turns": 8,
+     "detail": "turns=8 tool_calls=8"
+    },
+    {
+     "id": "refactor",
+     "passed": true,
+     "turns": 7,
+     "detail": "turns=7 tool_calls=6"
+    },
+    {
+     "id": "add_feature",
+     "passed": true,
+     "turns": 4,
+     "detail": "turns=4 tool_calls=3"
+    },
+    {
+     "id": "debug",
+     "passed": true,
+     "turns": 6,
+     "detail": "turns=6 tool_calls=5"
+    },
+    {
+     "id": "document",
+     "passed": true,
+     "turns": 4,
+     "detail": "turns=4 tool_calls=3"
+    },
+    {
+     "id": "fix_bug",
+     "passed": true,
+     "turns": 4,
+     "detail": "turns=4 tool_calls=3"
+    },
+    {
+     "id": "optimize",
+     "passed": true,
+     "turns": 4,
+     "detail": "turns=4 tool_calls=3"
+    },
+    {
+     "id": "refactor",
+     "passed": true,
+     "turns": 4,
+     "detail": "turns=4 tool_calls=3"
+    },
+    {
+     "id": "add_feature",
+     "passed": true,
+     "turns": 4,
+     "detail": "turns=4 tool_calls=3"
+    },
+    {
+     "id": "debug",
+     "passed": true,
+     "turns": 5,
+     "detail": "turns=5 tool_calls=4"
+    },
+    {
+     "id": "document",
+     "passed": true,
+     "turns": 4,
+     "detail": "turns=4 tool_calls=3"
+    },
+    {
+     "id": "fix_bug",
+     "passed": true,
+     "turns": 4,
+     "detail": "turns=4 tool_calls=3"
+    },
+    {
+     "id": "optimize",
+     "passed": true,
+     "turns": 4,
+     "detail": "turns=4 tool_calls=3"
+    },
+    {
+     "id": "refactor",
+     "passed": true,
+     "turns": 4,
+     "detail": "turns=4 tool_calls=3"
+    },
+    {
+     "id": "add_feature",
+     "passed": true,
+     "turns": 4,
+     "detail": "turns=4 tool_calls=3"
+    },
+    {
+     "id": "debug",
+     "passed": true,
+     "turns": 5,
+     "detail": "turns=5 tool_calls=4"
+    },
+    {
+     "id": "document",
+     "passed": true,
+     "turns": 4,
+     "detail": "turns=4 tool_calls=3"
+    },
+    {
+     "id": "fix_bug",
+     "passed": true,
+     "turns": 4,
+     "detail": "turns=4 tool_calls=3"
+    },
+    {
+     "id": "optimize",
+     "passed": true,
+     "turns": 4,
+     "detail": "turns=4 tool_calls=3"
+    },
+    {
+     "id": "refactor",
+     "passed": true,
+     "turns": 5,
+     "detail": "turns=5 tool_calls=4"
+    }
+   ],
+   "by_lang": {
+    "bash": 1.0,
+    "java": 1.0,
+    "python": 1.0,
+    "typescript": 1.0
+   },
+   "score": 1.0
+  }
+ },
+ {
+  "model": "strata-iq3_xxs",
+  "engine": "strata",
+  "thinking": "on",
+  "ts": "2026-10-10T17:21:07",
+  "context_mode": "fixed",
+  "tasks_version": "v3",
+  "server_build": "0.1.41",
+  "warmup_times": [
+   0.13108,
+   0.12683,
+   0.139101
+  ],
+  "model_config_flags": "qwen3.8-flash-next-iq3_xxs --pack /home/jordi/ia/llama/Strata-data/packs/iq3_xxs --native /home/jordi/ia/llama/Strata-data/models/IQ3_XXS/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS-00001-of-00002.gguf --ple-gguf /home/jordi/ia/llama/Strata-data/models/IQ3_XXS/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS-00002-of-00002.gguf --expert-profile /home/jordi/ia/llama/Strata/data/expert-profile.bin --expert-cache auto --prefill auto --spec 4 --mtp /home/jordi/ia/llama/Strata-data/mtp/rt --max-context 131072 --kv int8 --control-vector-scaled /home/jordi/ia/llama/Strata/data/experimental-speed-projection/Qwen3.8-Flash-Next-experimental-speed-projection.gguf:1.0 --control-vector-layer-range 4 44 --cvec-mode project --cvec-dir per-layer --spec-min-p 0.5 --pool-workers 4",
+  "speed": {
+   "passed": true,
+   "turns": 0,
+   "trace": [
+    {
+     "passed": true,
+     "turns": 0,
+     "trace": [],
+     "speed_ms": 528,
+     "gen_tps": 110.3,
+     "prompt_tps": 148.6
+    }
+   ],
+   "speed_ms": 528,
+   "gen_tps": 110.3,
+   "prompt_tps": 148.6
+  },
+  "tools": {
+   "passed": true,
+   "turns": 8,
+   "trace": [
+    {
+     "id": "check_solution",
+     "passed": true,
+     "detail": "got={'name': 'check_solution', 'arguments': {'solution_code': 'def add(a,b): return a+b'}} expected={'name': 'check_solution', 'arguments': {'solution_code': 'd"
+    },
+    {
+     "id": "get_env",
+     "passed": true,
+     "detail": "got={'name': 'get_env', 'arguments': {'var_name': 'HOME'}} expected={'name': 'get_env'}"
+    },
+    {
+     "id": "get_time",
+     "passed": true,
+     "detail": "got={'name': 'get_time', 'arguments': {}} expected={'name': 'get_time'}"
+    },
+    {
+     "id": "list_files",
+     "passed": true,
+     "detail": "got={'name': 'list_files', 'arguments': {'path': '.'}} expected={'name': 'list_files', 'arguments': {'path': '.'}}"
+    },
+    {
+     "id": "noop",
+     "passed": true,
+     "detail": "correctly did not call a tool"
+    },
+    {
+     "id": "read_file",
+     "passed": true,
+     "detail": "got={'name': 'read_file', 'arguments': {'path': './hello.py'}} expected={'name': 'read_file', 'arguments': {'path': './hello.py'}}"
+    },
+    {
+     "id": "save_file",
+     "passed": true,
+     "detail": "got={'name': 'save_file', 'arguments': {'path': './test.txt', 'content': 'Hello!'}} expected={'name': 'save_file', 'arguments': {'path': './test.txt', 'content'"
+    },
+    {
+     "id": "search",
+     "passed": true,
+     "detail": "got={'name': 'search', 'arguments': {'pattern': 'hello'}} expected={'name': 'search', 'arguments': {'pattern': 'hello'}}"
+    }
+   ],
+   "score": 1.0,
+   "by_lang": {}
+  },
+  "code": {
+   "passed": false,
+   "turns": 60,
+   "trace": [
+    {
+     "id": "access_agg_expert",
+     "lang": "bash",
+     "level": "expert",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 8968
+    },
+    {
+     "id": "bubble_sort",
+     "lang": "bash",
+     "level": "easy",
+     "passed": false,
+     "excluded": false,
+     "detail": "",
+     "out_tokens": 1359
+    },
+    {
+     "id": "count_lines_hard",
+     "lang": "bash",
+     "level": "hard",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 8415
+    },
+    {
+     "id": "count_words",
+     "lang": "bash",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 1248
+    },
+    {
+     "id": "dedup_hard",
+     "lang": "bash",
+     "level": "hard",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 7256
+    },
+    {
+     "id": "fibonacci",
+     "lang": "bash",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 8885
+    },
+    {
+     "id": "is_prime",
+     "lang": "bash",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 1666
+    },
+    {
+     "id": "log_filter_debug_expert",
+     "lang": "bash",
+     "level": "expert",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 8455
+    },
+    {
+     "id": "num_report_expert",
+     "lang": "bash",
+     "level": "expert",
+     "passed": false,
+     "excluded": false,
+     "detail": "q50",
+     "out_tokens": 8974
+    },
+    {
+     "id": "remove_duplicates",
+     "lang": "bash",
+     "level": "easy",
+     "passed": false,
+     "excluded": false,
+     "detail": "",
+     "out_tokens": 747
+    },
+    {
+     "id": "reverse_string",
+     "lang": "bash",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 802
+    },
+    {
+     "id": "simple_math",
+     "lang": "bash",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 273
+    },
+    {
+     "id": "subst_hard",
+     "lang": "bash",
+     "level": "hard",
+     "passed": false,
+     "excluded": false,
+     "detail": "test_solution.sh: line 2: subst: command not found",
+     "out_tokens": 8516
+    },
+    {
+     "id": "sum_col_hard",
+     "lang": "bash",
+     "level": "hard",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 8734
+    },
+    {
+     "id": "sum_list",
+     "lang": "bash",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 223
+    },
+    {
+     "id": "bracket_validator_hard",
+     "lang": "java",
+     "level": "hard",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 5072
+    },
+    {
+     "id": "bubble_sort",
+     "lang": "java",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 256
+    },
+    {
+     "id": "count_words",
+     "lang": "java",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 312
+    },
+    {
+     "id": "csv_index_expert",
+     "lang": "java",
+     "level": "expert",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 9239
+    },
+    {
+     "id": "fibonacci",
+     "lang": "java",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 7377
+    },
+    {
+     "id": "interval_codec_expert",
+     "lang": "java",
+     "level": "expert",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 8804
+    },
+    {
+     "id": "is_prime",
+     "lang": "java",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 297
+    },
+    {
+     "id": "ledger_debug_expert",
+     "lang": "java",
+     "level": "expert",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 8564
+    },
+    {
+     "id": "lower_upper_bound_hard",
+     "lang": "java",
+     "level": "hard",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 435
+    },
+    {
+     "id": "min_stack_hard",
+     "lang": "java",
+     "level": "hard",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 1156
+    },
+    {
+     "id": "remove_duplicates",
+     "lang": "java",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 482
+    },
+    {
+     "id": "reverse_string",
+     "lang": "java",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 127
+    },
+    {
+     "id": "roman_to_int_hard",
+     "lang": "java",
+     "level": "hard",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 506
+    },
+    {
+     "id": "simple_math",
+     "lang": "java",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 110
+    },
+    {
+     "id": "sum_list",
+     "lang": "java",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 199
+    },
+    {
+     "id": "bubble_sort",
+     "lang": "python",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 207
+    },
+    {
+     "id": "count_words",
+     "lang": "python",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 154
+    },
+    {
+     "id": "fibonacci",
+     "lang": "python",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 187
+    },
+    {
+     "id": "fix_apply_discount_hard",
+     "lang": "python",
+     "level": "hard",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 186
+    },
+    {
+     "id": "is_prime",
+     "lang": "python",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 203
+    },
+    {
+     "id": "lru_cache_hard",
+     "lang": "python",
+     "level": "hard",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 1308
+    },
+    {
+     "id": "merge_intervals_hard",
+     "lang": "python",
+     "level": "hard",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 391
+    },
+    {
+     "id": "metrics_debug_expert",
+     "lang": "python",
+     "level": "expert",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 2050
+    },
+    {
+     "id": "readings_etl_expert",
+     "lang": "python",
+     "level": "expert",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 8777
+    },
+    {
+     "id": "remove_duplicates",
+     "lang": "python",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 142
+    },
+    {
+     "id": "reverse_string",
+     "lang": "python",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 87
+    },
+    {
+     "id": "simple_math",
+     "lang": "python",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 110
+    },
+    {
+     "id": "sum_list",
+     "lang": "python",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 99
+    },
+    {
+     "id": "two_sum_count_hard",
+     "lang": "python",
+     "level": "hard",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 382
+    },
+    {
+     "id": "vault_engine_expert",
+     "lang": "python",
+     "level": "expert",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 8692
+    },
+    {
+     "id": "bubble_sort",
+     "lang": "typescript",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 205
+    },
+    {
+     "id": "count_words",
+     "lang": "typescript",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 204
+    },
+    {
+     "id": "deep_equal_hard",
+     "lang": "typescript",
+     "level": "hard",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 8851
+    },
+    {
+     "id": "event_debug_expert",
+     "lang": "typescript",
+     "level": "expert",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 8406
+    },
+    {
+     "id": "event_emitter_hard",
+     "lang": "typescript",
+     "level": "hard",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 8812
+    },
+    {
+     "id": "fibonacci",
+     "lang": "typescript",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 335
+    },
+    {
+     "id": "flatten_depth_hard",
+     "lang": "typescript",
+     "level": "hard",
+     "passed": false,
+     "excluded": false,
+     "detail": "1 | import { flatten } from './solution';\n2 | const src = [1, [2, [3, [4]]]];\n3 | if (JSON.stringify(flatten(src, 0)) !== '[1,[2,[3,[4]]]]') throw new Error('fa",
+     "out_tokens": 8789
+    },
+    {
+     "id": "is_prime",
+     "lang": "typescript",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 421
+    },
+    {
+     "id": "jsonl_agg_expert",
+     "lang": "typescript",
+     "level": "expert",
+     "passed": false,
+     "excluded": true,
+     "detail": "no code block (typescript, no comptat); reply: ",
+     "out_tokens": 4993
+    },
+    {
+     "id": "memo_fib_hard",
+     "lang": "typescript",
+     "level": "hard",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 3320
+    },
+    {
+     "id": "proc_registry_expert",
+     "lang": "typescript",
+     "level": "expert",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 8740
+    },
+    {
+     "id": "remove_duplicates",
+     "lang": "typescript",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 180
+    },
+    {
+     "id": "reverse_string",
+     "lang": "typescript",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 130
+    },
+    {
+     "id": "simple_math",
+     "lang": "typescript",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 90
+    },
+    {
+     "id": "sum_list",
+     "lang": "typescript",
+     "level": "easy",
+     "passed": true,
+     "excluded": false,
+     "detail": "OK",
+     "out_tokens": 111
+    }
+   ],
+   "by_lang": {
+    "bash": 0.7333333333333333,
+    "java": 1.0,
+    "python": 1.0,
+    "typescript": 0.9285714285714286
+   },
+   "by_level": {
+    "expert": 0.9090909090909091,
+    "easy": 0.9375,
+    "hard": 0.875
+   },
+   "score": 0.9152542372881356,
+   "excluded": 1
+  },
+  "agent": {
+   "passed": true,
+   "turns": 103,
+   "trace": [
+    {
+     "id": "add_feature",
+     "passed": true,
+     "turns": 4,
+     "detail": "turns=4 tool_calls=3"
+    },
+    {
+     "id": "debug",
+     "passed": true,
+     "turns": 8,
+     "detail": "turns=8 tool_calls=14"
+    },
+    {
+     "id": "document",
+     "passed": true,
+     "turns": 4,
+     "detail": "turns=4 tool_calls=3"
+    },
+    {
+     "id": "fix_bug",
+     "passed": true,
+     "turns": 4,
+     "detail": "turns=4 tool_calls=3"
+    },
+    {
+     "id": "optimize",
+     "passed": true,
+     "turns": 5,
+     "detail": "turns=5 tool_calls=8"
+    },
+    {
+     "id": "refactor",
+     "passed": true,
+     "turns": 4,
+     "detail": "turns=4 tool_calls=4"
+    },
+    {
+     "id": "add_feature",
+     "passed": true,
+     "turns": 4,
+     "detail": "turns=4 tool_calls=3"
+    },
+    {
+     "id": "debug",
+     "passed": true,
+     "turns": 5,
+     "detail": "turns=5 tool_calls=5"
+    },
+    {
+     "id": "document",
+     "passed": true,
+     "turns": 3,
+     "detail": "turns=3 tool_calls=2"
+    },
+    {
+     "id": "fix_bug",
+     "passed": true,
+     "turns": 4,
+     "detail": "turns=4 tool_calls=3"
+    },
+    {
+     "id": "optimize",
+     "passed": true,
+     "turns": 4,
+     "detail": "turns=4 tool_calls=4"
+    },
+    {
+     "id": "refactor",
+     "passed": true,
+     "turns": 4,
+     "detail": "turns=4 tool_calls=4"
+    },
+    {
+     "id": "add_feature",
+     "passed": true,
+     "turns": 4,
+     "detail": "turns=4 tool_calls=4"
+    },
+    {
+     "id": "debug",
+     "passed": true,
+     "turns": 4,
+     "detail": "turns=4 tool_calls=4"
+    },
+    {
+     "id": "document",
+     "passed": true,
+     "turns": 4,
+     "detail": "turns=4 tool_calls=3"
+    },
+    {
+     "id": "fix_bug",
+     "passed": true,
+     "turns": 4,
+     "detail": "turns=4 tool_calls=3"
+    },
+    {
+     "id": "optimize",
+     "passed": true,
+     "turns": 4,
+     "detail": "turns=4 tool_calls=3"
+    },
+    {
+     "id": "refactor",
+     "passed": true,
+     "turns": 6,
+     "detail": "turns=6 tool_calls=5"
+    },
+    {
+     "id": "add_feature",
+     "passed": true,
+     "turns": 4,
+     "detail": "turns=4 tool_calls=4"
+    },
+    {
+     "id": "debug",
+     "passed": true,
+     "turns": 5,
+     "detail": "turns=5 tool_calls=5"
+    },
+    {
+     "id": "document",
+     "passed": true,
+     "turns": 4,
+     "detail": "turns=4 tool_calls=4"
+    },
+    {
+     "id": "fix_bug",
+     "passed": true,
+     "turns": 4,
+     "detail": "turns=4 tool_calls=3"
+    },
+    {
+     "id": "optimize",
+     "passed": true,
+     "turns": 2,
+     "detail": "turns=2 tool_calls=2"
+    },
+    {
+     "id": "refactor",
+     "passed": true,
+     "turns": 5,
+     "detail": "turns=5 tool_calls=5"
+    }
+   ],
+   "by_lang": {
+    "bash": 1.0,
+    "java": 1.0,
+    "python": 1.0,
+    "typescript": 1.0
+   },
+   "score": 1.0
+  }
+ }
+]
