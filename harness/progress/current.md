@@ -15,6 +15,14 @@ agent multi-fitxer C4; P0 README/CI de MILLORA)._
 ## Log
 
 
+- **Ad-hoc (11-oct, cont.): ngram (lookup) drafting a UD-Q3** — copy-heavy probe
+  propi (mòdul de 65 línies + rename): ngram-map-k4v 352,3 t/s vs MTP n4 139,5 (2,5×);
+  text nou 51,2 vs 113-127 (sense guany). Exclusius per servidor. Perfil es queda
+  MTP n4 (trànsit mixt); ngram documentat a la skill per a sessions d'edició.
+  Nota tècnica: els intents aïllats en zsh fallien per word-splitting (zsh no
+  splitteja $BASE) — els sweeps han de córrer amb bash.
+
+
 - **Ad-hoc (11-oct, cont.): sweep MTP/split a la flota** (eines a bin/mtp-sweep.py +
   bin/mtp-probe.py, del repo qwen38-mtp): tensor-split +25-45% als 4 splitters
   (udq5/heretic/turbofcf/coder390), n4 guanyador (+3-6% vs n3), n6 mata la prosa.
