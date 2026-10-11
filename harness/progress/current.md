@@ -14,6 +14,12 @@ agent multi-fitxer C4; P0 README/CI de MILLORA)._
 
 ## Log
 
+
+- **Ad-hoc (11-oct, cont.): tuning reserve Strata 0.1.42** — res 1400 perdia decode
+  OFF (89,3 t/s); res 1000 passa la verificació i guanya a tot: OFF 116,1 t/s gen
+  (+8%), prefill 169,4 (+17%), 43 ms; ON 125,4 t/s (+14%), 465 ms, 0 excloses, code
+  0.93. Config final fixada: reserve 1000. Skill llama-slots §6f documentada.
+
 - **Ad-hoc (11-oct): Strata 0.1.41 → 0.1.42** (`./update.sh`, engine recompilat, configs
   intactes amb el budget de la §6g). Primera arrencada fallava: la nova verificació
   (arena 70 MiB) no capia a CUDA0 (cache PROFILE 5232 slots sobre-commitava; auto hauria
