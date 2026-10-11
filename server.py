@@ -11,33 +11,33 @@ from pathlib import Path
 
 from . import config
 
-# Motors que el harness sap arrencar. "llama" = llama-server amb els flags del
-# harness; "strata" = serve/server.py amb un config strata-<model>.json.
+# Engines the harness knows how to start. "llama" = llama-server with the
+# harness' flags; "strata" = serve/server.py with a strata-<model>.json config.
 ENGINES = ("llama", "strata")
 
-# Espera perquè el servidor respongui a un chat de prova (s). Strata carrega
-# desenes de GB a RAM abans de respondre la primera petició.
+# Wait for the server to answer a test chat (s). Strata loads tens of GB into
+# RAM before answering the first request.
 READY_TIMEOUT = {"llama": 240, "strata": config.STRATA_READY_TIMEOUT}
 
 
 def resolve_context(context_mode, model_path=None):
-    """fixed -> CONTEXT_FIXED; int -> int; adapted -> estima viable (fallback 8192)."""
+    """fixed -> CONTEXT_FIXED; int -> int; adapted -> estimate viable (fallback 8192)."""
     if isinstance(context_mode, int):
         return context_mode
     if context_mode == "fixed":
         return config.CONTEXT_FIXED
-    # adapted: delegem a un estimator extern quan estigui; fallback segur
+    # adapted: delegate to an external estimator when available; safe fallback
     return 8192
 
 
-# Flags d'infraestructura del harness: els connecta run.py/client.py i el .txt
-# del model no els pot canviar (un --port diferent trencaria el ready-check).
+# Harness infrastructure flags: run.py/client.py wire them and the model's
+# .txt cannot change them (a different --port would break the ready-check).
 _INFRA_FLAGS = {"-m", "--model", "--port", "--host"}
 
 
 def _strip_infra(args):
-    """Treu --port/--host/-m/--model d'una llista de flags ( formes '--flag valor'
-    i '--flag=valor')."""
+    """Removes --port/--host/-m/--model from a flag list (forms '--flag value'
+    and '--flag=value')."""
     out, skip = [], False
     for a in args:
         if skip:
@@ -46,27 +46,27 @@ def _strip_infra(args):
         name = a.split("=", 1)[0]
         if name in _INFRA_FLAGS:
             if "=" not in a:
-                skip = True  # el valor va com a token separat: salta'l
+                skip = True  # the value comes as a separate token: skip it
             continue
         out.append(a)
     return out
 
 
 def _has_flag(args, *names):
-    """True si args conté qualsevol dels flags (forma '--flag' o '--flag=...')."""
+    """True if args contains any of the flags ('--flag' or '--flag=...' form)."""
     return any(a.split("=", 1)[0] in names for a in args)
 
 
 def build_args(model_path, context_mode, port):
-    """Composa la línia de comandes del servidor.
+    """Composes the server command line.
 
-    Politica 'tal com corre a casa': els flags per defecte (SERVER_FLAGS +
-    CACHE_FLAGS) donen el baseline, i models/<model>.txt s'aplica AL FINAL
-    (mateixa convenció que bin/start-dev-ai.sh), així que pot sobreescriure'ls.
-    Duplicats controlats:
-      - .txt amb -c/--ctx-size  -> fora el -c del harness
-      - .txt amb --cache-type-k/v -> fora el corresponent de CACHE_FLAGS
-      - la resta (--spec-type, -md, --mmproj, ...) simplement s'afegeixen."""
+    'Runs at home as it runs here' policy: the default flags (SERVER_FLAGS +
+    CACHE_FLAGS) provide the baseline, and models/<model>.txt is applied LAST
+    (same convention as bin/start-dev-ai.sh), so it can override them.
+    Controlled duplicates:
+      - .txt with -c/--ctx-size  -> drop the harness' -c
+      - .txt with --cache-type-k/v -> drop the corresponding CACHE_FLAGS entry
+      - the rest (--spec-type, -md, --mmproj, ...) are simply appended."""
     extra = _strip_infra(config.load_model_config_args(model_path))
     args = [str(config.SERVER_BIN), "-m", str(model_path)]
     if not _has_flag(extra, "-c", "--ctx-size"):
@@ -81,8 +81,8 @@ def build_args(model_path, context_mode, port):
 
 
 def describe_config(model_path, engine="llama"):
-    """Descripció llegible dels flags que aporta el perfil del model (per al
-    progrés a stderr i com a metadada del resultat). None si no en té."""
+    """Readable description of the flags the model profile provides (for
+    progress on stderr and as result metadata). None if it has none."""
     if engine == "strata":
         return describe_strata_config(model_path)
     extra = config.load_model_config_args(model_path)
@@ -90,9 +90,9 @@ def describe_config(model_path, engine="llama"):
 
 
 def describe_strata_config(config_path):
-    """Resum del config de Strata: model_name + args del motor (és el que diu
-    'com es va mesurar' per aquest motor). None si no es pot llegir (la run en
-    tindrà igualment l'error a l'arrencada)."""
+    """Summary of the Strata config: model_name + engine args (this is what states
+    'how it was measured' for this engine). None if it cannot be read (the run will
+    still get the error at startup)."""
     try:
         cfg = json.loads(Path(config_path).read_text(encoding="utf-8-sig"))
     except (OSError, ValueError):
@@ -102,18 +102,18 @@ def describe_strata_config(config_path):
 
 
 def strata_command(config_path, port):
-    """Comanda d'arrancada d'Strata: <venv de Strata> serve/server.py --engine strata
-    --config <json> --port N. El config ja porta pack/model/context/GPUs; el port el
-    fixa el harness (mateix contracte que amb llama-server, perquè el client no ha de
-    saber de quin motor es tracta)."""
+    """Strata startup command: <Strata venv> serve/server.py --engine strata
+    --config <json> --port N. The config already carries pack/model/context/GPUs; the
+    port is set by the harness (same contract as with llama-server, so the client
+    does not need to know which engine it is)."""
     return [strata_python(), str(config.STRATA_DIR / "serve" / "server.py"),
             "--engine", "strata", "--config", str(config_path), "--port", str(port)]
 
 
 def strata_python():
-    """Intèrpret per a serve/server.py: el .venv que crea setup.sh (el servidor
-    depèn de jinja2/numpy/... que el python del sistema NO té — provat: ImportError
-    immediata). Si no n'hi ha, el del harness: l'arrencada fallarà i el log dirà per què."""
+    """Interpreter for serve/server.py: the .venv setup.sh creates (the server
+    depends on jinja2/numpy/... that the system python does NOT have — tested: an
+    immediate ImportError). If absent, the harness' own: the startup will fail and the log will say why."""
     venv = config.STRATA_DIR / ".venv" / "bin" / "python"
     return str(venv) if venv.is_file() else sys.executable
 
@@ -122,11 +122,11 @@ class ServerManager:
     def __init__(self, model_path, context_mode="fixed", port=None, engine="llama",
                  thinking="off"):
         if engine not in ENGINES:
-            raise ValueError(f"engine desconegut: {engine!r} (esperat un de {ENGINES})")
+            raise ValueError(f"unknown engine: {engine!r} (expected one of {ENGINES})")
         if thinking not in ("on", "off"):
-            raise ValueError(f"thinking desconegut: {thinking!r} (esperat 'on' o 'off')")
+            raise ValueError(f"unknown thinking mode: {thinking!r} (expected 'on' or 'off')")
         self.engine = engine
-        self.thinking = thinking  # només registre (R1): el control va pel cos (ADR-4)
+        self.thinking = thinking  # record only (R1): the control goes via the body (ADR-4)
         self.model_path = str(model_path)
         self.context_mode = context_mode
         self.port = port or (config.STRATA_PORT if engine == "strata" else config.PORT)
@@ -137,8 +137,8 @@ class ServerManager:
 
     @property
     def log_path(self):
-        """On es desa la sortida del servidor (Strata només): un error d'arrencada
-        ha de ser llegible, no invisible enmig d'un DEVNULL."""
+        """Where the server output is saved (Strata only): a startup
+        error must be readable, not lost inside a DEVNULL."""
         return Path(tempfile.gettempdir()) / f"benchmark-{self.engine}-server-{self.port}.log"
 
     def start(self):
@@ -148,7 +148,7 @@ class ServerManager:
             cwd = str(config.STRATA_DIR)
             self._logfh = open(self.log_path, "w", encoding="utf-8")
             out = self._logfh
-            print(f"  log del servidor: {self.log_path}", file=sys.stderr, flush=True)
+            print(f"  server log: {self.log_path}", file=sys.stderr, flush=True)
         else:
             args = build_args(self.model_path, self.context_mode, self.port)
             cwd = None
@@ -156,8 +156,8 @@ class ServerManager:
             if extra:
                 print(f"  config {Path(self.model_path).stem}.txt: {extra}",
                       file=sys.stderr, flush=True)
-        # Grup de processos propi (start_new_session): stop() ha d'arribar també al
-        # fill d'Strata (engine/strata), que sinó queda orfe, i mai a un altre procés.
+        # Own process group (start_new_session): stop() must also reach Strata's
+        # child (engine/strata), which would otherwise be orphaned, and never another process.
         self.proc = subprocess.Popen(args, stdout=out, stderr=subprocess.STDOUT,
                                      cwd=cwd, start_new_session=True)
         try:
@@ -170,10 +170,10 @@ class ServerManager:
         return self.proc is not None and self.proc.poll() is None
 
     def wait_ready(self, timeout=None):
-        """Llest quan un chat de prova retorna 'choices' (no només /v1/models).
-        `timeout` per defecte depèn del motor (STRATA_READY_TIMEOUT per a Strata).
-        Strata: primer esperem que /health digui 'loaded' — sense això, les sondes
-        de chat quedarien a la cua durant la càrrega de desenes de GB."""
+        """Ready when a test chat returns 'choices' (not just /v1/models).
+        The default `timeout` depends on the engine (STRATA_READY_TIMEOUT for Strata).
+        Strata: first we wait for /health to say 'loaded' — otherwise the chat
+        probes would queue up during the tens-of-GB load."""
         deadline = time.time() + (self.ready_timeout if timeout is None else timeout)
         while time.time() < deadline:
             if not self.is_alive():
@@ -187,12 +187,12 @@ class ServerManager:
         return False
 
     def _health_loaded(self):
-        """Strata: True si el motor té el model carregat. Qualsevol error (encara
-        no escolta, resposta estranya) compta com a 'no encara'."""
+        """Strata: True if the engine has the model loaded. Any error (not
+        listening yet, weird response) counts as 'not yet'."""
         try:
             with urllib.request.urlopen(f"http://127.0.0.1:{self.port}/health", timeout=5) as r:
                 data = json.loads(r.read().decode("utf-8", "replace"))
-            # clau absent en versions velles: no bloquejar, deixa provar el chat
+            # key absent in old versions: do not block, let the chat probe try
             return data.get("loaded", True) is True
         except (urllib.error.URLError, TimeoutError, OSError, ValueError):
             return False
@@ -207,7 +207,7 @@ class ServerManager:
             with urllib.request.urlopen(req, timeout=15) as r:
                 return '"choices"' in r.read().decode("utf-8", "replace")
         except (urllib.error.URLError, TimeoutError, OSError):
-            # Servidor encara no escolta o connecta; el caller torna a intentar.
+            # Server not listening or connecting yet; the caller retries.
             return False
 
     def stop(self):
@@ -216,7 +216,7 @@ class ServerManager:
         if proc is None:
             return
         if proc.poll() is None:
-            # SIGTERM primer (aturada neta); si no surt en 15s, baixulla a baix.
+            # SIGTERM first (clean stop); if it does not exit within 15s, escalate.
             try:
                 proc.terminate()
             except OSError:
@@ -225,9 +225,9 @@ class ServerManager:
                 proc.wait(timeout=15)
             except subprocess.TimeoutExpired:
                 pass
-        # Grup de processos sencer: amb Strata el pare pot morir i deixar viu el fill
-        # engine/strata, que sinó continuaria retinguent la VRAM. Grup buit ->
-        # ProcessLookupError (el cas normal amb llama-server, sense fills).
+        # Whole process group: with Strata the parent can die and leave the
+        # engine/strata child alive, which would keep holding the VRAM. Empty group ->
+        # ProcessLookupError (the normal case with llama-server, no children).
         if pgid:
             try:
                 os.killpg(pgid, signal.SIGKILL)

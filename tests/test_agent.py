@@ -25,9 +25,9 @@ class TestMockEnv(unittest.TestCase):
 
 
 class TestRunTestsFileLookup(unittest.TestCase):
-    """La cerca del fitxer de solució no distingeix majúscules: les tasques de
-    java usen Solution.java/Test.java (javac exigeix file == classe pública) i
-    cercar-hi 'solution.java' exacte deixava la solució buida: mai passaven."""
+    """The solution-file lookup is case-insensitive: java tasks use
+    Solution.java/Test.java (javac requires file == public class) and an exact
+    'solution.java' lookup left the solution empty: they never passed."""
 
     def test_java_capitalized_files(self):
         sol = 'public class Solution { public static int add(int a,int b){ return a+b; } }\n'
@@ -40,7 +40,7 @@ class TestRunTestsFileLookup(unittest.TestCase):
         self.assertTrue(ok, out)
 
     def test_java_broken_solution_still_fails(self):
-        # la tolerància no ha d'inflar el score: una solució trencada falla
+        # the tolerance must not inflate the score: a broken solution fails
         sol = 'public class Solution { public static int add(int a,int b){ return a-b; } }\n'
         tst = ('public class Test { public static void main(String[] a){\n'
                '  if (Solution.add(2,3) != 5) throw new RuntimeException("fail");\n'
@@ -58,7 +58,7 @@ class TestRunTestsFileLookup(unittest.TestCase):
 
 class TestRunAgentScripted(unittest.TestCase):
     def test_scripted_success(self):
-        # client fake: primer crida write_file amb la solució correcta, després atura
+        # fake client: first calls write_file with the correct solution, then stops
         calls = {"n": 0}
         class FakeClient:
             def chat(self, messages, tools=None, tool_choice=None, max_tokens=256):

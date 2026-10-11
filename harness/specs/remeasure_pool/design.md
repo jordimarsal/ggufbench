@@ -1,50 +1,51 @@
 # Design: remeasure_pool
 
-Feature d'operació: no hi ha codi nou a produir (el harness ja suporta tot); el disseny
-és el **protocol d'execució** i les comprovacions que fan el resultat fiable.
+Operations feature: there is no new code to produce (the harness already supports
+everything); the design is the **execution protocol** and the checks that make the
+result trustworthy.
 
 ---
 
 ## Protocol
 
-1. **Pre-flight (gate d'entrada):**
-   - Cap servidor viu: `pgrep -af "llama-server|engine/strata"` buit i ports 8999/8080
-     lliures (mai els dos motors alhora — R2).
-   - `python3 -m unittest discover` verd abans de cremar GPU.
-   - Còpia de seguretat del pool actual a
-     `results/models/pool.pre-remeasure.jsonl` (rollback barat si la GPU mor a mig run).
-2. **Batch llama (R1, R2):** `python3 -m benchmark.run --models all` des de l'arrel del
-   workspace. El harness arrenca/atura `llama-server` per cada model, seqüencialment.
-   Progress a stderr → es captura a `harness/logs/remeasure_pool/batch-llama.log`.
-3. **Batch Strata (R1, R2):** `python3 -m benchmark.run --engine strata --models
-   iq3_xxs` → `harness/logs/remeasure_pool/batch-strata.log`. Només s'arrenca quan el
-   batch llama ha acabat i cap procés de llama-server queda viu.
-4. **Verificació (R3, R4):** comptar entrades del pool per `ts` (una sola sessió),
-   comprovar que cada entrada té `by_level` i `tasks_version: "v2"`, regenerar
-   `results/report.html` i verificar que el banner de condicions barrejades NO apareix.
-5. **Evidència (R5):** scoreboard final, llistat de ts per model i resultats de les
-   comprovacions → `harness/logs/remeasure_pool/summary.log` + taula al Completion Gate.
+1. **Pre-flight (entry gate):**
+   - No live servers: `pgrep -af "llama-server|engine/strata"` empty and ports 8999/8080
+     free (never both engines at once — R2).
+   - `python3 -m unittest discover` green before burning GPU.
+   - Backup of the current pool to
+     `results/models/pool.pre-remeasure.jsonl` (cheap rollback if the GPU dies mid-run).
+2. **llama batch (R1, R2):** `python3 -m benchmark.run --models all` from the workspace
+   root. The harness starts/stops `llama-server` per model, sequentially.
+   Progress on stderr → captured to `harness/logs/remeasure_pool/batch-llama.log`.
+3. **Strata batch (R1, R2):** `python3 -m benchmark.run --engine strata --models
+   iq3_xxs` → `harness/logs/remeasure_pool/batch-strata.log`. Started only when the
+   llama batch has finished and no llama-server process remains alive.
+4. **Verification (R3, R4):** count pool entries per `ts` (single session),
+   check every entry has `by_level` and `tasks_version: "v2"`, regenerate
+   `results/report.html` and verify the mixed-conditions banner does NOT appear.
+5. **Evidence (R5):** final scoreboard, ts list per model and check results →
+   `harness/logs/remeasure_pool/summary.log` + table in the Completion Gate.
 
 ## Public signatures
 
-(nou codi de producte: cap. Ús del CLI existent.)
+(no new product code: none. Uses the existing CLI.)
 
 ## Exceptions and error cases
 
-| Cas | Comportament | Req |
+| Case | Behavior | Req |
 |---|---|---|
-| Un model concret no carrega (OOM, GGUF trencat) | `serve_failed`: es registra i es continua amb la resta; el pool conserva la seva entrada antiga marcada com a fallida → es reporta al gate | R1 |
-| La GPU es queda sense memòria a mig run | S'atura la run, es restaura `pool.pre-remeasure.jsonl`, es re-planteja (menys models per invocació) | R2 |
-| Strata tarda més de 600 s a carregar | El ready-check del harness ja ho cobreix; si falla, es reporta i es reintenta una vegada | R1 |
-| Un model deixa entrada amb `by_level` buit | Es detecta a la verificació (pas 4) i es re-executa aquell model sol | R4 |
+| A specific model fails to load (OOM, broken GGUF) | `serve_failed`: recorded, continue with the rest; the pool keeps its old entry marked as failed → reported at the gate | R1 |
+| GPU runs out of memory mid-run | Stop the run, restore `pool.pre-remeasure.jsonl`, re-plan (fewer models per invocation) | R2 |
+| Strata takes longer than 600 s to load | The harness ready-check already covers it; if it fails, report and retry once | R1 |
+| A model leaves an entry with an empty `by_level` | Detected in verification (step 4) and that model re-run alone | R4 |
 
 ## Discarded alternatives
 
-1. **Re-mesurar només els models "importants"** — deixaria el pool amb dues condicions i
-   el banner permanent: descartat (l'objectiu és un marcador homogeni).
-2. **Una sola invocació que mesuri llama i Strata junts** — el CLI és d'un motor per run
-   per disseny (mateixa disciplina que mai-els-dos-alhora): descartat.
-3. **Esborrar el pool i deixar que el re-run el reconstrueixi** — perd l'històric de
-   `results/runs/` i el rollback barat: descartat.
-4. **`--quick` per estalviar temps** — mesura 1 tasca per dimensió: no és una re-mesura,
-   és un smoke: descartat.
+1. **Re-measure only the "important" models** — would leave the pool with two conditions and
+   a permanent banner: discarded (the goal is a homogeneous scoreboard).
+2. **A single invocation measuring llama and Strata together** — the CLI is one engine per run
+   by design (same discipline as never-both-at-once): discarded.
+3. **Delete the pool and let the re-run rebuild it** — loses the `results/runs/`
+   history and the cheap rollback: discarded.
+4. **`--quick` to save time** — measures 1 task per dimension: not a re-measure,
+   it is a smoke: discarded.

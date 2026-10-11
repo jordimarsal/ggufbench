@@ -1,20 +1,20 @@
-# Implementació: hard_code_tier
+# Implementation: hard_code_tier
 
 feature: hard_code_tier
 
-**Sessió:** 2026-10-09 (hybrid — un agent, rols sequencials)
-**Spec Gate:** aprovat (`spec-gate.md`) → in_progress
+**Session:** 2026-10-09 (hybrid — one agent, sequential roles)
+**Spec Gate:** approved (`spec-gate.md`) → in_progress
 
-## Batches (evidències a harness/logs/hard_code_tier/)
+## Batches (evidence in harness/logs/hard_code_tier/)
 
-| Batch | Tasques | Log |
+| Batch | Tasks | Log |
 |---|---|---|
 | 1 | T1 (loader level) + T2 (--level CLI) | batch-1.log |
-| 2 | T3 (by_level a graders) + T4 (tasks_version v2) | batch-2.log |
+| 2 | T3 (by_level in graders) + T4 (tasks_version v2) | batch-2.log |
 | 3 | T5 (html_report easy/hard) | batch-3.log |
-| 4 | T6 (python hard) + T7 (bash hard) — validació d'autor: ref OK, naive FALLA | batch-4.log |
-| 5 | T8 (java hard) + T9 (typescript hard) — fix: la solució java és sempre class Solution (l'executor escriu Solution.java) | batch-5.log |
-| 6 | T10 (test estructural) + T11 (docs) + T12 (traçabilitat + gate) | aquest fitxer + init.sh |
+| 4 | T6 (python hard) + T7 (bash hard) — author validation: ref OK, naive FAILS | batch-4.log |
+| 5 | T8 (java hard) + T9 (typescript hard) — fix: the java solution is always class Solution (the executor writes Solution.java) | batch-5.log |
+| 6 | T10 (structural test) + T11 (docs) + T12 (traceability + gate) | this file + init.sh |
 
 ## Traceability
 
@@ -29,6 +29,6 @@ feature: hard_code_tier
 | R7 | test_v3_marks_expert_tier | config.py run.py | done |
 | R8 | test_non_code_dims_get_no_level test_none_level_is_passthrough test_weights_unchanged | run.py config.py graders.py | done |
 
-Validació de contingut de les tasques hard (R6): solucions de referència OK i ingènues
-FALLA — evidència a `harness/logs/hard_code_tier/batch-4.log` i `batch-5.log`. Les
-solucions de referència no es commiten (no filtrar-les als models).
+Content validation of the hard tasks (R6): reference solutions OK and naive
+FAILS — evidence in `harness/logs/hard_code_tier/batch-4.log` and `batch-5.log`. Reference
+solutions are not committed (do not leak them to the models).

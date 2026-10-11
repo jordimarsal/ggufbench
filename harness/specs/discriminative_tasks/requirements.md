@@ -1,11 +1,11 @@
 # Requirements: discriminative_tasks
 
-La re-mesura de 2026-10-09 ho confirma amb dades: ni les fàcils ni les hard separen els
-models forts. Amb el nivell hard aterra, el top-5 clusteritza dins ~8 punts (code
-0.88-0.98, tools 0.75-1.00, agent 0.83-0.96) i el ranking bascula en 1-2 tasques.
-Aquesta feature afegeix el nivell **expert**: tasques més difícils i més llargues
-(multi-fitxer, context proveït, sortides de mòdul sencer) que exigeixin consolidar
-múltiples comportaments — el tipus de feina que distingeix models forts.
+The 2026-10-09 re-measure confirms it with data: neither easy nor hard tasks separate
+strong models. With the hard level landed, the top-5 clusters within ~8 points (code
+0.88-0.98, tools 0.75-1.00, agent 0.83-0.96) and the ranking swings on 1-2 tasks.
+This feature adds the **expert** level: harder and longer tasks
+(multi-file, provided context, whole-module outputs) that require consolidating
+multiple behaviours — the kind of work that distinguishes strong models.
 
 ## R1
 The system shall assign code tasks an `level` of `"expert"` when their `ID` ends with
@@ -37,6 +37,6 @@ The system shall not modify the global weights, the other dimensions, or the fol
 policy of the existing levels.
 
 ## R7 (retired 2026-10-09)
-L'antic requisit de puntuar l'eficiència (tokens per tasca) es jubila: ja existeix com
-a mètrica registrada (`out_tokens`, feature timeout_scaling/ADR-0002) i puntuar-la seria
-una dimensió nova — fora d'abast aquí. Els IDs no es reutilitzen.
+The former requirement of scoring efficiency (tokens per task) is retired: it already
+exists as a recorded metric (`out_tokens`, feature timeout_scaling/ADR-0002) and scoring
+it would be a new dimension — out of scope here. IDs are not reused.

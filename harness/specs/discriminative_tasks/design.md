@@ -1,23 +1,23 @@
 # Design: discriminative_tasks
 
-Cobreix R1-R6. El nivell expert reutilitza tota la maquinària del nivell hard
-(`_hard`→`_expert`, `--level`, `by_level`); la peça realment nova és `EXTRA_FILES`
-(R2) — suport multi-fitxer al sandbox de code.
+Covers R1-R6. The expert level reuses all the hard-level machinery
+(`_hard`→`_expert`, `--level`, `by_level`); the genuinely new piece is `EXTRA_FILES`
+(R2) — multi-file support in the code sandbox.
 
 ---
 
 ## Files to create or modify
 
-| Fitxer | Canvi |
+| File | Change |
 |---|---|
-| `tasks_loader.py` | El mapa de nivells guanya `_expert` → `"expert"`; cada task dict de code guanya `extra_files` (dict buit per defecte) |
+| `tasks_loader.py` | The level map gains `_expert` → `"expert"`; every code task dict gains `extra_files` (empty dict default) |
 | `run.py` | `--level` choices += `expert`; `tasks_version = "v3"` |
-| `executors.py` | `run(lang, solution_code, test_code, timeout=30, extra_files=None)`: escriu `extra_files` al tempdir abans de solution+test (tots els 4 runners) |
-| `graders.py` | `grade_code` passa `t.get("extra_files")` a `executors.run`; `by_level` ja és genèric (claus noves gratis) |
-| `tasks/code/<lang>/*_expert.py` (x12) | 3 tasques per llengua (R3) |
-| `html_report.py` | `by_level` ja es renderitza genèric — verificar que expert hi apareix (test) |
-| `docs/SPEC.md`, `AGENTS.md` | Convenció `_expert`, `--level expert`, tasks_version v3 |
-| `tests/` | loader/--level/executors-extra-files/by_level/html/estructura (patró hard_code_tier) |
+| `executors.py` | `run(lang, solution_code, test_code, timeout=30, extra_files=None)`: writes `extra_files` to the tempdir before solution+test (all 4 runners) |
+| `graders.py` | `grade_code` passes `t.get("extra_files")` to `executors.run`; `by_level` already generic (new keys for free) |
+| `tasks/code/<lang>/*_expert.py` (x12) | 3 tasks per language (R3) |
+| `html_report.py` | `by_level` already rendered generically — verify expert shows up (test) |
+| `docs/SPEC.md`, `AGENTS.md` | `_expert` convention, `--level expert`, tasks_version v3 |
+| `tests/` | loader/--level/executors-extra-files/by_level/html/structure (hard_code_tier pattern) |
 
 ---
 
@@ -28,7 +28,7 @@ Cobreix R1-R6. El nivell expert reutilitza tota la maquinària del nivell hard
 def run(lang: str, solution_code, test_code, timeout: int = 30,
         extra_files: dict[str, str] | None = None) -> dict: ...
 
-# tasks_loader.py  (task dict de code)
+# tasks_loader.py  (code task dict)
 #   {..., "level": "easy|hard|expert", "extra_files": dict[str, str]}
 ```
 
@@ -36,39 +36,39 @@ def run(lang: str, solution_code, test_code, timeout: int = 30,
 
 ## Exceptions and error cases
 
-| Cas | Comportament | Req |
+| Case | Behavior | Req |
 |---|---|---|
-| `--level expert` sense tasques expert (repo antic) | Avís a stderr i dimensió sense tasques (patró hard) | R1 |
-| `EXTRA_FILES` amb ruta amb `..` o absoluta | Rebutjada en carregar la tasca (loader valida claus de dict, mai rutes) — el sandbox escriu només noms plans | R2 |
-| Col·lisió extra_file vs solution/test | `solution.*`/`test_*` guarden sempre (l'extra no pot anomenar-se així: validat al loader) | R2 |
-| Tasca expert que un model resolt parcialment | TEST_CODE multi-part → falla (mai exclusió): la partial-solution resistance és el criteri de qualitat | R3 |
+| `--level expert` with no expert tasks (old repo) | Warning to stderr and dimension without tasks (hard pattern) | R1 |
+| `EXTRA_FILES` with a path containing `..` or absolute | Rejected at task load (loader validates dict keys, never paths) — the sandbox writes only plain names | R2 |
+| extra_file vs solution/test collision | `solution.*`/`test_*` always win (the extra cannot be named like that: validated at loader) | R2 |
+| Expert task partially solved by a model | Multi-part TEST_CODE → fails (never excluded): partial-solution resistance is the quality criterion | R3 |
 
 ---
 
 ## Discarded alternatives
 
-1. **Pujar el pes de code** — amaga la manca de discriminació, no la resol: descartat.
-2. **Nivell expert a l'agent (repos més grans, més turns)** — valuós però és una altra
-   dimensió i un altre sandbox: feature separada (segueix a MILLORA §C4).
-3. **Puntuar l'eficiència de tokens** — ja registrada (`out_tokens`); puntuar-la seria
-   una dimensió nova (R7 jubilat): descartat.
-4. **Tasques amb sortida no determinista** (creativitat, disseny) — no verificables amb
-   TEST_CODE: contradiu el principi data-as-code verificable: descartat.
+1. **Raise the weight of code** — hides the lack of discrimination, does not solve it: discarded.
+2. **Expert level in the agent (bigger repos, more turns)** — valuable but it is another
+   dimension and another sandbox: separate feature (stays in MILLORA §C4).
+3. **Score token efficiency** — already recorded (`out_tokens`); scoring it would be
+   a new dimension (R7 retired): discarded.
+4. **Tasks with non-deterministic output** (creativity, design) — not verifiable with
+   TEST_CODE: contradicts the verifiable data-as-code principle: discarded.
 
 ---
 
-## Criteri de contingut expert (R3)
+## Expert content criterion (R3)
 
-Per llengua, 3 patrons — tots multi-part i amb context proveït:
+Per language, 3 patterns — all multi-part and with provided context:
 
-1. **Mòdul sencer**: implementar 2-3 classes/funcions coordinades (~80-150 línies de
-   solució esperada) amb TEST_CODE que prova les tres peces i les seves interaccions.
-2. **Depuració sobre context real**: un fitxer de ~100 línies amb 3 bugs subtils
-   (of-by-one, aliasing, estat compartit) incrustat al PROMPT o a EXTRA_FILES; el test
-   falla amb qualsevol dels tres sense arreglar.
-3. **Dades + robustesa**: processar un fitxer de dades lleig (EXTRA_FILES: CSV/logs amb
-   casos vora, cometes, línies parcialment vàlides) amb contracte de sortida estricta.
+1. **Whole module**: implement 2-3 coordinated classes/functions (~80-150 lines of
+   expected solution) with TEST_CODE testing the three pieces and their interactions.
+2. **Debugging over real context**: a ~100-line file with 3 subtle bugs
+   (off-by-one, aliasing, shared state) embedded in PROMPT or EXTRA_FILES; the test
+   fails with any of the three unfixed.
+3. **Data + robustness**: process a messy data file (EXTRA_FILES: CSV/logs with edge
+   cases, quotes, partially valid lines) with a strict output contract.
 
-La resistència a solucions parcials és el criteri d'acceptació: cada tasca s'valida
-amb la solució de referència (OK) i amb solucions que resolen només 2 de 3 parts
-(FALLA), abans de commitejar-la.
+Partial-solution resistance is the acceptance criterion: each task is validated
+with the reference solution (OK) and with solutions solving only 2 of 3 parts
+(FAILS) before committing it.

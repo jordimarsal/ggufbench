@@ -1,8 +1,8 @@
-# Implementacio: timeout_scaling
+# Implementation: timeout_scaling
 
 feature: timeout_scaling
 
-**Sessio:** 2026-10-09 (hybrid)
+**Session:** 2026-10-09 (hybrid)
 
 ## Traceability
 
@@ -13,5 +13,5 @@ feature: timeout_scaling
 | R3 | test_transient_timeout_still_excludes test_scaled_timeout_applied_to_the_single_attempt | graders.py | done |
 | R5 | test_formula_floors_ceils_and_falls_back test_scaled_timeout_applied_to_the_single_attempt | tests/test_graders.py | done |
 
-Nota: R4 (ADR) jubilada al spec — un ADR no es verifica per test; l'artefacte viu a
-harness/decisions/0001-code-timeout-token-budget.md i es revisa a la review.
+Note: R4 (ADR) retired in the spec — an ADR is not verified by test; the artifact lives in
+harness/decisions/0001-code-timeout-token-budget.md and is reviewed in the review.

@@ -83,8 +83,8 @@ pending → [spec mode] → spec_ready → ⏈ HUMAN → in_progress → [batch 
    `R<n>` lacks evidence.
    - **Suite assertions stay relative to the manifest**: use `indexOf`
      ordering or existence checks, never global positions or counts
-     («últim tema», «N kates») — appending new themes/files must not break
-     previous features' suites.
+     (e.g. the quoted example strings «últim tema», «N kates») — appending
+     new themes/files must not break previous features' suites.
 5. **Escalate to the full dispatch flow when any of these hold:** the feature
    has more than ~12 tasks; it touches files marked critical in
    `docs/conventions.md`; a batch stalls twice; or verification is subjective
@@ -112,54 +112,54 @@ Before finishing:
 - If a tool doesn't behave as expected, **do not invent a workaround**: document the block in `harness/progress/current.md` and stop the session.
 
 <!-- harness:project:start -->
-## Project: banc de proves local de models (llama.cpp + Strata)
+## Project: local model benchmark (llama.cpp + Strata)
 
-Compara models locals servits per **llama-server** (GGUF, port 8999) o **Strata**
-(`--engine strata`, config `strata-<nom>.json`, port 8080) en 4 dimensions — speed,
-tools, code, agent — per escollir el millor model per a opencode.
-Disseny: `docs/SPEC.md` · pla de millora: `docs/MILLORA.md` · arquitectura:
+Compare local models served by **llama-server** (GGUF, port 8999) or **Strata**
+(`--engine strata`, config `strata-<name>.json`, port 8080) across 4 dimensions — speed,
+tools, code, agent — to pick the best model for opencode.
+Design: `docs/SPEC.md` · improvement roadmap: `docs/MILLORA.md` · architecture:
 `docs/architecture.md`.
 
-### Comandes — SEMPRE des de l'arrel del workspace (`/home/jordi/ia/llama/`)
+### Commands — ALWAYS from the workspace root (`/home/jordi/ia/llama/`)
 
-El paquet s'importa com a `benchmark`; executar des de dins del directori falla amb
-`ModuleNotFoundError`. Notes: el repo git ÉS `benchmark/`; els servidors i els models
-(40+ GB) viuen fora.
+The package is imported as `benchmark`; running from inside the directory fails with
+`ModuleNotFoundError`. Notes: the git repo IS `benchmark/`; the servers and the models
+(40+ GB) live outside.
 
 ```sh
-python3 -m unittest discover -s benchmark/tests -t .    # suite sencera (~6 s, SENSE GPU)
-python3 -m benchmark.run --scoreboard                   # marcador acumulat (read-only)
-python3 -m benchmark.run --models <nom> [--quick]       # run llama (arrenca el servidor sol)
+python3 -m unittest discover -s benchmark/tests -t .    # full suite (~6 s, NO GPU)
+python3 -m benchmark.run --scoreboard                   # accumulated scoreboard (read-only)
+python3 -m benchmark.run --models <name> [--quick]      # llama run (starts the server itself)
 python3 -m benchmark.run --engine strata --models iq3_xxs [--quick]
-python3 -m benchmark.html_report                        # escriu benchmark/results/report.html
+python3 -m benchmark.html_report                        # writes benchmark/results/report.html
 ```
 
-### Regles no negociables
+### Non-negotiable rules
 
-1. **Mai llama-server i Strata alhora** (mateixes GPU, 2× RTX 5080). El harness arrenca
-   i atura el servidor ell mateix (`ServerManager`, killpg inclòs): no en facis córrer
-   cap manualment durant una run.
-2. **Cap canvi de tasques, pesos o flags base sense re-mesura del pool** (upsert per
-   slug a `results/models/pool.jsonl`; històric a `results/runs/`).
-3. **Una tasca = un fitxer** a `tasks/<dim>/...` (constants MAJÚSCULES; el loader llegeix
-   `ID`/`PROMPT` en majúscules). `EXPECTED` sense `arguments` = només nom de tool;
-   `arguments: {}` = crida buida. L'agent resol fitxers case-insensitive (java:
+1. **Never llama-server and Strata at the same time** (same GPUs, 2× RTX 5080). The harness
+   starts and stops the server itself (`ServerManager`, killpg included): do not run
+   either manually during a run.
+2. **No task, weight or base-flag changes without a pool re-measure** (upsert per
+   slug in `results/models/pool.jsonl`; history in `results/runs/`).
+3. **One task = one file** in `tasks/<dim>/...` (UPPERCASE constants; the loader reads
+   `ID`/`PROMPT` uppercase). `EXPECTED` without `arguments` = tool name only;
+   `arguments: {}` = empty call. The agent resolves files case-insensitively (java:
    `Solution.java`).
-   **Nivells de code:** `ID` acabat en `_hard` → nivell hard; acabat en `_expert` →
-   nivell expert (multi-fitxer: poden declarar `EXTRA_FILES`, un dict de fitxers de
-   suport que s'escriuen al sandbox abans de la solució i el test; noms plans, sense
-   camins). `--level easy|hard|expert` les filtra; sense `--level` s'executen totes i el
-   score de code queda plegat. `tasks_version` = "v3" des que existeix el nivell expert
-   (v2 = hard, v1 = base). Les solucions de referència de les hard i expert NO es
-   commiten (no filtrar-les als models).
-   **Pensament:** `--thinking on|off` (default `off`, via `chat_template_kwargs` pels
-   dos motors; cap `.txt` el sobreescriu). Es registra a cada resultat i el pool clava
-   per `(slug, thinking)` — els dos modes conviuen; el marcador els separa en files
-   amb columna `THINK` i els exclosos es compten (`100% (7 excl.)`). Pressupost code:
-   un sol intent de **32768** tokens; tot perfil ha de donar context per a prompt +
-   32768 (sense `-c` cau a `CONTEXT_FIXED = 16384`).
-4. **Perfil per model:** `models/<model>.txt` (flags lliures excepte infra). Strata: una
-   config per model a `Strata/strata-<nom>.json`, python del SEU `.venv`.
-5. Els resultats de Strata identifiquen el model per l'arrel del config
-   (`strata-iq3_xxs`) i porten `engine` + `server_build`.
+   **Code levels:** `ID` ending in `_hard` → hard level; ending in `_expert` →
+   expert level (multi-file: they can declare `EXTRA_FILES`, a dict of support files
+   written into the sandbox before the solution and the test; plain names, no paths).
+   `--level easy|hard|expert` filters them; without `--level` all run and the code
+   score stays folded. `tasks_version` = "v3" since the expert level exists
+   (v2 = hard, v1 = base). Reference solutions for hard and expert are NOT
+   committed (do not leak them to the models).
+   **Thinking:** `--thinking on|off` (default `off`, via `chat_template_kwargs` for both
+   engines; no `.txt` overrides it). Recorded in every result and the pool keys
+   by `(slug, thinking)` — both modes coexist; the scoreboard splits them into rows
+   with a `THINK` column and exclusions are counted (`100% (7 excl.)`). Code budget:
+   a single attempt of **32768** tokens; every profile must allow context for prompt +
+   32768 (without `-c` it falls to `CONTEXT_FIXED = 16384`).
+4. **Per-model profile:** `models/<model>.txt` (free flags except infra). Strata: one
+   config per model in `Strata/strata-<name>.json`, python from ITS `.venv`.
+5. Strata results identify the model by the config root
+   (`strata-iq3_xxs`) and carry `engine` + `server_build`.
 <!-- harness:project:end -->

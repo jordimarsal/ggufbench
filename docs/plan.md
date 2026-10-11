@@ -1,24 +1,24 @@
-# Model Benchmark — Pla d'implementació
+# Model Benchmark — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Construir un benchmark automàtic a `/home/jordi/ia/llama/benchmark/` que compari models locals (llama-server) en velocitat, tool-calling, codi (4 idiomes) i agent multi-pas, amb resultats acumulats.
+**Goal:** Build an automatic benchmark at `/home/jordi/ia/llama/benchmark/` that compares local models (llama-server) on speed, tool-calling, code (4 languages) and multi-step agent, with accumulated results.
 
-**Architecture:** Harness Python (stdlib només) que per cada model arrenca `llama-server` amb flags fixos, corre una suite de tasques, les classifica, i acumula els resultats en un pool persistent (`results/models/`). El loop d'agent simula un entorn de codi en memòria amb tools `read_file/write_file/run_tests`. Els executors per llenguatge corren codi generat en sandbox (tempdir+timeout+no-xarxa).
+**Architecture:** Python harness (stdlib only) that for each model launches `llama-server` with fixed flags, runs a task suite, classifies the tasks, and accumulates the results in a persistent pool (`results/models/`). The agent loop simulates an in-memory code environment with `read_file/write_file/run_tests` tools. The per-language executors run generated code in a sandbox (tempdir+timeout+no-network).
 
-**Tech Stack:** Python 3.12 stdlib (urllib per HTTP, unittest per tests del harness, subprocess, json, tempfile, pathlib). Toolchains presents: `python3`, `bash`, `javac/java 22`, `bun 1.3.9` (per TS). Sense deps externes (cap `requests`, cap `pytest`).
+**Tech Stack:** Python 3.12 stdlib (urllib for HTTP, unittest for harness tests, subprocess, json, tempfile, pathlib). Toolchains present: `python3`, `bash`, `javac/java 22`, `bun 1.3.9` (for TS). No external deps (no `requests`, no `pytest`).
 
 ## Global Constraints
 
-- **Ubicació:** tot sota `/home/jordi/ia/llama/benchmark/`.
-- **Server binary:** `/home/jordi/ia/llama/llama-server` (symlink); models a `/home/jordi/ia/llama/models/*.gguf`.
-- **Sense deps externes:** HTTP via `urllib.request`; tests del harness via `python -m unittest` (stdlib). No `pip install`.
-- **Flags fixos del servidor** (de `start-dev-ai.sh`): `-ngl 999 --flash-attn auto --no-mmap --jinja --parallel 1 -b 512 --temp 0.2 --top-p 0.95 --repeat-penalty 1.1 --repeat-last-n 256 --seed 42 --cache-type-k q4_0 --cache-type-v q4_0 --host 127.0.0.1 --port <P>`.
-- **Context modes:** `fixed` (16384 per defecte) o `adapted` (viable del model).
-- **Sandbox codi:** tempdir nou + `timeout 30` + `unshare -n` si disponible; codi generat mai fora del tempdir.
-- **Commits:** el projecte té el seu propi `git init` (Task 1).
-- **Idiomes de codi/agent:** bash, python, java, typescript.
-- **Pesos default:** tools=0.30, code=0.30, agent=0.25, speed=0.15.
+- **Location:** everything under `/home/jordi/ia/llama/benchmark/`.
+- **Server binary:** `/home/jordi/ia/llama/llama-server` (symlink); models at `/home/jordi/ia/llama/models/*.gguf`.
+- **No external deps:** HTTP via `urllib.request`; harness tests via `python -m unittest` (stdlib). No `pip install`.
+- **Fixed server flags** (from `start-dev-ai.sh`): `-ngl 999 --flash-attn auto --no-mmap --jinja --parallel 1 -b 512 --temp 0.2 --top-p 0.95 --repeat-penalty 1.1 --repeat-last-n 256 --seed 42 --cache-type-k q4_0 --cache-type-v q4_0 --host 127.0.0.1 --port <P>`.
+- **Context modes:** `fixed` (16384 by default) or `adapted` (the model's viable).
+- **Code sandbox:** new tempdir + `timeout 30` + `unshare -n` if available; generated code never outside the tempdir.
+- **Commits:** the project has its own `git init` (Task 1).
+- **Code/agent languages:** bash, python, java, typescript.
+- **Default weights:** tools=0.30, code=0.30, agent=0.25, speed=0.15.
 
 ---
 
@@ -26,21 +26,21 @@
 
 ```
 benchmark/
-├── run.py                 # CLI entry (argparse) + orquestració
-├── config.py              # constants: paths, flags, pesos, slug()
-├── client.py              # chat() HTTP + parseig de timings/tool_calls
+├── run.py                 # CLI entry (argparse) + orchestration
+├── config.py              # constants: paths, flags, weights, slug()
+├── client.py              # chat() HTTP + parsing of timings/tool_calls
 ├── server.py              # ServerManager: start/wait_ready/stop + build_args
-├── executors.py           # run(lang, solution, test) -> Result; 4 idiomes + sandbox
-├── code_extract.py        # extreure bloc ```lang``` de la resposta
-├── agent.py               # MockEnv + run_agent() loop amb read_file/write_file/run_tests
+├── executors.py           # run(lang, solution, test) -> Result; 4 languages + sandbox
+├── code_extract.py        # extract ```lang``` block from the response
+├── agent.py               # MockEnv + run_agent() loop with read_file/write_file/run_tests
 ├── graders.py             # grade_speed/grade_tools/grade_code/grade_agent
-├── tasks_loader.py        # descobrir/carregar tasks/ com mòduls
-├── report.py              # render(pool) taules + save_run/load_pool/normalize
+├── tasks_loader.py        # discover/load tasks/ as modules
+├── report.py              # render(pool) tables + save_run/load_pool/normalize
 ├── tasks/
 │   ├── speed/  tools/  code/{python,bash,java,typescript}/  agent/{python,bash,java,typescript}/
 ├── results/
 │   ├── models/            # <slug>.json (pool,latest)
-│   └── runs/              # <ts>-<slug>.json (històric)
+│   └── runs/              # <ts>-<slug>.json (history)
 └── tests/                 # test_*.py (unittest)
     test_config.py test_client.py test_executors.py test_code_extract.py
     test_server.py test_agent.py test_graders.py test_report.py
@@ -48,16 +48,16 @@ benchmark/
 
 ---
 
-## Task 1: Scaffold, git init, config.py i slug()
+## Task 1: Scaffold, git init, config.py and slug()
 
 **Files:**
-- Create: `benchmark/config.py`, `benchmark/__init__.py` (buit), `benchmark/tests/__init__.py` (buit), `benchmark/tests/test_config.py`
+- Create: `benchmark/config.py`, `benchmark/__init__.py` (empty), `benchmark/tests/__init__.py` (empty), `benchmark/tests/test_config.py`
 - Create: `benchmark/.gitignore` (ignora `results/runs/`, `__pycache__/`)
 
 **Interfaces:**
-- Produces: `config.BASE_DIR`, `config.MODELS_DIR`, `config.SERVER_BIN`, `config.RESULTS_DIR`, `config.SERVER_FLAGS` (llista), `config.PORT`, `config.CONTEXT_FIXED`, `config.WEIGHTS` (dict), `config.slug(name) -> str`.
+- Produces: `config.BASE_DIR`, `config.MODELS_DIR`, `config.SERVER_BIN`, `config.RESULTS_DIR`, `config.SERVER_FLAGS` (list), `config.PORT`, `config.CONTEXT_FIXED`, `config.WEIGHTS` (dict), `config.slug(name) -> str`.
 
-- [ ] **Step 1: git init + estructura**
+- [ ] **Step 1: git init + structure**
 
 ```bash
 cd /home/jordi/ia/llama/benchmark
@@ -68,16 +68,16 @@ touch __init__.py tests/__init__.py
 
 - [ ] **Step 2: .gitignore**
 
-Crea `benchmark/.gitignore`:
+Create `benchmark/.gitignore`:
 ```
 __pycache__/
 *.pyc
 results/runs/
 results/models/
 ```
-(Results no es commiten — es regeneren; el pool és local.)
+(Results are not committed — they are regenerated; the pool is local.)
 
-- [ ] **Step 3: test fallider per config + slug**
+- [ ] **Step 3: failing test for config + slug**
 
 `benchmark/tests/test_config.py`:
 ```python
@@ -102,12 +102,12 @@ if __name__ == "__main__":
     unittest.main()
 ```
 
-- [ ] **Step 4: verifica que falla**
+- [ ] **Step 4: verify that it fails**
 
 Run: `cd /home/jordi/ia/llama && python -m unittest benchmark.tests.test_config -v`
-Expected: FAIL (`ModuleNotFoundError` o `AttributeError`).
+Expected: FAIL (`ModuleNotFoundError` or `AttributeError`).
 
-- [ ] **Step 5: implementa config.py**
+- [ ] **Step 5: implement config.py**
 
 `benchmark/config.py`:
 ```python
@@ -124,7 +124,7 @@ RESULTS_RUNS = RESULTS_DIR / "runs"
 PORT = 8999
 CONTEXT_FIXED = 16384
 
-# Flags fixos (mateixes condicions per tots). El model, -c, -m, --tensor-split s'afegeixen al server.py.
+# Fixed flags (same conditions for all). The model, -c, -m, --tensor-split are added in server.py.
 SERVER_FLAGS = [
     "-ngl", "999",
     "--flash-attn", "auto",
@@ -144,11 +144,11 @@ SERVER_FLAGS = [
 
 WEIGHTS = {"tools": 0.30, "code": 0.30, "agent": 0.25, "speed": 0.15}
 
-# Llindar (fracció 0..1) per al perfil "fiable per idioma".
+# Threshold (fraction 0..1) for the "reliable per language" profile.
 LANG_OK_THRESHOLD = 0.75
 
 def slug(name: str) -> str:
-    """Saneja un nom de model per usar-lo com a nom de fitxer (treu .gguf)."""
+    """Sanitize a model name to use it as a file name (strips .gguf)."""
     s = name
     for ext in (".gguf", ".GGUF"):
         if s.endswith(ext):
@@ -157,7 +157,7 @@ def slug(name: str) -> str:
     return s.replace("/", "_")
 ```
 
-- [ ] **Step 6: verifica pass**
+- [ ] **Step 6: verify pass**
 
 Run: `cd /home/jordi/ia/llama && python -m unittest benchmark.tests.test_config -v`
 Expected: 4 PASS.
@@ -171,15 +171,15 @@ git add -A && git commit -m "feat: scaffold + config.py (paths, flags, weights, 
 
 ---
 
-## Task 2: client.py — chat HTTP + parseig
+## Task 2: client.py — HTTP chat + parsing
 
 **Files:**
 - Create: `benchmark/client.py`, `benchmark/tests/test_client.py`
 
 **Interfaces:**
-- Produces: `client.chat(messages, tools=None, tool_choice=None, max_tokens=256, base_url=..., timeout=60) -> dict` (JSON complet de la resposta); `client.parse_timings(resp) -> dict|None`; `client.extract_tool_call(resp) -> dict|None` (retorna `{"name":..., "arguments": <parsed json or None>}` o None); `client.first_text(resp) -> str`.
+- Produces: `client.chat(messages, tools=None, tool_choice=None, max_tokens=256, base_url=..., timeout=60) -> dict` (complete response JSON); `client.parse_timings(resp) -> dict|None`; `client.extract_tool_call(resp) -> dict|None` (returns `{"name":..., "arguments": <parsed json or None>}` or None); `client.first_text(resp) -> str`.
 
-- [ ] **Step 1: test fallider**
+- [ ] **Step 1: failing test**
 
 `benchmark/tests/test_client.py`:
 ```python
@@ -215,7 +215,7 @@ class TestClient(unittest.TestCase):
             {"function": {"name": "f", "arguments": "no-json"}}]}}]}
         tc = client.extract_tool_call(bad)
         self.assertEqual(tc["name"], "f")
-        self.assertIsNone(tc["arguments"])  # arguments no parsejables -> None
+        self.assertIsNone(tc["arguments"])  # unparseable arguments -> None
     def test_first_text(self):
         self.assertEqual(client.first_text(SAMPLE), "")
         self.assertEqual(client.first_text({"choices":[{"message":{"content":"x"}}]}), "x")
@@ -224,11 +224,11 @@ if __name__ == "__main__":
     unittest.main()
 ```
 
-- [ ] **Step 2: verifica que falla**
+- [ ] **Step 2: verify that it fails**
 
 Run: `python -m unittest benchmark.tests.test_client -v` → FAIL (ImportError).
 
-- [ ] **Step 3: implementa client.py**
+- [ ] **Step 3: implement client.py**
 
 `benchmark/client.py`:
 ```python
@@ -238,7 +238,7 @@ import urllib.error
 
 def chat(messages, tools=None, tool_choice=None, max_tokens=256,
          base_url="http://127.0.0.1:8999", timeout=60):
-    """POST /v1/chat/completions i retorna el JSON complet. Llença excepció si error/timeout."""
+    """POST /v1/chat/completions and return the complete JSON. Raises an exception on error/timeout."""
     body = {"messages": messages, "max_tokens": max_tokens, "temperature": 0.2, "seed": 42}
     if tools:
         body["tools"] = tools
@@ -288,7 +288,7 @@ def first_text(resp):
         return ""
 ```
 
-- [ ] **Step 4: verifica pass**
+- [ ] **Step 4: verify pass**
 
 Run: `python -m unittest benchmark.tests.test_client -v` → 6 PASS.
 
@@ -300,15 +300,15 @@ git add -A && git commit -m "feat: client.py (HTTP chat + parse timings/tool_cal
 
 ---
 
-## Task 3: code_extract.py — extreure bloc de codi per llenguatge
+## Task 3: code_extract.py — extract code block per language
 
 **Files:**
 - Create: `benchmark/code_extract.py`, `benchmark/tests/test_code_extract.py`
 
 **Interfaces:**
-- Produces: `code_extract.extract(text, lang) -> str|None`. `lang` un de `python|bash|java|typescript`. Retorna el codi del primer bloc ` ```lang ` (o alias: `py`, `sh`, `ts`, `js`). None si no n'hi ha.
+- Produces: `code_extract.extract(text, lang) -> str|None`. `lang` one of `python|bash|java|typescript`. Returns the code of the first ` ```lang ` block (or alias: `py`, `sh`, `ts`, `js`). None if there is none.
 
-- [ ] **Step 1: test fallider**
+- [ ] **Step 1: failing test**
 
 `benchmark/tests/test_code_extract.py`:
 ```python
@@ -330,18 +330,18 @@ class TestExtract(unittest.TestCase):
     def test_none(self):
         self.assertIsNone(code_extract.extract("no code here", "python"))
     def test_plain_block_fallback(self):
-        # si només hi ha bloc ``` sense lang i es demana python, l'agafa
+        # if there is only a ``` block without lang and python is requested, take it
         self.assertEqual(code_extract.extract("```\nx=1\n```", "python"), "x=1\n")
 
 if __name__ == "__main__":
     unittest.main()
 ```
 
-- [ ] **Step 2: verifica falla**
+- [ ] **Step 2: verify it fails**
 
 Run: `python -m unittest benchmark.tests.test_code_extract -v` → FAIL.
 
-- [ ] **Step 3: implementa code_extract.py**
+- [ ] **Step 3: implement code_extract.py**
 
 `benchmark/code_extract.py`:
 ```python
@@ -358,19 +358,19 @@ def extract(text, lang):
     if not text:
         return None
     langs = _ALIASES.get(lang, [lang])
-    # primer un bloc amb tag conegut
+    # first a block with a known tag
     for tag in langs:
         m = re.search(r"```" + re.escape(tag) + r"[^\n]*\n(.*?)```", text, re.DOTALL)
         if m:
             return m.group(1)
-    # fallback: bloc sense tag
+    # fallback: block without tag
     m = re.search(r"```\n(.*?)```", text, re.DOTALL)
     if m:
         return m.group(1)
     return None
 ```
 
-- [ ] **Step 4: verifica pass**
+- [ ] **Step 4: verify pass**
 
 Run: `python -m unittest benchmark.tests.test_code_extract -v` → 7 PASS.
 
@@ -388,9 +388,9 @@ git add -A && git commit -m "feat: code_extract.py (extreure bloc per llenguatge
 - Create: `benchmark/executors.py`, `benchmark/tests/test_executors.py`
 
 **Interfaces:**
-- Produces: `executors.run(lang, solution_code, test_code, timeout=30) -> dict` amb `{"passed": bool, "output": str, "elapsed_ms": int}`. Per ara només `lang=="python"`. Usa `executors.SANDBOX_PREFIX` (llista per bloquejar xarxa).
+- Produces: `executors.run(lang, solution_code, test_code, timeout=30) -> dict` with `{"passed": bool, "output": str, "elapsed_ms": int}`. For now only `lang=="python"`. Uses `executors.SANDBOX_PREFIX` (list to block the network).
 
-- [ ] **Step 1: test fallider**
+- [ ] **Step 1: failing test**
 
 `benchmark/tests/test_executors.py`:
 ```python
@@ -419,24 +419,24 @@ if __name__ == "__main__":
     unittest.main()
 ```
 
-- [ ] **Step 2: verifica falla** → FAIL.
+- [ ] **Step 2: verify it fails** → FAIL.
 
-- [ ] **Step 3: implementa executors.py (python + sandbox base)**
+- [ ] **Step 3: implement executors.py (python + base sandbox)**
 
 `benchmark/executors.py`:
 ```python
 import subprocess, tempfile, os, time, shutil
 
 def _sandbox_prefix(timeout):
-    """Command prefix per aïllar: timeout + xarxa bloquejada si unshare hi és."""
+    """Command prefix to isolate: timeout + blocked network if unshare is available."""
     prefix = ["timeout", str(timeout)]
-    # unshare -n bloqueja xarxa (requot permís de user namespace); si falla, s'omet.
+    # unshare -n blocks the network (requires user namespace permission); if it fails, it is omitted.
     if shutil.which("unshare"):
         prefix += ["unshare", "-n"]
     return prefix
 
 def run(lang, solution_code, test_code, timeout=30):
-    """Escriu solution+test en tempdir, executa segons lang, retorna resultat."""
+    """Write solution+test into a tempdir, run according to lang, return the result."""
     if solution_code is None:
         return {"passed": False, "output": "no solution code block found", "elapsed_ms": 0}
     started = time.time()
@@ -463,7 +463,7 @@ def _python(tmp, solution_code, test_code, timeout, started):
             "elapsed_ms": int((time.time() - started) * 1000)}
 ```
 
-- [ ] **Step 4: verifica pass**
+- [ ] **Step 4: verify pass**
 
 Run: `python -m unittest benchmark.tests.test_executors -v` → 3 PASS.
 
@@ -478,15 +478,15 @@ git add -A && git commit -m "feat: executors.py (python runner + sandbox)"
 ## Task 5: executors.py — bash, java, typescript
 
 **Files:**
-- Modify: `benchmark/executors.py` (afegeix `_bash`, `_java`, `_typescript` i els despatxa a `_run_in`)
-- Modify: `benchmark/tests/test_executors.py` (afegir tests)
+- Modify: `benchmark/executors.py` (add `_bash`, `_java`, `_typescript` and dispatch them in `_run_in`)
+- Modify: `benchmark/tests/test_executors.py` (add tests)
 
 **Interfaces:**
-- Extends: `executors.run(lang, ...)` suporta `bash|java|typescript` a més de `python`.
+- Extends: `executors.run(lang, ...)` supports `bash|java|typescript` in addition to `python`.
 
-- [ ] **Step 1: afegeix tests**
+- [ ] **Step 1: add tests**
 
-Afegeix a `tests/test_executors.py`:
+Add to `tests/test_executors.py`:
 ```python
     def test_bash_pass(self):
         sol = 'add() { echo $(($1+$2)); }\n'
@@ -518,11 +518,11 @@ Afegeix a `tests/test_executors.py`:
         self.assertTrue(r["passed"], r["output"])
 ```
 
-- [ ] **Step 2: verifica falla** (4 nous FAIL: bash/java/ts no implementats).
+- [ ] **Step 2: verify it fails** (4 new FAILs: bash/java/ts not implemented).
 
-- [ ] **Step 3: implementa els 3 idiomes**
+- [ ] **Step 3: implement the 3 languages**
 
-Despatxa i afegeix a `executors.py` (`_run_in`):
+Dispatch and add to `executors.py` (`_run_in`):
 ```python
 def _run_in(tmp, lang, solution_code, test_code, timeout, started):
     runners = {"python": _python, "bash": _bash, "java": _java, "typescript": _typescript}
@@ -570,7 +570,7 @@ def _typescript(tmp, solution_code, test_code, timeout, started):
             "elapsed_ms": int((time.time() - started) * 1000)}
 ```
 
-- [ ] **Step 4: verifica pass** (tots 8 tests)
+- [ ] **Step 4: verify pass** (all 8 tests)
 
 Run: `python -m unittest benchmark.tests.test_executors -v` → 8 PASS.
 
@@ -588,9 +588,9 @@ git add -A && git commit -m "feat: executors per bash, java, typescript"
 - Create: `benchmark/server.py`, `benchmark/tests/test_server.py`
 
 **Interfaces:**
-- Produces: `server.build_args(model_path, context_mode, port) -> list[str]` (tots els args, model inclosa); `server.ServerManager(model_path, context_mode, port)` amb `.start()`, `.wait_ready(timeout=180) -> bool`, `.stop()`, `.is_alive() -> bool`. `context_mode` és `"fixed"` o `adapted` o un enter.
+- Produces: `server.build_args(model_path, context_mode, port) -> list[str]` (all the args, model included); `server.ServerManager(model_path, context_mode, port)` with `.start()`, `.wait_ready(timeout=180) -> bool`, `.stop()`, `.is_alive() -> bool`. `context_mode` is `"fixed"` or `adapted` or an integer.
 
-- [ ] **Step 1: test fallider**
+- [ ] **Step 1: failing test**
 
 `benchmark/tests/test_server.py`:
 ```python
@@ -618,9 +618,9 @@ if __name__ == "__main__":
     unittest.main()
 ```
 
-- [ ] **Step 2: verifica falla** → FAIL.
+- [ ] **Step 2: verify it fails** → FAIL.
 
-- [ ] **Step 3: implementa server.py**
+- [ ] **Step 3: implement server.py**
 
 `benchmark/server.py`:
 ```python
@@ -628,12 +628,12 @@ import subprocess, time, urllib.request, json
 from . import config
 
 def resolve_context(context_mode, model_path):
-    """fixed -> CONTEXT_FIXED; int -> int; adapted -> estima viable (fallback 8192)."""
+    """fixed -> CONTEXT_FIXED; int -> int; adapted -> estimate viable (fallback 8192)."""
     if isinstance(context_mode, int):
         return context_mode
     if context_mode == "fixed":
         return config.CONTEXT_FIXED
-    # adapted: delegem a un estimator extern quan estigui; fallback segur
+    # adapted: delegate to an external estimator when available; safe fallback
     return 8192
 
 def build_args(model_path, context_mode, port):
@@ -660,7 +660,7 @@ class ServerManager:
         return self.proc is not None and self.proc.poll() is None
 
     def wait_ready(self, timeout=180):
-        """Llest quan un chat de prova retorna 'choices' (no només /v1/models)."""
+        """Ready when a test chat returns 'choices' (not just /v1/models)."""
         deadline = time.time() + timeout
         while time.time() < deadline:
             if not self.is_alive():
@@ -686,7 +686,7 @@ class ServerManager:
         self.proc = None
 ```
 
-- [ ] **Step 4: verifica pass**
+- [ ] **Step 4: verify pass**
 
 Run: `python -m unittest benchmark.tests.test_server -v` → 3 PASS.
 
@@ -704,9 +704,9 @@ git add -A && git commit -m "feat: server.py (build_args + ServerManager lifecyc
 - Create: `benchmark/agent.py`, `benchmark/tests/test_agent.py`
 
 **Interfaces:**
-- Produces: `agent.MockEnv(files: dict[str,str], lang: str)` amb `.read_file(path)`, `.write_file(path, content)`, `.run_tests(test_filename)`; `agent.run_agent(client_mod, task, max_turns=8) -> dict` on `task` és `{"lang","goal","initial_files","test_file"}` i el resultat és `{"success": bool, "turns": int, "tool_calls": int}`. Usa `executors.run` per `run_tests`.
+- Produces: `agent.MockEnv(files: dict[str,str], lang: str)` with `.read_file(path)`, `.write_file(path, content)`, `.run_tests(test_filename)`; `agent.run_agent(client_mod, task, max_turns=8) -> dict` where `task` is `{"lang","goal","initial_files","test_file"}` and the result is `{"success": bool, "turns": int, "tool_calls": int}`. Uses `executors.run` for `run_tests`.
 
-- [ ] **Step 1: test fallider**
+- [ ] **Step 1: failing test**
 
 `benchmark/tests/test_agent.py`:
 ```python
@@ -737,7 +737,7 @@ class TestMockEnv(unittest.TestCase):
 
 class TestRunAgentScripted(unittest.TestCase):
     def test_scripted_success(self):
-        # client fake: primer crida write_file amb la solució correcta, després atura
+        # fake client: first calls write_file with the correct solution, then stops
         calls = {"n": 0}
         class FakeClient:
             def chat(self, messages, tools=None, tool_choice=None, max_tokens=256):
@@ -759,16 +759,16 @@ if __name__ == "__main__":
     unittest.main()
 ```
 
-- [ ] **Step 2: verifica falla** → FAIL.
+- [ ] **Step 2: verify it fails** → FAIL.
 
-- [ ] **Step 3: implementa agent.py**
+- [ ] **Step 3: implement agent.py**
 
 `benchmark/agent.py`:
 ```python
 import json
 from . import executors
 
-# Esquema de les tools que es passen al model.
+# Schema of the tools passed to the model.
 TOOLS = [
     {"type": "function", "function": {
         "name": "read_file", "description": "Read a file from the project.",
@@ -803,19 +803,19 @@ class MockEnv:
         return f"wrote {len(content)} bytes to {path}"
 
     def run_tests(self):
-        # Executa tots els fitxers en tempdir via executor del llenguatge.
-        # Per simplicitat: junta solució+test segons llenguatge.
+        # Run all the files in a tempdir via the language executor.
+        # For simplicity: join solution+test according to the language.
         if self.lang == "python":
             sol = self.files.get("solution.py", "")
             tst = self.files.get(self.test_file, "")
             r = executors.run("python", sol, tst)
         else:
-            # altres langs: delega a executors amb solució+test convenció
+            # other langs: delegate to executors with the solution+test convention
             r = self._run_other()
         return (r["passed"], r["output"])
 
     def _run_other(self):
-        # Conveni: solution.<ext> + test_solution.<ext>
+        # Convention: solution.<ext> + test_solution.<ext>
         ext = {"bash": ".sh", "java": ".java", "typescript": ".ts"}[self.lang]
         sol = self.files.get("solution" + ext, "")
         tst = self.files.get("test_solution" + ext, self.files.get(self.test_file, ""))
@@ -859,7 +859,7 @@ def run_agent(client_mod, task, max_turns=8):
             "tool_calls": tool_calls}
 ```
 
-- [ ] **Step 4: verifica pass**
+- [ ] **Step 4: verify pass**
 
 Run: `python -m unittest benchmark.tests.test_agent -v` → 5 PASS.
 
@@ -878,9 +878,9 @@ git add -A && git commit -m "feat: agent.py (MockEnv + multi-step loop + tools)"
 
 **Interfaces:**
 - Consumes: `client`, `code_extract`, `executors`, `agent`, `config`.
-- Produces: `graders.grade_speed(client_mod, n=3) -> dict`; `graders.grade_tools(client_mod, tasks) -> dict`; `graders.grade_code(client_mod, tasks) -> dict`; `graders.grade_agent(client_mod, tasks) -> dict`. Cada dict té `score` (0..1); code i agent també `by_lang` i `tasks`.
+- Produces: `graders.grade_speed(client_mod, n=3) -> dict`; `graders.grade_tools(client_mod, tasks) -> dict`; `graders.grade_code(client_mod, tasks) -> dict`; `graders.grade_agent(client_mod, tasks) -> dict`. Each dict has `score` (0..1); code and agent also `by_lang` and `tasks`.
 
-- [ ] **Step 1: test fallider**
+- [ ] **Step 1: failing test**
 
 `benchmark/tests/test_graders.py`:
 ```python
@@ -888,7 +888,7 @@ import unittest
 from benchmark import graders
 
 class FakeClient:
-    """Client que pot ser programat amb una seqüència de respostes per tasca."""
+    """Client that can be scripted with a sequence of responses per task."""
     def __init__(self, responses):
         self.responses = list(responses); self.i = 0
     def chat(self, *a, **k):
@@ -907,9 +907,9 @@ class TestToolsGrader(unittest.TestCase):
             {"function":{"name":"g","arguments":'{"b":2}'}}]}}], "timings":{}}
         r = graders.grade_tools(FakeClient([resp_pass, resp_fail]), tasks)
         self.assertEqual(r["score"], 0.5)
-        self.assertEqual(r["by_lang"], {})  # tools no té by_lang
+        self.assertEqual(r["by_lang"], {})  # tools has no by_lang
     def test_noop_case(self):
-        tasks = [{"name":"noop","prompt":"hola","tools":[],"expected":None}]  # None = no ha de cridar
+        tasks = [{"name":"noop","prompt":"hola","tools":[],"expected":None}]  # None = must not call
         resp = {"choices":[{"finish_reason":"stop","message":{"content":"hola!"}}]}
         r = graders.grade_tools(FakeClient([resp]), tasks)
         self.assertEqual(r["score"], 1.0)
@@ -927,15 +927,15 @@ class TestSpeedGrader(unittest.TestCase):
     def test_median(self):
         def make(tps): return {"timings":{"predicted_per_second":tps}}
         r = graders.grade_speed(FakeClient([make(10), make(20), make(30)]), n=3)
-        self.assertAlmostEqual(r["gen_tps"], 20.0)  # mediana de [10,20,30]
+        self.assertAlmostEqual(r["gen_tps"], 20.0)  # median of [10,20,30]
 
 if __name__ == "__main__":
     unittest.main()
 ```
 
-- [ ] **Step 2: verifica falla** → FAIL.
+- [ ] **Step 2: verify it fails** → FAIL.
 
-- [ ] **Step 3: implementa graders.py**
+- [ ] **Step 3: implement graders.py**
 
 `benchmark/graders.py`:
 ```python
@@ -1009,7 +1009,7 @@ def grade_agent(client_mod, tasks):
     return {"score": score, "by_lang": bl, "tasks": results}
 ```
 
-- [ ] **Step 4: verifica pass**
+- [ ] **Step 4: verify pass**
 
 Run: `python -m unittest benchmark.tests.test_graders -v` → 4 PASS (classes).
 
@@ -1021,16 +1021,16 @@ git add -A && git commit -m "feat: graders.py (speed/tools/code/agent + by_lang)
 
 ---
 
-## Task 9: tasks_loader.py — descobrir tasques
+## Task 9: tasks_loader.py — discover tasks
 
 **Files:**
 - Create: `benchmark/tasks_loader.py`, `benchmark/tests/test_tasks_loader.py`
-- Create: tasques d'exemple: `tasks/tools/_example.py` (esborrat al final del task), per testejar càrrega.
+- Create: example task: `tasks/tools/_example.py` (deleted at the end of the task), to test loading.
 
 **Interfaces:**
-- Produces: `tasks_loader.load(dimension, lang_filter=None) -> list[dict]`. Carrega tots els `tasks/<dim>/**/*.py` (cada fitxer defineix constants), ignorant els que comencen per `_`. Cada mòdul es converteix en un dict segons la dimensió.
+- Produces: `tasks_loader.load(dimension, lang_filter=None) -> list[dict]`. Loads all the `tasks/<dim>/**/*.py` (each file defines constants), ignoring those starting with `_`. Each module becomes a dict according to the dimension.
 
-- [ ] **Step 1: test fallider**
+- [ ] **Step 1: failing test**
 
 `benchmark/tests/test_tasks_loader.py`:
 ```python
@@ -1040,7 +1040,7 @@ from benchmark import tasks_loader
 class TestLoad(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        # crea una tasca tools temporal
+        # create a temporary tools task
         d = os.path.join(os.path.dirname(__file__), "..", "tasks", "tools")
         open(os.path.join(d, "_tmpexample.py"), "w").write(textwrap.dedent('''
             NAME = "tmp"
@@ -1053,7 +1053,7 @@ class TestLoad(unittest.TestCase):
         p = os.path.join(os.path.dirname(__file__), "..", "tasks", "tools", "_tmpexample.py")
         if os.path.exists(p): os.remove(p)
     def test_load_returns_list(self):
-        # _tmpexample comença per _ -> ignorat; només tasques reals
+        # _tmpexample starts with _ -> ignored; only real tasks
         ts = tasks_loader.load("tools")
         self.assertIsInstance(ts, list)
     def test_skips_underscore(self):
@@ -1064,9 +1064,9 @@ if __name__ == "__main__":
     unittest.main()
 ```
 
-- [ ] **Step 2: verifica falla** → FAIL.
+- [ ] **Step 2: verify it fails** → FAIL.
 
-- [ ] **Step 3: implementa tasks_loader.py**
+- [ ] **Step 3: implement tasks_loader.py**
 
 `benchmark/tasks_loader.py`:
 ```python
@@ -1086,7 +1086,7 @@ def load(dimension, lang_filter=None):
     out = []
     files = sorted(p for p in base.rglob("*.py") if not p.name.startswith("_") and p.name != "__init__.py")
     for p in files:
-        # filtra per idioma (subcarpeta per code/agent)
+        # filter by language (subfolder for code/agent)
         if lang_filter:
             rel = p.relative_to(base)
             lang_part = rel.parts[0] if len(rel.parts) > 1 else None
@@ -1109,7 +1109,7 @@ def load(dimension, lang_filter=None):
     return out
 ```
 
-- [ ] **Step 4: verifica pass**
+- [ ] **Step 4: verify pass**
 
 Run: `python -m unittest benchmark.tests.test_tasks_loader -v` → 2 PASS.
 
@@ -1121,16 +1121,16 @@ git add -A && git commit -m "feat: tasks_loader.py (descobrir/carregar tasks per
 
 ---
 
-## Task 10: report.py — taules, persistència, normalització
+## Task 10: report.py — tables, persistence, normalization
 
 **Files:**
 - Create: `benchmark/report.py`, `benchmark/tests/test_report.py`
 
 **Interfaces:**
 - Consumes: `config`.
-- Produces: `report.save_result(result_dict)` (a `results/models/<slug>.json` + `results/runs/<ts>-<slug>.json`); `report.load_pool() -> list[dict]`; `report.compute_global(result, weights, pool) -> float` (velocitat normalitzada sobre el pool); `report.render(pool, weights, verbose=False) -> str` (retorna les taules formatejades); `report.lang_profile(result, threshold) -> dict`.
+- Produces: `report.save_result(result_dict)` (to `results/models/<slug>.json` + `results/runs/<ts>-<slug>.json`); `report.load_pool() -> list[dict]`; `report.compute_global(result, weights, pool) -> float` (speed normalized over the pool); `report.render(pool, weights, verbose=False) -> str` (returns the formatted tables); `report.lang_profile(result, threshold) -> dict`.
 
-- [ ] **Step 1: test fallider**
+- [ ] **Step 1: failing test**
 
 `benchmark/tests/test_report.py`:
 ```python
@@ -1149,7 +1149,7 @@ def mk(model, gen_tps=None, tools=1.0, code=1.0, agent=1.0,
 class TestReport(unittest.TestCase):
     def test_global_no_speed(self):
         r = mk("m", gen_tps=None)
-        # sense speed, normalitza sobre la resta
+        # without speed, normalize over the rest
         g = report.compute_global(r, config.WEIGHTS, [r])
         self.assertAlmostEqual(g, 0.30+0.30+0.25)  # speed 0
     def test_global_speed_normalized(self):
@@ -1157,7 +1157,7 @@ class TestReport(unittest.TestCase):
         pool=[a,b]
         ga = report.compute_global(a, config.WEIGHTS, pool)
         gb = report.compute_global(b, config.WEIGHTS, pool)
-        self.assertGreater(gb, ga)  # el més ràpid (b) té global major
+        self.assertGreater(gb, ga)  # the faster one (b) has a higher global
     def test_lang_profile(self):
         r = mk("m", code_lang={"python":1.0,"java":0.0}, agent_lang={"python":0.5})
         prof = report.lang_profile(r, threshold=0.75)
@@ -1167,15 +1167,15 @@ class TestReport(unittest.TestCase):
         pool=[mk("a"), mk("b")]
         out = report.render(pool, config.WEIGHTS)
         self.assertIn("GLOBAL", out)
-        self.assertIn("code:py", out)  # capçalera per-llenguatge
+        self.assertIn("code:py", out)  # per-language header
 
 if __name__ == "__main__":
     unittest.main()
 ```
 
-- [ ] **Step 2: verifica falla** → FAIL.
+- [ ] **Step 2: verify it fails** → FAIL.
 
-- [ ] **Step 3: implementa report.py**
+- [ ] **Step 3: implement report.py**
 
 `benchmark/report.py`:
 ```python
@@ -1235,7 +1235,7 @@ def render(pool, weights, verbose=False):
         return "(sense resultats al pool)"
     rows = sorted(pool, key=lambda r: -compute_global(r, weights, pool))
     out = []
-    # Taula 1 — global
+    # Table 1 — global
     out.append("=== Global ===")
     out.append(f"{'MODEL':30} {'gen_tps':>8} {'tools':>6} {'code':>6} {'agent':>6} {'GLOBAL':>7}")
     for r in rows:
@@ -1245,7 +1245,7 @@ def render(pool, weights, verbose=False):
                    f"{_fmt_pct(r.get('code',{}).get('score')):>6} "
                    f"{_fmt_pct(r.get('agent',{}).get('score')):>6} "
                    f"{compute_global(r, weights, pool):>7.2f}")
-    # Taula 2 — per llenguatge
+    # Table 2 — per language
     out.append("\n=== Per llenguatge ===")
     head = f"{'MODEL':30} " + " ".join(f"code:{_LANG_HEAD[l]:>4}" for l in _LANGS) \
            + "  " + " ".join(f"agent:{_LANG_HEAD[l]:>4}" for l in _LANGS)
@@ -1255,12 +1255,12 @@ def render(pool, weights, verbose=False):
         a = r.get("agent", {}).get("by_lang", {})
         cells = [_fmt_pct(c.get(l)) for l in _LANGS] + [_fmt_pct(a.get(l)) for l in _LANGS]
         out.append(f"{r['model'][:30]:30} " + " ".join(f"{x:>9}" for x in cells))
-    # Perfil
+    # Profile
     out.append("\n=== Perfil (≥{:.0%}) ===".format(config.LANG_OK_THRESHOLD))
     for r in rows:
         p = lang_profile(r)
         out.append(f"{r['model'][:30]:30} fort: {', '.join(p['strong']) or '—'} | fluix: {', '.join(p['weak']) or '—'}")
-    # Detall
+    # Detail
     if verbose:
         out.append("\n=== Detall per tasca ===")
         out.append(f"{'MODEL':24} {'DIM':6} {'LANG':10} {'TASK':18} {'PASS':5} DETALL")
@@ -1272,7 +1272,7 @@ def render(pool, weights, verbose=False):
     return "\n".join(out)
 ```
 
-- [ ] **Step 4: verifica pass**
+- [ ] **Step 4: verify pass**
 
 Run: `python -m unittest benchmark.tests.test_report -v` → 4 PASS.
 
@@ -1284,16 +1284,16 @@ git add -A && git commit -m "feat: report.py (taules global/per-lleng+perfil, po
 
 ---
 
-## Task 11: run.py — CLI i orquestració
+## Task 11: run.py — CLI and orchestration
 
 **Files:**
-- Create: `benchmark/run.py`, `benchmark/tests/test_run_cli.py` (test d'args, sense xarxa)
+- Create: `benchmark/run.py`, `benchmark/tests/test_run_cli.py` (args test, no network)
 
 **Interfaces:**
-- Consumes: tots els anteriors.
+- Consumes: all the above.
 - Produces: executable `python -m benchmark.run` o `python benchmark/run.py`.
 
-- [ ] **Step 1: test fallider (parsing CLI)**
+- [ ] **Step 1: failing test (CLI parsing)**
 
 `benchmark/tests/test_run_cli.py`:
 ```python
@@ -1317,9 +1317,9 @@ if __name__ == "__main__":
     unittest.main()
 ```
 
-- [ ] **Step 2: verifica falla** → FAIL.
+- [ ] **Step 2: verify it fails** → FAIL.
 
-- [ ] **Step 3: implementa run.py**
+- [ ] **Step 3: implement run.py**
 
 `benchmark/run.py`:
 ```python
@@ -1418,7 +1418,7 @@ if __name__ == "__main__":
     main()
 ```
 
-- [ ] **Step 4: verifica pass**
+- [ ] **Step 4: verify pass**
 
 Run: `python -m unittest benchmark.tests.test_run_cli -v` → 3 PASS.
 
@@ -1430,17 +1430,17 @@ git add -A && git commit -m "feat: run.py (CLI + orquestració per model)"
 
 ---
 
-## Task 12: Suite de tasques — speed + tools (8)
+## Task 12: Task suite — speed + tools (8)
 
 **Files:**
-- Create: `tasks/speed/speed.py`, i 8 fitxers a `tasks/tools/`.
+- Create: `tasks/speed/speed.py`, and 8 files in `tasks/tools/`.
 
-**Esquema de cada tasca tools** (fitxer `tasks/tools/<name>.py`):
+**Schema of each tools task** (file `tasks/tools/<name>.py`):
 ```python
 NAME = "<name>"
-PROMPT = "<enunciat per al model>"
-TOOLS = [ { ... definició de la/les tools... } ]
-EXPECTED = {"name": "<fn>", "arguments": {<args esperats>}}   # o None pel cas no-op
+PROMPT = "<statement for the model>"
+TOOLS = [ { ... definition of the tool(s)... } ]
+EXPECTED = {"name": "<fn>", "arguments": {<expected args>}}   # or None for the no-op case
 ```
 
 - [ ] **Step 1: speed task**
@@ -1450,22 +1450,22 @@ EXPECTED = {"name": "<fn>", "arguments": {<args esperats>}}   # o None pel cas n
 NAME = "speed"
 PROMPT = "Write a short vivid poem about the sea and a lighthouse."
 ```
-(El grader de speed fa servir `graders.SPEED_PROMPT` internament; aquesta tasca és placeholder per consistent loading.)
+(The speed grader uses `graders.SPEED_PROMPT` internally; this task is a placeholder for consistent loading.)
 
-- [ ] **Step 2: 8 tasques tools** — crea els següents fitxers amb `NAME/PROMPT/TOOLS/EXPECTED`:
+- [ ] **Step 2: 8 tools tasks** — create the following files with `NAME/PROMPT/TOOLS/EXPECTED`:
 
-1. `tasks/tools/single_arg.py` — demana temps de París; tool `get_weather(city)`; EXPECTED `get_weather({"city":"Paris"})`.
-2. `tasks/tools/multi_arg.py` — demana crear esdeveniment; tool `create_event(title, date, location)`; EXPECTED amb els 3 args (extretes de l'enunciat: title="Standup", date="2026-09-01", location="Remote").
-3. `tasks/tools/pick_right.py` — dóna 3 tools (`get_weather`, `search_docs`, `send_email`); demana "email the report to ana@x.com"; EXPECTED `send_email({"to":"ana@x.com","subject":"report"})` (ha de triar l'eina correcta).
-4. `tasks/tools/noop.py` — demana "explain what recursion is"; amb tool `get_weather` disponible; EXPECTED `None` (no ha de cridar).
-5. `tasks/tools/wrong_args.py` — demana temps de Tòquio; tool `get_weather(city)`; EXPECTED `get_weather({"city":"Tokyo"})` (prova que l'argument sigui correcte, no "Paris").
-6. `tasks/tools/typed_number.py` — tool `set_volume(level: int)`; demana "set volume to 50"; EXPECTED `set_volume({"level":50})` (prova tipus numèric).
-7. `tasks/tools/optional_arg.py` — tool `list_files(path="/")`; demana "list files"; EXPECTED `list_files({"path":"/"})` o `{}` (accepta default).
-8. `tasks/tools/chain_hint.py` — demana "get weather for Paris then save it"; tool `get_weather` i `save(key,value)`; EXPECTED el PRIMER call = `get_weather({"city":"Paris"})` (prova que comenci pel correcte).
+1. `tasks/tools/single_arg.py` — asks for the weather in Paris; tool `get_weather(city)`; EXPECTED `get_weather({"city":"Paris"})`.
+2. `tasks/tools/multi_arg.py` — asks to create an event; tool `create_event(title, date, location)`; EXPECTED with the 3 args (extracted from the statement: title="Standup", date="2026-09-01", location="Remote").
+3. `tasks/tools/pick_right.py` — offers 3 tools (`get_weather`, `search_docs`, `send_email`); asks for "email the report to ana@x.com"; EXPECTED `send_email({"to":"ana@x.com","subject":"report"})` (must pick the right tool).
+4. `tasks/tools/noop.py` — asks "explain what recursion is"; with tool `get_weather` available; EXPECTED `None` (must not call).
+5. `tasks/tools/wrong_args.py` — asks for the weather in Tokyo; tool `get_weather(city)`; EXPECTED `get_weather({"city":"Tokyo"})` (checks that the argument is correct, not "Paris").
+6. `tasks/tools/typed_number.py` — tool `set_volume(level: int)`; asks "set volume to 50"; EXPECTED `set_volume({"level":50})` (checks numeric type).
+7. `tasks/tools/optional_arg.py` — tool `list_files(path="/")`; asks "list files"; EXPECTED `list_files({"path":"/"})` or `{}` (accepts the default).
+8. `tasks/tools/chain_hint.py` — asks "get weather for Paris then save it"; tools `get_weather` and `save(key,value)`; EXPECTED the FIRST call = `get_weather({"city":"Paris"})` (checks that it starts with the right one).
 
-Cada fitxer defineix `TOOLS` amb l'esquema JSON complet de cada funció (type/description/parameters). L'autor omple `PROMPT` i `TOOLS` seguint els esquemes.
+Each file defines `TOOLS` with the full JSON schema of each function (type/description/parameters). The author fills in `PROMPT` and `TOOLS` following the schemas.
 
-- [ ] **Step 3: smoke de càrrega**
+- [ ] **Step 3: loading smoke**
 
 Run:
 ```bash
@@ -1482,37 +1482,37 @@ git add -A && git commit -m "feat: tasques speed + 8 tools"
 
 ---
 
-## Task 13: Suite de tasques — code (8: 2 per idioma)
+## Task 13: Task suite — code (8: 2 per language)
 
 **Files:**
-- Create: 2 fitxers per a `tasks/code/{python,bash,java,typescript}/`.
+- Create: 2 files for `tasks/code/{python,bash,java,typescript}/`.
 
-**Esquema** (`tasks/code/<lang>/<name>.py`):
+**Schema** (`tasks/code/<lang>/<name>.py`):
 ```python
 NAME = "<name>"
 LANG = "<python|bash|java|typescript>"
-PROMPT = "<enunciat: demana al model que implementi X, en un bloc ```lang```>"
-TEST_CODE = "<codi del test que importa/crída la solution i fa asserts>"
+PROMPT = "<statement: asks the model to implement X, in a ```lang``` block>"
+TEST_CODE = "<test code that imports/sources the solution and makes asserts>"
 ```
 
-- [ ] **Step 1: defineix les 8 tasques** (2 per idioma):
+- [ ] **Step 1: define the 8 tasks** (2 per language):
 
-| Lang | Task 1 (implementa) | Task 2 (arregla bug) |
+| Lang | Task 1 (implement) | Task 2 (fix bug) |
 |---|---|---|
-| python | `stack.py`: implementa `Stack` amb `push/pop/peek` | `fib_fix.py`: arregla fib (el donat retorna n-1) |
-| bash | `math.sh`: funcions `sum` i `max2` | `reverse_fix.sh`: arregla `reverse` (invertia malament) |
-| java | `Solution.java`: mètode estàtic `isPalindrome(String)` | `Solution.java`: arregla `factorial` (overflow off-by-one) |
-| typescript | `solution.ts`: `fizzbuzz(n)` retorna string[] | `solution.ts`: arregla `dedupe` (mantenia duplicats) |
+| python | `stack.py`: implement `Stack` with `push/pop/peek` | `fib_fix.py`: fix fib (the given one returns n-1) |
+| bash | `math.sh`: functions `sum` and `max2` | `reverse_fix.sh`: fix `reverse` (reversed wrongly) |
+| java | `Solution.java`: static method `isPalindrome(String)` | `Solution.java`: fix `factorial` (overflow off-by-one) |
+| typescript | `solution.ts`: `fizzbuzz(n)` returns string[] | `solution.ts`: fix `dedupe` (kept duplicates) |
 
-Cada `TEST_CODE` és un test autònom (import/source la solution, asserts, `exit 1`/throw si falla). Convencions:
+Each `TEST_CODE` is a standalone test (imports/sources the solution, asserts, `exit 1`/throw on failure). Conventions:
 - python: `from solution import *` + asserts.
 - bash: `source solution.sh` + `[ ... ] || exit 1`.
 - java: `public class Test { public static void main(...){ ... throw RuntimeException ... } }`.
 - typescript: `import { ... } from "./solution"` + asserts (bun).
 
-El `PROMPT` ha de demanar explícitament el bloc amb el tag correcte i la signatura esperada (per ex: java demana `public class Solution { ... }`).
+The `PROMPT` must explicitly ask for the block with the correct tag and the expected signature (e.g.: java asks for `public class Solution { ... }`).
 
-- [ ] **Step 2: smoke de càrrega**
+- [ ] **Step 2: loading smoke**
 
 Run:
 ```bash
@@ -1521,9 +1521,9 @@ import collections; c=T.load('code'); print(len(c), collections.Counter(t['lang'
 ```
 Expected: `8 Counter({'python': 2, 'bash': 2, 'java': 2, 'typescript': 2})`.
 
-- [ ] **Step 3: valida els tests amb solucions correctes conegudes**
+- [ ] **Step 3: validate the tests with known correct solutions**
 
-Per cada tasca, executa `executors.run(lang, <solució correcta que escriguis>, TEST_CODE)` i verifica `passed==True`. Script de comprovació ràpid:
+For each task, run `executors.run(lang, <correct solution you write>, TEST_CODE)` and verify `passed==True`. Quick check script:
 ```bash
 cd /home/jordi/ia/llama && python -c "
 from benchmark import tasks_loader as T, executors
@@ -1531,7 +1531,7 @@ for t in T.load('code'):
     print(t['name'], t['lang'], '-> crea solució correcta manualment i verifica abans de commit')
 "
 ```
-(Authoring manual de les solucions correctes per validar cada `TEST_CODE`.)
+(Manual authoring of the correct solutions to validate each `TEST_CODE`.)
 
 - [ ] **Step 4: commit**
 
@@ -1541,33 +1541,33 @@ git add -A && git commit -m "feat: 8 tasques code (2 per idioma)"
 
 ---
 
-## Task 14: Suite de tasques — agent (6)
+## Task 14: Task suite — agent (6)
 
 **Files:**
 - Create: `tasks/agent/{python×2, typescript×2, java×1, bash×1}.py`.
 
-**Esquema** (`tasks/agent/<lang>/<name>.py`):
+**Schema** (`tasks/agent/<lang>/<name>.py`):
 ```python
 NAME = "<name>"
 LANG = "<python|bash|java|typescript>"
-GOAL = "<objectiu pel model: què ha d'aconseguir>"
-INITIAL_FILES = { "<path>": "<contingut inicial (amb bug)>" , "test_solution.<ext>": "<test>" }
-TEST_FILE = "test_solution.<ext>"     # el que run_tests executa
+GOAL = "<goal for the model: what it must achieve>"
+INITIAL_FILES = { "<path>": "<initial content (with bug)>" , "test_solution.<ext>": "<test>" }
+TEST_FILE = "test_solution.<ext>"     # what run_tests executes
 MAX_TURNS = 8
 ```
 
-- [ ] **Step 1: defineix les 6 tasques agent**:
+- [ ] **Step 1: define the 6 agent tasks**:
 
-1. `agent/python/fix_offbyone.py` — `solution.py` té `def fib(n)` amb bug off-by-one; test comprova `fib(10)==55`. Goal: "Fix solution.py so tests pass."
-2. `agent/python/add_feature.py` — `solution.py` té `Calculator` amb `add`; afegeix-hi `multiply` que el test demana.
-3. `agent/typescript/fix_return.py` — `solution.ts` retorna `a-b` en lloc de `a+b`; test.
-4. `agent/typescript/add_method.ts` — afegeix `last()` a una `Stack`.
-5. `agent/java/fix_method.py` (lang java) — `Solution.java` mètode `double(int)` multiplica per 3; arregla.
-6. `agent/bash/fix_func.py` (lang bash) — `solution.sh` `greet()` retorna sense nom; arregla.
+1. `agent/python/fix_offbyone.py` — `solution.py` has `def fib(n)` with an off-by-one bug; test checks `fib(10)==55`. Goal: "Fix solution.py so tests pass."
+2. `agent/python/add_feature.py` — `solution.py` has `Calculator` with `add`; add `multiply` that the test requires.
+3. `agent/typescript/fix_return.py` — `solution.ts` returns `a-b` instead of `a+b`; test.
+4. `agent/typescript/add_method.ts` — add `last()` to a `Stack`.
+5. `agent/java/fix_method.py` (lang java) — `Solution.java` method `double(int)` multiplies by 3; fix it.
+6. `agent/bash/fix_func.py` (lang bash) — `solution.sh` `greet()` returns without a name; fix it.
 
-Cada `INITIAL_FILES` inclou el `test_solution.<ext>` que valida l'objectiu. El model només veu `GOAL` (i descobreix el codi via `read_file`).
+Each `INITIAL_FILES` includes the `test_solution.<ext>` that validates the goal. The model only sees `GOAL` (and discovers the code via `read_file`).
 
-- [ ] **Step 2: smoke de càrrega**
+- [ ] **Step 2: loading smoke**
 
 Run:
 ```bash
@@ -1576,9 +1576,9 @@ import collections; a=T.load('agent'); print(len(a), collections.Counter(t['lang
 ```
 Expected: `6 Counter({'python': 2, 'typescript': 2, 'java': 1, 'bash': 1})`.
 
-- [ ] **Step 3: valida que els tests inicials fallen i els correctes passen**
+- [ ] **Step 3: validate that the initial tests fail and the correct ones pass**
 
-Per cada tasca: amb la `INITIAL_FILES` original, `MockEnv(...).run_tests()` ha de ser FAIL; amb la solució correcta aplicada, PASS. Script:
+For each task: with the original `INITIAL_FILES`, `MockEnv(...).run_tests()` must be FAIL; with the correct solution applied, PASS. Script:
 ```bash
 cd /home/jordi/ia/llama && python -c "
 from benchmark import tasks_loader as T
@@ -1588,7 +1588,7 @@ for t in T.load('agent'):
     ok,_ = e.run_tests(); print(t['name'], 'initial:', 'PASS(!'+')' if ok else 'fail(ok)')
 "
 ```
-Expected: totes `fail(ok)` (les inicials fallen).
+Expected: all `fail(ok)` (the initial ones fail).
 
 - [ ] **Step 4: commit**
 
@@ -1598,60 +1598,60 @@ git add -A && git commit -m "feat: 6 tasques agent multi-pas"
 
 ---
 
-## Task 15: Smoke test end-to-end contra un model real
+## Task 15: Smoke test end-to-end against a real model
 
 **Files:**
-- Modify: res (només execució).
+- Modify: nothing (execution only).
 
-- [ ] **Step 1: run ràpida (--quick) contra el Qwen3-VL**
+- [ ] **Step 1: quick run (--quick) against the Qwen3-VL**
 
-Assegura't que no hi ha cap `llama-server` corrent al port 8999:
+Make sure no `llama-server` is running on port 8999:
 ```bash
 ps -eo pid,cmd | grep '[l]lama-server' | awk '{print $1}' | xargs -r kill -9
 ```
-Executa (mode quick, 1 tasca per dimensió):
+Run (quick mode, 1 task per dimension):
 ```bash
 cd /home/jordi/ia/llama && python -m benchmark.run --models /home/jordi/ia/llama/models/Qwen3-VL-8B-Instruct-1M-Q6_K.gguf --quick
 ```
-Expected: arrenca el server, corre 1 tasca per dimensió, guarda `results/models/<slug>.json`, i imprimeix el scoreboard (1 model).
+Expected: starts the server, runs 1 task per dimension, saves `results/models/<slug>.json`, and prints the scoreboard (1 model).
 
-- [ ] **Step 2: verifica el JSON del pool**
+- [ ] **Step 2: verify the pool JSON**
 
 ```bash
 ls /home/jordi/ia/llama/benchmark/results/models/
 cat /home/jordi/ia/llama/benchmark/results/models/*.json | python -m json.tool | head -40
 ```
-Expected: un fitxer amb `model`, `speed.gen_tps`, `tools.score`, `code.score/by_lang`, `agent.score/by_lang`.
+Expected: a file with `model`, `speed.gen_tps`, `tools.score`, `code.score/by_lang`, `agent.score/by_lang`.
 
 - [ ] **Step 3: scoreboard read-only**
 
 ```bash
 cd /home/jordi/ia/llama && python -m benchmark.run --scoreboard
 ```
-Expected: re-imprimeix les taules sense re-executar.
+Expected: re-prints the tables without re-running.
 
-- [ ] **Step 4: segon model per provar acumulació** (opcional, lent)
+- [ ] **Step 4: second model to test accumulation** (optional, slow)
 
 ```bash
 python -m benchmark.run --models /home/jordi/ia/llama/models/SkyRL-Agent-WebResearch-8B.Q8_0.gguf --quick --scoreboard 2>/dev/null || \
 python -m benchmark.run --models /home/jordi/ia/llama/models/SkyRL-Agent-WebResearch-8B.Q8_0.gguf --quick
 python -m benchmark.run --scoreboard
 ```
-Expected: scoreboard amb 2 models acumulats.
+Expected: scoreboard with 2 accumulated models.
 
 - [ ] **Step 5: commit final**
 
 ```bash
 cd /home/jordi/ia/llama/benchmark
-echo "results/models/" >> .gitignore  # ja hi és; confirma
+echo "results/models/" >> .gitignore  # already there; confirm
 git add -A && git commit -m "chore: smoke e2e verificat contra models reals" --allow-empty
 ```
 
 ---
 
-## Notes d'implementació
+## Implementation notes
 
-- **Ordre**: Tasks 1→11 son els components (TDD, cadascun testable independentment). Tasks 12→14 són contingut (tasques). Task 15 és la validació e2e.
-- **Sense xarxa al sandbox**: `unshare -n` pot fallar si els user namespaces hi són desactivats; el prefix només l'afegeix si `shutil.which("unshare")`. En ara falla en runtime, l'execució es farà sense bloqueig de xarxa (acceptable per un entorn de confiança com aquest).
-- **Run llarga**: una run completa (`--models all`, sense `--quick`) sobre 6 models pot tardar 30-50 min; per dia a dia usar `--quick` o `--dims tools,code` per iterar.
-- **adapted context**: `server.resolve_context("adapted")` retorna 8192 de fallback (Task 6). Connectar-hi l'estimador real de `start-dev-ai.sh` queda com a refactor futur (llegir metadades GGUF i VRAM); no bloqueja el funcionament.
+- **Order**: Tasks 1→11 are the components (TDD, each independently testable). Tasks 12→14 are content (tasks). Task 15 is the e2e validation.
+- **No network in the sandbox**: `unshare -n` can fail if user namespaces are disabled; the prefix only adds it if `shutil.which("unshare")`. If it fails at runtime, execution will proceed without network blocking (acceptable in a trusted environment like this).
+- **Long run**: a full run (`--models all`, without `--quick`) over 6 models can take 30-50 min; for day-to-day use `--quick` or `--dims tools,code` to iterate.
+- **adapted context**: `server.resolve_context("adapted")` returns 8192 as fallback (Task 6). Connecting the real estimator from `start-dev-ai.sh` is left as a future refactor (reading GGUF and VRAM metadata); it does not block operation.

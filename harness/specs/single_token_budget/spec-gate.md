@@ -1,7 +1,7 @@
 # Spec Gate — single_token_budget
 
-**Data:** 2026-10-09 · **Decisio:** APPROVED (pending -> spec_ready -> in_progress)
+**Date:** 2026-10-09 · **Decision:** APPROVED (pending -> spec_ready -> in_progress)
 
-Revisor: Jordi (human gate). Aprovacio explicita via directive directa en plena
-re-mesura: "jo comencaria a 8192" — assumint l'analisi de determinisme (mateix score,
-menys peticions) i el reinici de la run.
+Reviewer: Jordi (human gate). Explicit approval via direct directive mid
+re-measure: "I would start at 8192" — accepting the determinism analysis (same
+score, fewer requests) and the restart of the run.

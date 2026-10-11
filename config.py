@@ -13,37 +13,37 @@ TOKEN_BUDGETS = RESULTS_DIR / "token_budgets.json"
 PORT = 8999
 CONTEXT_FIXED = 16384
 
-# --- Segon motor: Strata (Qwen3.8-Flash-Next) ----------------------------------------
-# Strata no és llama-server: motor propi (engine/strata) servit per serve/server.py,
-# amb un config JSON per model (strata-<model>.json: pack, context, GPUs, MTP...) i un
-# sol model carregat alhora. Parla el mateix contracte OpenAI i emet `timings` amb els
-# noms de llama.cpp, així que les 4 dimensions li serveixen tal qual (SPEC §2).
+# --- Second engine: Strata (Qwen3.8-Flash-Next) ----------------------------------------
+# Strata is not llama-server: its own engine (engine/strata) served by serve/server.py,
+# with one JSON config per model (strata-<model>.json: pack, context, GPUs, MTP...) and a
+# single model loaded at a time. It speaks the same OpenAI contract and emits `timings` with the
+# llama.cpp field names, so the 4 dimensions work as-is (SPEC §2).
 STRATA_DIR = BASE_DIR / "Strata"
-STRATA_PORT = 8080            # el seu port habitual; --port el pot canviar
-# Arrencada: carrega 34-43 GB a RAM (1-3 min), molt més lent que un llama-server
+STRATA_PORT = 8080            # its usual port; --port can change it
+# Startup: loads 34-43 GB into RAM (1-3 min), much slower than a llama-server
 STRATA_READY_TIMEOUT = 600
-# Pensament: els híbrids (Qwen3) poden cremar el pressupost pensant mentre altres
-# configuracions mesuren sense cadena de pensament. `--thinking on|off` ho controla
-# pel cos de la petició (el mateix canal que feia servir l'antic STRATA_EXTRA_BODY,
-# pels dos motors): cap .txt de model el pot sobreescriure, a diferència d'un flag
-# de servidor (ADR-4 thinking_batches).
+# Thinking: hybrid models (Qwen3) can burn the budget thinking while other
+# setups measure without a thinking chain. `--thinking on|off` controls it
+# via the request body (the same channel the old STRATA_EXTRA_BODY used,
+# for both engines): no model .txt can override it, unlike a server
+# flag (ADR-4 thinking_batches).
 THINKING_DEFAULT = "off"
 
 def thinking_body(engine, mode):
-    """Cos extra per al mode de pensament (R1 thinking_batches).
-    `off` -> desactiva via chat_template_kwargs; `on` -> {} (lliure). Només toca el
-    canal `extra`: prompts, dims i tasques són idèntics en els dos modes (R6)."""
+    """Extra body for thinking mode (R1 thinking_batches).
+    `off` -> disabled via chat_template_kwargs; `on` -> {} (free). Only touches the
+    `extra` channel: prompts, dims and tasks are identical in both modes (R6)."""
     if engine not in ("llama", "strata"):
-        raise ValueError(f"engine desconegut: {engine!r}")
+        raise ValueError(f"unknown engine: {engine!r}")
     if mode == "off":
         return {"chat_template_kwargs": {"enable_thinking": False}}
     if mode == "on":
         return {}
-    raise ValueError(f"thinking desconegut: {mode!r} (esperat 'on' o 'off')")
+    raise ValueError(f"unknown thinking mode: {mode!r} (expected 'on' or 'off')")
 
-# Mateixes condicions per a tots els models: temp/seed fixos. El client també els
-# envia per petició (vegeu client.chat) per garantir repetibilitat encara que el
-# servidor canviï de configuració.
+# Same conditions for all models: fixed temp/seed. The client also sends them
+# per request (see client.chat) to guarantee repeatability even if the
+# server changes configuration.
 TEMPERATURE = 0.2
 SEED = 42
 
@@ -62,18 +62,18 @@ SERVER_FLAGS = [
     "--host", "127.0.0.1",
 ]
 
-# Cache KV separada de SERVER_FLAGS perquè models/<model>.txt la pot
-# sobreescriure (aleshores cal no duplicar el flag: llama-server avisa).
+# KV cache kept separate from SERVER_FLAGS because models/<model>.txt can
+# override it (then the flag must not be duplicated: llama-server warns).
 CACHE_FLAGS = ["--cache-type-k", "q4_0", "--cache-type-v", "q4_0"]
 
 def load_model_config_args(model_path) -> list:
-    """Llegeix models/<model>.txt: flags extra del servidor, un per línia,
-    mateixa convenció que bin/start-dev-ai.sh (on també s'apliquen al final).
+    """Reads models/<model>.txt: extra server flags, one per line, same
+    convention as bin/start-dev-ai.sh (where they are also applied last).
 
-    - Salta línies buides i comentaris (# ...).
-    - Continuació de línia amb \\ final, com al script shell.
-    - No filtra res: el filtratge de flags d'infraestructura (port, host, model)
-      és feina de server.build_args, que sap com connecta el harness."""
+    - Skips blank lines and comments (# ...).
+    - Line continuation with trailing \\, like in the shell script.
+    - Filters nothing: filtering infrastructure flags (port, host, model)
+      is server.build_args' job, which knows how the harness connects."""
     txt = Path(model_path).with_suffix(".txt")
     if not txt.is_file():
         return []
@@ -91,17 +91,17 @@ def load_model_config_args(model_path) -> list:
 
 WEIGHTS = {"tools": 0.30, "code": 0.30, "agent": 0.25, "speed": 0.15}
 
-# Versió de la suite de tasques: puja quan canvia el conjunt (hard_code_tier R7:
-# v2 = +16 tasques hard). El pool la guarda per distingir condicions pre/post.
+# Task suite version: bump when the set changes (hard_code_tier R7:
+# v2 = +16 hard tasks). The pool stores it to tell pre/post conditions apart.
 TASKS_VERSION = "v3"
 
 LANG_OK_THRESHOLD = 0.75
 
 
 class Lang(str, Enum):
-    """Llenguatges suportats. Hereta de str per interoperar amb els strings
-    que emeten els fitxers de tasques (``LANG = "python"``): ``Lang.PYTHON == "python"``
-    i es pot fer servir com a clau de dict indistintiblement."""
+    """Supported languages. Inherits from str to interoperate with the strings
+    emitted by task files (``LANG = "python"``): ``Lang.PYTHON == "python"``
+    and it can be used as a dict key interchangeably."""
 
     PYTHON = "python"
     BASH = "bash"

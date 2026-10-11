@@ -1,19 +1,19 @@
 # Completion Gate — thinking_batches
 
-**Data:** 2026-10-10 · **Decisió:** APPROVED (in_progress → done)
+**Date:** 2026-10-10 · **Decision:** APPROVED (in_progress → done)
 
-Checklist del gate (docs/verification.md):
+Gate checklist (docs/verification.md):
 
-- [x] Totes les tasques `[x]` a `tasks.md` (7/7), amb logs de batch a
+- [x] All tasks `[x]` in `tasks.md` (7/7), with batch logs in
   `harness/logs/thinking_batches/batch-{1..4}.log`.
-- [x] Traçabilitat objectiva: `check-traceability.py --feature thinking_batches`
+- [x] Objective traceability: `check-traceability.py --feature thinking_batches`
   → 7/7 PASS (`traceability-check.txt`); `--all` → PASS.
-- [x] Gates executats en primera persona: suite (187 tests OK, 1 skip preexistent) +
-  `harness/init.sh` verd ×4.
-- [x] Review propi (`review.md`): veredicte APPROVED + checklist de seguretat basic.
+- [x] Gates run first-hand: suite (187 tests OK, 1 pre-existing skip) +
+  `harness/init.sh` green ×4.
+- [x] Own review (`review.md`): APPROVED verdict + basic security checklist.
 - [x] Commits: `6e732df` (spec) + `5092aa4` (feat) + `541a719` (harness).
-- [x] Aprovació humana registrada a `APPROVAL`.
+- [x] Human approval recorded in `APPROVAL`.
 
-Tancament per flow: resum mogut a `harness/progress/history.md`; següent: desbloquejar
-**remeasure_pool** (doble batch think/no-think amb el harness nou — mai els dos motors
-alhora; la re-mesura no havia començat: el pool continua homogeni v1).
+Flow closure: summary moved to `harness/progress/history.md`; next: unlock
+**remeasure_pool** (dual think/no-think batch with the new harness — never both
+engines at once; the re-measure had not started: the pool is still homogeneous v1).

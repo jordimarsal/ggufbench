@@ -6,7 +6,7 @@ from pathlib import Path
 from benchmark import graders, token_budget
 
 class FakeClient:
-    """Client que pot ser programat amb una seqüència de respostes per tasca."""
+    """Client that can be scripted with a sequence of responses per task."""
     def __init__(self, responses):
         self.responses = list(responses); self.i = 0
     def chat(self, *a, **k):
@@ -25,16 +25,16 @@ class TestToolsGrader(unittest.TestCase):
             {"function":{"name":"g","arguments":'{"b":2}'}}]}}], "timings":{}}
         r = graders.grade_tools(FakeClient([resp_pass, resp_fail]), tasks)
         self.assertEqual(r["score"], 0.5)
-        self.assertEqual(r["by_lang"], {})  # tools no té by_lang
+        self.assertEqual(r["by_lang"], {})  # tools has no by_lang
     def test_noop_case(self):
-        tasks = [{"id":"noop","prompt":"hola","tools":[],"expected":None}]  # None = no ha de cridar
-        resp = {"choices":[{"finish_reason":"stop","message":{"content":"hola!"}}]}
+        tasks = [{"id":"noop","prompt":"hi","tools":[],"expected":None}]  # None = must not call
+        resp = {"choices":[{"finish_reason":"stop","message":{"content":"hi!"}}]}
         r = graders.grade_tools(FakeClient([resp]), tasks)
         self.assertEqual(r["score"], 1.0)
     def test_expected_without_arguments_checks_name_only(self):
-        # EXPECTED sense clau 'arguments': només es comprova el nom. Abans, la
-        # absència exigia arguments ABSENTS i cap model ho passava (get_env demana
-        # 'qualsevol variable' amb var_name required a l'schema: impossible).
+        # EXPECTED without an 'arguments' key: only the name is checked. Before, the
+        # absence required ABSENT arguments and no model ever passed (get_env asks for
+        # 'any variable' with var_name required in the schema: impossible).
         tasks = [{"id":"get_env","prompt":"x","tools":[],
                   "expected":{"name":"get_env"}}]
         resp = {"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[
@@ -42,8 +42,8 @@ class TestToolsGrader(unittest.TestCase):
         r = graders.grade_tools(FakeClient([resp]), tasks)
         self.assertEqual(r["score"], 1.0)
     def test_expected_empty_arguments_still_strict(self):
-        # 'arguments': {} segueix exigint una crida sense arguments: una crida
-        # amb arguments no és igual que una de buida.
+        # 'arguments': {} still requires a call without arguments: a call
+        # with arguments is not equal to an empty one.
         tasks = [{"id":"get_time","prompt":"x","tools":[],
                   "expected":{"name":"get_time","arguments":{}}}]
         resp = {"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[
@@ -61,8 +61,8 @@ class TestCodeGrader(unittest.TestCase):
         self.assertEqual(r["by_lang"], {"python": 1.0})
 
     def test_by_level_folded_score_and_breakdown(self):
-        # R3/R4 hard_code_tier: easy+hard plegades al mateix score (mateix pes per
-        # tasca); by_level desglossa per nivell sobre les tasques puntuables.
+        # R3/R4 hard_code_tier: easy+hard folded into the same score (same weight per
+        # task); by_level breaks down per level over the scoreable tasks.
         tasks = [
             {"id":"easy_a","lang":"python","prompt":"p","level":"easy",
              "test_code":"from solution import *\nassert add(1,2)==3\n"},
@@ -77,7 +77,7 @@ class TestCodeGrader(unittest.TestCase):
         self.assertEqual([t["level"] for t in r["trace"]], ["easy", "hard"])
 
     def test_by_level_defaults_to_easy_without_key(self):
-        # tasques sense clau level (fitxers antics): easy (R1)
+        # tasks without a level key (old files): easy (R1)
         tasks = [{"id":"old","lang":"python","prompt":"p",
                   "test_code":"from solution import *\nassert add(1,2)==3\n"}]
         resp = {"choices":[{"message":{"content":"```python\ndef add(a,b):\n    return a+b\n```"}}]}
@@ -85,36 +85,36 @@ class TestCodeGrader(unittest.TestCase):
         self.assertEqual(r["by_level"], {"easy": 1.0})
 
 class TestCodeTimeout(unittest.TestCase):
-    """R1/R2/R3 de timeout_scaling: pressupost en tokens, rellotge anti-penjam escalat."""
+    """R1/R2/R3 of timeout_scaling: budget in tokens, scaled anti-hang clock."""
 
     def test_formula_floors_ceils_and_falls_back(self):
-        self.assertEqual(graders.code_timeout(2048, None), 90)      # sense gen_tps
-        self.assertEqual(graders.code_timeout(2048, 1000), 90)      # pis de 90 s
+        self.assertEqual(graders.code_timeout(2048, None), 90)      # without gen_tps
+        self.assertEqual(graders.code_timeout(2048, 1000), 90)      # 90 s floor
         self.assertEqual(graders.code_timeout(2048, 41), 122)       # 60 + 62.4
-        self.assertEqual(graders.code_timeout(8192, 10), 1000)      # sostre de 1000 s
+        self.assertEqual(graders.code_timeout(8192, 10), 1000)      # 1000 s ceiling
 
     def test_scaled_timeout_applied_to_the_single_attempt(self):
-        # R2: l'unic intent de code rep el timeout escalat (32768 a 41 t/s -> sostre 1000 s)
+        # R2: the single code attempt gets the scaled timeout (32768 at 41 t/s -> 1000 s ceiling)
         tasks = [{"id":"x","lang":"python","prompt":"p","test_code":"t","level":"hard"}]
         cap_timeouts = []
 
         class Prose:
             def chat(self, *a, **k):
                 cap_timeouts.append(k.get("timeout"))
-                return {"choices":[{"message":{"content":"prosa sense bloc de codi"}}]}
+                return {"choices":[{"message":{"content":"prose with no code block"}}]}
 
         r = graders.grade_code(Prose(), tasks, gen_tps=41)
         self.assertEqual(cap_timeouts, [1000])
         self.assertEqual(r["trace"][0]["excluded"], True)
 
     def test_transient_timeout_still_excludes(self):
-        # R3: un timeout de transport continua sent exclusio (mai fail); amb error
-        # transient l'escala no re-intenta (mes tokens no arreglen el transport).
+        # R3: a transport timeout is still an exclusion (never a fail); with a transient
+        # error the scale does not retry (more tokens don't fix the transport).
         tasks = [{"id":"x","lang":"python","prompt":"p","test_code":"t","level":"hard"}]
 
         class Boom:
             def chat(self, *a, **k):
-                raise urllib.error.URLError("timeout simulat")
+                raise urllib.error.URLError("simulated timeout")
 
         r = graders.grade_code(Boom(), tasks, gen_tps=41)
         self.assertEqual(r["trace"][0]["excluded"], True)
@@ -122,10 +122,10 @@ class TestCodeTimeout(unittest.TestCase):
 
 
 class TestCodeBudget(unittest.TestCase):
-    """ADR-0002 + R3 thinking_batches: un unic pressupost generos (32768). Amb seed/temp
-    fixos, max_tokens es un sostre, no un objectiu: un intent al sostre produeix la
-    mateixa generacio que l'antiga escala, sense peticions malgastades amb models que
-    pensen. Els tokens de sortida queden registrats a la tracca (eficiencia)."""
+    """ADR-0002 + R3 thinking_batches: a single generous budget (32768). With fixed
+    seed/temp, max_tokens is a ceiling, not a target: one attempt at the ceiling produces the
+    same generation as the old scale, with no wasted requests on thinking
+    models. Output tokens are recorded in the trace (efficiency)."""
     def setUp(self):
         self.tmpdir = Path(tempfile.mkdtemp())
         self.old_file = token_budget.BUDGET_FILE
@@ -138,9 +138,9 @@ class TestCodeBudget(unittest.TestCase):
         shutil.rmtree(self.tmpdir)
 
     def _client(self, threshold):
-        """Retorna prosa (sense fence) si max_tokens < threshold, sinó un bloc vàlid."""
+        """Returns prose (no fence) if max_tokens < threshold, otherwise a valid block."""
         code = "```python\ndef f():\n    return 1\n```"
-        prose = "hmmm deixa'm pensar... "
+        prose = "hmmm let me think... "
         class C:
             def __init__(self): self.calls = 0
             def chat(self, *a, **k):
@@ -150,13 +150,13 @@ class TestCodeBudget(unittest.TestCase):
         return C()
 
     def test_single_generous_budget_resolves_long_output(self):
-        # abans calien 2 peticions (escala 2048->4096); ara una sola amb el sostre
+        # before it took 2 requests (scale 2048->4096); now a single one at the ceiling
         c = self._client(threshold=4096)
         tasks = [{"id": "t1", "lang": "python", "prompt": "p",
                   "test_code": "from solution import *\nassert f()==1\n"}]
         graders.grade_code(c, tasks, model_slug="skyrl")
         self.assertEqual(c.calls, 1)
-        self.assertIsNone(token_budget.get("code", "skyrl", None, "python", "t1"))  # el default ja basta
+        self.assertIsNone(token_budget.get("code", "skyrl", None, "python", "t1"))  # the default already suffices
 
     def test_stored_budget_still_honoured(self):
         token_budget.put("code", "skyrl", None, "python", "t1", 4096)
@@ -176,11 +176,11 @@ class TestCodeBudget(unittest.TestCase):
         self.assertEqual(r["trace"][0]["out_tokens"], 321)
 
     def test_no_save_when_default_suffices(self):
-        c = self._client(threshold=1024)  # el bloc apareix fins i tot sense pressupost extra
+        c = self._client(threshold=1024)  # the block appears even without extra budget
         tasks = [{"id": "t2", "lang": "python", "prompt": "p",
                   "test_code": "from solution import *\nassert f()==1\n"}]
         graders.grade_code(c, tasks, model_slug="m")
-        self.assertIsNone(token_budget.get("code", "m", None, "python", "t2"))  # no cal anotar res
+        self.assertIsNone(token_budget.get("code", "m", None, "python", "t2"))  # nothing to record
 
     def test_system_prompt_asks_for_export_on_typescript(self):
         captured = {}
@@ -196,26 +196,26 @@ class TestCodeBudget(unittest.TestCase):
         self.assertIn("```typescript", sysmsg)
 
     def test_truncation_excluded_from_score(self):
-        # python: produeix codi (passa); bash: només prosa -> truncament, exclòs.
+        # python: produces code (passes); bash: prose only -> truncation, excluded.
         class C:
             def chat(self, messages, **k):
                 if "```python" in messages[0]["content"]:
                     return {"choices": [{"message": {"content":
                             "```python\ndef f():\n    return 1\n```"}}]}
-                return {"choices": [{"message": {"content": "hmmm, no escric codi, només prosa"}}]}
+                return {"choices": [{"message": {"content": "hmm, I won't write code, only prose"}}]}
         tasks = [
             {"id": "good", "lang": "python", "prompt": "p",
              "test_code": "from solution import *\nassert f()==1\n"},
             {"id": "bad", "lang": "bash", "prompt": "p", "test_code": "echo x"},
         ]
         r = graders.grade_code(C(), tasks, model_slug="x")
-        self.assertEqual(r["excluded"], 1)              # la bash truncada
-        self.assertEqual(r["score"], 1.0)               # només compta la python (pass)
+        self.assertEqual(r["excluded"], 1)              # the truncated bash one
+        self.assertEqual(r["score"], 1.0)               # only the python one counts (pass)
         self.assertTrue(r["trace"][1]["excluded"])
         self.assertFalse(r["trace"][0]["excluded"])
 
     def test_real_failure_is_counted(self):
-        # Codi vàlid però que falla els tests: ha de comptar com a fallida (no exclosa).
+        # Valid code that fails the tests: must count as a failure (not excluded).
         class C:
             def chat(self, messages, **k):
                 return {"choices": [{"message": {"content":
@@ -230,7 +230,7 @@ class TestSpeedGrader(unittest.TestCase):
     def test_median(self):
         def make(ms): return {"timings":{"predicted_ms": ms}}
         r = graders.grade_speed(FakeClient([make(100), make(50), make(33)]), tasks=[{"id":"s1","prompt":"hi"}])
-        self.assertAlmostEqual(r["speed_ms"], 61.0, places=0)  # mitjana de [100,50,33] ~ 61 ms
+        self.assertAlmostEqual(r["speed_ms"], 61.0, places=0)  # mean of [100,50,33] ~ 61 ms
     def test_captures_tokens_per_second(self):
         def make(gen, prom): return {"timings": {"predicted_per_second": gen,
                                                  "prompt_per_second": prom,
@@ -242,7 +242,7 @@ class TestSpeedGrader(unittest.TestCase):
 
 
 class TestTransientErrors(unittest.TestCase):
-    """Un 500/timeout del servidor només ha de fallar la tasca afectada, no avortar la run."""
+    """A 500/timeout from the server must only fail the affected task, not abort the run."""
     def _flaky(self, fail_on):
         class FlakyClient:
             def __init__(self): self.n = 0
@@ -255,10 +255,10 @@ class TestTransientErrors(unittest.TestCase):
     def test_code_500_isolated(self):
         tasks = [{"id": f"t{i}", "lang": "python", "prompt": "p", "test_code": "pass"} for i in range(3)]
         r = graders.grade_code(self._flaky(2), tasks)
-        self.assertEqual(len(r["trace"]), 3)            # cap tasca abortada
-        self.assertFalse(r["trace"][1]["passed"])       # la que va 500 → fallada
+        self.assertEqual(len(r["trace"]), 3)            # no task aborted
+        self.assertFalse(r["trace"][1]["passed"])       # the one that 500'd → failure
         self.assertIn("server error", r["trace"][1]["detail"].lower())
-        self.assertTrue(r["trace"][0]["passed"])        # les altres segueixen corrent
+        self.assertTrue(r["trace"][0]["passed"])        # the others keep running
     def test_tools_500_isolated(self):
         tasks = [{"id": "a", "prompt": "p", "tools": [], "expected": None},
                  {"id": "b", "prompt": "p", "tools": [], "expected": None}]
@@ -266,7 +266,7 @@ class TestTransientErrors(unittest.TestCase):
         self.assertEqual(len(r["trace"]), 2)
         self.assertFalse(r["trace"][0]["passed"])
     def test_agent_500_isolated(self):
-        # run_agent fa múltiples chat(); un 500 a mig torn ha de fallar només aquesta tasca.
+        # run_agent makes multiple chat() calls; a 500 mid-turn must fail only that task.
         tasks = [{"id": "a", "lang": "python", "goal": "g", "max_turns": 4,
                   "initial_files": {"solution.py": ""}, "test_file": "test_solution.py"},
                  {"id": "b", "lang": "python", "goal": "g", "max_turns": 4,

@@ -1,28 +1,28 @@
 # Completion Gate — discriminative_tasks
 
-**Data:** 2026-10-10 · **Decisió:** APPROVED amb canvis (in_progress → done)
+**Date:** 2026-10-10 · **Decision:** APPROVED with changes (in_progress → done)
 
-Checklist del gate (docs/verification.md):
+Gate checklist (docs/verification.md):
 
-- [x] Totes les tasques `[x]` a `tasks.md` (10/10), amb logs de batch a
+- [x] All tasks `[x]` in `tasks.md` (10/10), with batch logs at
   `harness/logs/discriminative_tasks/batch-{1..7}.log` + `author-validation.log` +
   `smoke-r5.log` / `smoke-r5-attempt1.log`.
-- [x] Traçabilitat objectiva: `check-traceability.py --feature discriminative_tasks`
+- [x] Objective traceability: `check-traceability.py --feature discriminative_tasks`
   → 7/7 PASS (`traceability-check.txt`); `--all` → PASS.
-- [x] Gates executats en primera persona: suite unittest (165 tests OK, 1 skip
-  preexistent) + `harness/init.sh` verd (`batch-7.log`).
-- [x] Validació d'autor de les 12 tasques expert: ref OK, partial FALLA al tercer
-  comportament (`author-validation.log`; solucions a /tmp, no commitades).
-- [x] Fum R5 amb 2 models reals: 2 tasques expert separen ✓/✗ amb gap 100
-  (`harness/specs/discriminative_tasks/smoke-r5.md`, test mecànic
+- [x] Gates run first-person: unittest suite (165 tests OK, 1 pre-existing
+  skip) + green `harness/init.sh` (`batch-7.log`).
+- [x] Author validation of the 12 expert tasks: ref OK, partial FAILS on the third
+  behavior (`author-validation.log`; solutions in /tmp, not committed).
+- [x] R5 smoke with 2 real models: 2 expert tasks separate ✓/✗ with a gap of 100
+  (`harness/specs/discriminative_tasks/smoke-r5.md`, mechanical test
   `tests/test_smoke_evidence.py`).
-- [x] Review propi (`review.md`): veredicte APPROVED + checklist de seguretat basic
-  confirmat + 4 observacions (D6, sostre de tokens/think, remaps d'IDs, pool restaurat).
-- [x] Commits: `aabff88` (tier expert) + `19305d9` (docs) + `4dc88ec` (harness).
-- [x] Aprovació humana registrada a `APPROVAL` (amb el canvi Q1: pressupost code
-  inicia a 32768, a implementar a la feature següent).
+- [x] Self review (`review.md`): verdict APPROVED + basic safety checklist
+  confirmed + 4 observations (D6, token/think ceiling, ID remaps, restored pool).
+- [x] Commits: `aabff88` (expert tier) + `19305d9` (docs) + `4dc88ec` (harness).
+- [x] Human approval recorded in `APPROVAL` (with change Q1: code budget
+  starts at 32768, to be implemented in the next feature).
 
-Tancament per flow: resum mogut a `harness/progress/history.md`; següent feature:
-**thinking_batches** (nova: doble batch think/no-think + pressupost 32768 + exclosos
-senyalitzats + clau de pool per `(slug, thinking)`) — la re-mesura no comença fins al
-seu Completion Gate (`remeasure_pool` continua `blocked`).
+Flow closure: summary moved to `harness/progress/history.md`; next feature:
+**thinking_batches** (new: double think/no-think batch + 32768 budget + flagged
+exclusions + pool key by `(slug, thinking)`) — the re-measure does not start until
+its Completion Gate (`remeasure_pool` remains `blocked`).

@@ -1,11 +1,11 @@
-"""Informe HTML del scoreboard -> results/report.html.
+"""HTML report of the scoreboard -> results/report.html.
 
-Pàgina única AUTO-CONTINGUDA: CSS inline, zero JS, zero dependències, zero xarxa
-(es pot obrir amb doble clic o `xdg-open` sense connexió). Les puntuacions les
-calculen les funcions reals del harness (report._scores / report._global_score
-amb config.WEIGHTS) perquè aquesta pàgina i el CLI diguin sempre el mateix.
+Single-page SELF-CONTAINED: inline CSS, zero JS, zero dependencies, zero network
+(can be opened with a double click or `xdg-open` offline). The scores are computed
+by the real harness functions (report._scores / report._global_score with
+config.WEIGHTS) so that this page and the CLI always say the same thing.
 
-Ús:  python3 -m benchmark.html_report   (escriu results/report.html i imprimeix la ruta)
+Usage:  python3 -m benchmark.html_report   (writes results/report.html and prints the path)
 """
 
 import datetime
@@ -20,7 +20,7 @@ def _esc(s):
 
 
 def _gpu_chips():
-    """Noms de GPU (únics, ordenats) per al capçaler; [] si no hi ha nvidia-smi."""
+    """GPU names (unique, sorted) for the header; [] when nvidia-smi is absent."""
     try:
         out = subprocess.run(
             ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
@@ -32,7 +32,7 @@ def _gpu_chips():
 
 
 def _rows(pool):
-    """Una fila per model, ordenada per global desc. Mateixa matemàtica que el CLI."""
+    """One row per model, sorted by global desc. Same math as the CLI."""
     speed_values = [int((r.get("speed") or {}).get("speed_ms") or 0) for r in pool]
     min_speed = min((v for v in speed_values if v > 0), default=0)
     rows = []
@@ -47,7 +47,7 @@ def _rows(pool):
             "sc": R._scores(r),
             "global": R._global_score(r, config.WEIGHTS, min_speed),
             "engine": r.get("engine", "llama"),
-            "thinking": r.get("thinking") or "—",  # R4: legacy sense clau
+            "thinking": r.get("thinking") or "—",  # R4: legacy rows without key
             "code_excluded": int((r.get("code") or {}).get("excluded") or 0),  # R5
             "build": str(r.get("server_build") or "?"),
             "ts": (r.get("ts") or "")[:10],
@@ -62,10 +62,10 @@ def _rows(pool):
 
 
 def _heat(v):
-    """Píndola sòlida (sense alfa): el text ha de llegir-se a tot el rang 0-1.
-    Barreja verda sobre la targeta, calculada a Python; el color del text surt de
-    la lluminància del resultat (llindar 0.38). L'alfa sobre fons fosc deixava
-    bandes il·legibles (clar sobre verd mig, fosc sobre verd fosc)."""
+    """Solid pill (no alpha): the text must read across the whole 0-1 range.
+    Green blend over the card, computed in Python; the text color comes from the
+    resulting luminance (threshold 0.38). Alpha over the dark background left
+    illegible bands (light on mid-green, dark on dark green)."""
     k = 0.15 + 0.85 * max(0.0, min(1.0, v))
     r, g, b = (16 + (52 - 16) * k, 26 + (211 - 26) * k, 46 + (153 - 46) * k)
     lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
@@ -75,22 +75,22 @@ def _heat(v):
 
 
 def _picks(rows):
-    """Guanyadors per categoria (dades, mai noms hardcoded): una card per cada
-    (model, mode) que guanya ≥1 categoria, amb les seves raons d'ús."""
+    """Category winners (from data, never hardcoded names): one card per each
+    (model, mode) that wins ≥1 category, with its use cases."""
     cats = [
-        ("global", "Millor global", "treball diari a opencode (equilibri)",
+        ("global", "Best overall", "daily work in opencode (balance)",
          lambda r: r["global"]),
-        ("code", "Millor codi", "tasques de codi hard/expert",
+        ("code", "Best code", "hard/expert code tasks",
          lambda r: r["sc"]["code"]),
-        ("agent", "Millor agent", "feina autònoma multi-pas",
+        ("agent", "Best agent", "autonomous multi-step work",
          lambda r: r["sc"]["agent"]),
-        ("tools", "Millor tools", "tool-calling i orquestració",
+        ("tools", "Best tools", "tool-calling and orchestration",
          lambda r: r["sc"]["tools"]),
-        ("speed", "Més ràpid", "interactivitat (latència mínima)",
+        ("speed", "Fastest", "interactivity (lowest latency)",
          lambda r: -(r["sc"]["speed_ms"] or 1e9)),
-        ("gen", "Més throughput", "generacions llargues",
+        ("gen", "Highest throughput", "long generations",
          lambda r: r["sc"]["gen_tps"]),
-        ("think", "Millor pensant", "problemes durs on el think paga la latència",
+        ("think", "Best thinking", "hard problems where thinking pays off the latency",
          lambda r: r["sc"]["code"] if r["thinking"] == "on" else -1),
     ]
     cards, seen = [], {}
@@ -109,11 +109,11 @@ def _picks(rows):
 
 
 def _rec_section(rows):
-    """Secció final de recomanacions: una card per guanyador amb dades i usos."""
+    """Final recommendations section: one card per winner with data and uses."""
     cards = _picks(rows)
     if not cards:
         return ""
-    out = ['<section>\n  <h2>Recomanacions (per ús)</h2>\n  <div class="grid2">']
+    out = ['<section>\n  <h2>Recommendations (by use)</h2>\n  <div class="grid2">']
     for r, reasons in cards:
         think = (f' <span class="badge">think:{_esc(r["thinking"])}</span>'
                  if r["thinking"] != "—" else "")
@@ -124,9 +124,9 @@ def _rec_section(rows):
             f'<div class="l">global · {_esc(r["engine"])} {_esc(r["build"])} · {_esc(r["ts"])}</div></div>'
             f'<div class="kpi"><div class="v">{r["sc"]["code"]:.0%} · {r["sc"]["agent"]:.0%} · '
             f'{r["sc"]["tools"]:.0%}</div><div class="l">code · agent · tools'
-            f' (excloses code: {r["code_excluded"]})</div></div>'
+            f' (excluded code: {r["code_excluded"]})</div></div>'
             f'<div class="kpi"><div class="v">{r["sc"]["speed_ms"]} ms · {r["sc"]["gen_tps"]:.0f} t/s</div>'
-            f'<div class="l">latència · throughput</div></div>'
+            f'<div class="l">latency · throughput</div></div>'
             f"<ul>{why}</ul></section>")
     out.append("  </div>\n</section>")
     return "\n".join(out)
@@ -207,7 +207,7 @@ code{font-family:var(--mono);color:var(--primary2)}
 
 
 def render(pool):
-    """HTML complet (str) per al pool donat. Sense JS, sense recursos externs."""
+    """Complete HTML (str) for the given pool. No JS, no external resources."""
     rows = _rows(pool)
     now = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
     rec_section = _rec_section(rows)
@@ -217,17 +217,17 @@ def render(pool):
     langs = ["python", "bash", "java", "typescript"]
 
     chips = [f'<span class="chip"><b>{len(rows)}</b> models</span>',
-             f'<span class="chip"><b>{sum(max(r["tasks"].values()) for r in rows)}</b> tasques</span>',
-             '<span class="chip">pesos <b>tools {:.2f} · code {:.2f} · agent {:.2f} · speed {:.2f}</b></span>'.format(
+             f'<span class="chip"><b>{sum(max(r["tasks"].values()) for r in rows)}</b> tasks</span>',
+             '<span class="chip">weights <b>tools {:.2f} · code {:.2f} · agent {:.2f} · speed {:.2f}</b></span>'.format(
                  w["tools"], w["code"], w["agent"], w["speed"])]
     chips += [f'<span class="chip"><b>{_esc(g)}</b></span>' for g in gpus]
     if len(dates) > 1:
-        chips.append(f'<span class="chip">mesurat <b>{_esc(dates[0])} → {_esc(dates[-1])}</b></span>')
+        chips.append(f'<span class="chip">measured <b>{_esc(dates[0])} → {_esc(dates[-1])}</b></span>')
 
-    kpis = [("Millor global", f"{rows[0]['global']:.2f}" if rows else "—"),
-            ("Més ràpid (gen)", f"{max((r['sc']['gen_tps'] for r in rows), default=0):.0f} t/s"),
-            ("Latència mínima", f"{min((r['sc']['speed_ms'] for r in rows if r['sc']['speed_ms']), default=0)} ms"),
-            ("Model més nou", _esc(dates[-1]) if dates else "—")]
+    kpis = [("Best overall", f"{rows[0]['global']:.2f}" if rows else "—"),
+            ("Fastest (gen)", f"{max((r['sc']['gen_tps'] for r in rows), default=0):.0f} t/s"),
+            ("Lowest latency", f"{min((r['sc']['speed_ms'] for r in rows if r['sc']['speed_ms']), default=0)} ms"),
+            ("Newest model", _esc(dates[-1]) if dates else "—")]
 
     ranking = []
     for i, r in enumerate(rows):
@@ -237,7 +237,7 @@ def render(pool):
         ranking.append(
             f'<div class="trow"><div class="pos{cls}">{i + 1}</div>'
             f'<div class="name" title="{_esc(r["name"])}">{_esc(r["name"])}<small>{_esc(r["ts"])} · {r["tasks"]["tools"]}+'
-            f'{r["tasks"]["code"]}+{r["tasks"]["agent"]} tasques · excloses code: {r["code_excluded"]}</small></div>'
+            f'{r["tasks"]["code"]}+{r["tasks"]["agent"]} tasks · excluded code: {r["code_excluded"]}</small></div>'
             f'<div class="gval{cls}">{r["global"]:.2f} <span class="badge{" strata" if r["engine"] == "strata" else ""}">'
             f'{_esc(r["engine"])} {_esc(r["build"])}</span>{think}</div></div>')
 
@@ -245,8 +245,8 @@ def render(pool):
         out = []
         for r in sorted(rows, key=lambda x: -(x["sc"][key] or 1e9) if key == "speed_ms" else (x["sc"][key] or 0)):
             v = r["sc"][key]
-            # Badge DAVANT del nom: .name fa ellipsis (nowrap) i el badge al final
-            # quedava retallat en columnes estretes. title = nom sencer en tooltip.
+            # Badge BEFORE the name: .name uses ellipsis (nowrap) so the badge at the end
+            # was clipped in narrow columns. title = full name as tooltip.
             think = (f'<span class="badge">think:{_esc(r["thinking"])}</span> '
                      if r["thinking"] != "—" else "")
             out.append(f'<div class="trow">'
@@ -272,37 +272,37 @@ def render(pool):
 
     details = []
     for r in rows:
-        flags = _esc(r["flags"]) if r["flags"] else "flags per defecte del harness"
+        flags = _esc(r["flags"]) if r["flags"] else "harness default flags"
         bl = r["code_by_level"]
         by_level_line = ""
         if bl:
-            by_level_line = "code per nivell: " + " · ".join(
+            by_level_line = "code by level: " + " · ".join(
                 f"{k} {v:.0%}" for k, v in sorted(bl.items())) + "\n"
         think_line = (f"think: {r['thinking']}\n" if r["thinking"] != "—" else "")
         details.append(
             f'<details><summary>{_esc(r["name"])} <span class="badge{" strata" if r["engine"] == "strata" else ""}">'
             f'{_esc(r["engine"])} {_esc(r["build"])}</span> <span class="miss">{_esc(r["ts"])}</span></summary>'
-            f'<pre>{by_level_line}{think_line}excloses code: {r["code_excluded"]}\n{flags}</pre></details>')
+            f'<pre>{by_level_line}{think_line}excluded code: {r["code_excluded"]}\n{flags}</pre></details>')
 
     banner = ""
     if len(dates) > 1:
-        banner = ('<div class="banner"><b>Condicions barrejades.</b> Les entrades d\'aquest pool es van '
-                  'mesurar en dates diferents i el harness evoluciona (tasques arreglades, segon motor, '
-                  'flags per model): compara amb cura i revisa <code>docs/MILLORA.md §C7</code> abans de '
-                  'treure conclusions de la taula sencera.</div>')
+        banner = ('<div class="banner"><b>Mixed conditions.</b> The entries in this pool were '
+                  'measured on different dates and the harness evolves (tasks fixed, second engine, '
+                  'per-model flags): compare with care and check <code>docs/MILLORA.md §C7</code> before '
+                  'drawing conclusions from the whole table.</div>')
 
     return f"""<!doctype html>
-<html lang="ca">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Bench Board — benchmark local de models</title>
+<title>Bench Board — local model benchmark</title>
 <style>{_CSS}</style>
 </head>
 <body>
 <header>
-  <h1>Bench Board <small>· benchmark local de models per a opencode</small></h1>
-  <div class="sub">Generat {_esc(now)} · puntuacions calculades amb les funcions del harness (mateixa matemàtica que el CLI)</div>
+  <h1>Bench Board <small>· local model benchmark for opencode</small></h1>
+  <div class="sub">Generated {_esc(now)} · scores computed with the harness functions (same math as the CLI)</div>
   <div class="chips">{''.join(chips)}</div>
 </header>
 <main>
@@ -310,19 +310,19 @@ def render(pool):
 <div class="kpis">{''.join(f'<div class="kpi"><div class="v">{v}</div><div class="l">{_esc(l)}</div></div>' for l, v in kpis)}</div>
 
 <section>
-  <h2>Global ponderat</h2>
+  <h2>Weighted global</h2>
   {chr(10).join(ranking)}
 </section>
 
 <div class="grid2">
-<section><h2>Codi (32 tasques · 4 llenguatges)</h2>{dim_bars("code", lambda v: f"{v:.0%}")}</section>
-<section><h2>Agent multi-pas (24 tasques)</h2>{dim_bars("agent", lambda v: f"{v:.0%}")}</section>
-<section><h2>Tool-calling (8 tasques)</h2>{dim_bars("tools", lambda v: f"{v:.0%}")}</section>
-<section><h2>Velocitat (ms de generació · menys és millor)</h2>{dim_bars("speed_ms", lambda v: f"{v} ms")}</section>
+<section><h2>Code (32 tasks · 4 languages)</h2>{dim_bars("code", lambda v: f"{v:.0%}")}</section>
+<section><h2>Multi-step agent (24 tasks)</h2>{dim_bars("agent", lambda v: f"{v:.0%}")}</section>
+<section><h2>Tool-calling (8 tasks)</h2>{dim_bars("tools", lambda v: f"{v:.0%}")}</section>
+<section><h2>Speed (generation ms · lower is better)</h2>{dim_bars("speed_ms", lambda v: f"{v} ms")}</section>
 </div>
 
 <section>
-  <h2>Tokens per segon</h2>
+  <h2>Tokens per second</h2>
   <div class="grid2">
     <div><h2>gen (output)</h2>{dim_bars("gen_tps", lambda v: f"{v:.0f} t/s")}</div>
     <div><h2>prompt (input)</h2>{dim_bars("prompt_tps", lambda v: f"{v:.0f} t/s")}</div>
@@ -330,21 +330,21 @@ def render(pool):
 </section>
 
 <section>
-  <h2>Per llenguatge (code / agent)</h2>
+  <h2>By language (code / agent)</h2>
   <table><thead><tr><th>Model</th>{matrix_head}</tr></thead>
   <tbody>{''.join(matrix_rows)}</tbody></table>
 </section>
 
 <section>
-  <h2>Condicions per model</h2>
+  <h2>Conditions per model</h2>
   {''.join(details)}
 </section>
 {rec_section}
 </main>
 <footer>
-  Regenera amb <code>python3 -m benchmark.html_report</code> des de l'arrel del workspace.
-  Ranking relatiu en aquest hardware i amb aquest harness: no és comparable en absolut amb
-  benchmarks públics (HumanEval, BFCL, SWE-bench). Més: <code>docs/SPEC.md</code> ·
+  Regenerate with <code>python3 -m benchmark.html_report</code> from the workspace root.
+  Ranking relative to this hardware and this harness: not at all comparable with
+  public benchmarks (HumanEval, BFCL, SWE-bench). More: <code>docs/SPEC.md</code> ·
   <code>docs/MILLORA.md</code> · <code>AGENTS.md</code>.
 </footer>
 </body>

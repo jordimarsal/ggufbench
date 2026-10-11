@@ -1,70 +1,70 @@
 # Conventions
 
-Aquest document defineix les convencions del projecte. L'objectiu és l'homogeneïtat:
-qualsevol persona (o agent) pot obrir qualsevol fitxer i entendre'n l'estructura, el
-nom i la intenció sense aprendre un estil nou.
+This document defines the project's conventions. The goal is uniformity: anyone
+(or any agent) can open any file and understand its structure, naming and intent
+without learning a new style.
 
 ---
 
-## Llengües
+## Languages
 
-- **Codi i identificadors:** anglès.
-- **Comentaris, specs de tasques i docs del projecte (SPEC, MILLORA):** català.
-- Els comentaris expliquen el **per què** d'una decisió de mesurament o un compromís;
-  el *què* l'ha de dir el codi.
+- **Code and identifiers:** English.
+- **Comments, docstrings, task specs and project docs (SPEC, MILLORA):** English.
+- Comments explain the **why** of a measurement decision or a trade-off;
+  the *what* must be told by the code.
 
 ---
 
 ## Style Rules
 
-- **Python 3.12, stdlib pur:** cap dependència externa (ni pytest, ni requests, ni
-  pyproject). La suite corre amb `python3 -m unittest discover -s benchmark/tests -t .`
-  des de l'arrel del workspace (`/home/jordi/ia/llama/`), mai des de dins del paquet.
-- **Format:** PEP 8, línies ~100 col., indentació 4 espais. Sense formatter configurat:
-  l'homogeneïtat la marca el codi existent (obré un mòdul i imita'l).
-- **Complexitat:** funcions curtes, early returns, sense `try/except` niuats. Els
-  `except` capturen tuplets explícits (`_TRANSIENT` a `graders.py`) i mai a seques.
-- **Type hints:** graduals (MILLORA §D3). Obligatoris a les funcions de puntuació
+- **Python 3.12, pure stdlib:** no external dependencies (no pytest, no requests, no
+  pyproject). The suite runs with `python3 -m unittest discover -s benchmark/tests -t .`
+  from the workspace root (`/home/jordi/ia/llama/`), never from inside the package.
+- **Format:** PEP 8, ~100 col lines, 4-space indentation. No formatter configured:
+  uniformity is set by the existing code (open a module and imitate it).
+- **Complexity:** short functions, early returns, no nested `try/except`. The
+  `except` clauses catch explicit tuples (`_TRANSIENT` in `graders.py`), never bare.
+- **Type hints:** gradual (MILLORA §D3). Required on the scoring functions
   (`report._scores`, `report._global_score`, `client.parse_timings`, `graders._args_equal`);
-  opcionals a la resta fins que `mypy` entri a CI.
+  optional elsewhere until `mypy` enters CI.
 
 ---
 
 ## Naming Rules
 
-- Mòduls i funcions: `snake_case`. Classes: `CapWords`. Constants: `MAJUSCULES_AMB_GUIONS`.
-- Tests: `tests/test_<modul>.py` mirant el mòdul; mètodes `test_<comportament>`.
-- Un concepte, un nom: `pool` (les entrades), `run` (una execució), `task` (una tasca),
-  `dim` (una de les 4 dimensions). No usar sinònims.
-- Els booleans es llegeixen com a predicats: `passed`, `excluded`, `lower_is_better`.
+- Modules and functions: `snake_case`. Classes: `CapWords`. Constants: `UPPER_SNAKE`.
+- Tests: `tests/test_<module>.py` mirroring the module; methods `test_<behavior>`.
+- One concept, one name: `pool` (the entries), `run` (one execution), `task` (a task),
+  `dim` (one of the 4 dimensions). No synonyms.
+- Booleans read as predicates: `passed`, `excluded`, `lower_is_better`.
 
 ---
 
 ## File Structure
 
-- **Paquet pla:** els mòduls (`run.py`, `server.py`, `client.py`, `graders.py`,
+- **Flat package:** the modules (`run.py`, `server.py`, `client.py`, `graders.py`,
   `agent.py`, `executors.py`, `tasks_loader.py`, `report.py`, `html_report.py`,
-  `token_budget.py`, `code_extract.py`, `config.py`) a l'arrel del paquet — no `src/`.
-- **Tasques:** `tasks/<dim>/...` com a fitxers de constants; `code/` i `agent/` niats per
-  llengua. El loader salta `_prefix` i `__init__.py`.
-- **Resultats (gitignored):** `results/models/pool.jsonl` (upsert per slug),
-  `results/runs/` (històric append-only), `results/token_budgets.json`,
-  `results/report.html` (generat).
+  `token_budget.py`, `code_extract.py`, `config.py`) at the package root — no `src/`.
+- **Tasks:** `tasks/<dim>/...` as constants files; `code/` and `agent/` nested per
+  language. The loader skips `_prefix` and `__init__.py`.
+- **Results (gitignored):** `results/models/pool.jsonl` (upsert per slug),
+  `results/runs/` (append-only history), `results/token_budgets.json`,
+  `results/report.html` (generated).
 
 ---
 
 ## Testing Rules
 
-- **unittest stdlib** (no pytest al projecte). Els tests no han de tocar GPU ni xarxa:
-  serveis fake (`FakeClient`), i `config.override()`-style amb `setUp`/`tearDown` mentre
-  no existeixi (MILLORA §D1).
-- Cada bug fix inclou el test que l'hauria encertat.
-- Un test que només comprova que no llança excepcions no és un test.
+- **stdlib unittest** (no pytest in this project). Tests must not touch the GPU or the
+  network: fake services (`FakeClient`), and `config.override()`-style with
+  `setUp`/`tearDown` until one exists (MILLORA §D1).
+- Every bug fix includes the test that would have caught it.
+- A test that only checks nothing throws is not a test.
 
 ---
 
 ## Commit Rules
 
-- **Conventional Commits**, enforcing per `.git/hooks/commit-msg`
+- **Conventional Commits**, enforced by `.git/hooks/commit-msg`
   (`harness/tools/commit-msg`): `feat(engine): ...`, `fix(tools): ...`,
-  `chore(harness): ...`. Commits granulars: una intenció per commit.
+  `chore(harness): ...`. Granular commits: one intent per commit.

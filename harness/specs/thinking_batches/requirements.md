@@ -1,12 +1,13 @@
 # Requirements: thinking_batches
 
-El fum R5 de `discriminative_tasks` (2026-10-10) mostra un 27B que exhaure
-`out_tokens=16384` amb text buit en 7/12 tasques expert, mentre Strata mesura amb
-`enable_thinking: False` sota la hipòtesi documentada "igual que la resta de models".
-Si els híbrids pensen i Strata no, les condicions ja són desiguals. A més, el
-pressupost de 16384 ha quedat petit per a les tasques expert (decisió del revisor:
-iniciar a 32768) i els exclosos no es veuen als agregats (Taula 1/HTML mostren un
-`100%` idèntic amb 0 o 7 excloses). Aquesta feature ho resol abans de la re-mesura.
+The R5 smoke of `discriminative_tasks` (2026-10-10) shows a 27B exhausting
+`out_tokens=16384` with empty text on 7/12 expert tasks, while Strata measures with
+`enable_thinking: False` under the documented assumption "same as the other models".
+If hybrids think and Strata does not, conditions are already unequal. Also, the
+16384 budget has become small for expert tasks (reviewer decision:
+start at 32768) and exclusions are invisible in the aggregates (Table 1/HTML show an
+identical `100%` with 0 or 7 excluded). This feature resolves all of that before the
+re-measure.
 
 ## R1
 The system SHALL accept a `--thinking on|off` run option (default `off`) for both

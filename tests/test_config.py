@@ -24,22 +24,22 @@ if __name__ == "__main__":
     unittest.main()
 class TestTasksVersion(unittest.TestCase):
     def test_v3_marks_expert_tier(self):
-        # discriminative_tasks R4: el conjunt expert (+12 tasques, EXTRA_FILES)
-        # ha de pujar la versió; el pool la fa servir per distingir condicions.
+        # discriminative_tasks R4: the expert set (+12 tasks, EXTRA_FILES)
+        # must bump the version; the pool uses it to tell conditions apart.
         self.assertEqual(config.TASKS_VERSION, "v3")
 
 class TestWeightsUnchanged(unittest.TestCase):
     def test_weights_unchanged(self):
-        # R8 hard_code_tier: el nivell hard no toca els pesos ni la resta de dimensions
+        # R8 hard_code_tier: the hard level does not touch the weights nor the other dimensions
         self.assertEqual(config.WEIGHTS,
                          {"tools": 0.30, "code": 0.30, "agent": 0.25, "speed": 0.15})
     def test_r7_retired_no_efficiency_dimension(self):
-        # discriminative_tasks R7 (retired): l'eficiència (tokens per tasca) queda com a
-        # mètrica registrada (out_tokens), mai com a dimensió puntuada.
+        # discriminative_tasks R7 (retired): efficiency (tokens per task) stays as a
+        # recorded metric (out_tokens), never as a scored dimension.
         self.assertEqual(set(config.WEIGHTS), {"speed", "tools", "code", "agent"})
 
 class TestThinkingBody(unittest.TestCase):
-    """R1 thinking_batches: el mode de pensament viatja pel cos, mai pels prompts."""
+    """R1 thinking_batches: the thinking mode travels via the body, never via the prompts."""
     def test_default_is_off(self):
         self.assertEqual(config.THINKING_DEFAULT, "off")
     def test_off_disables_for_both_engines(self):
@@ -55,5 +55,5 @@ class TestThinkingBody(unittest.TestCase):
         with self.assertRaises(ValueError):
             config.thinking_body("vllm", "off")
     def test_only_touches_extra_channel(self):
-        # R6: el mode no pot contaminar prompts/dims: el dict només porta el kwarg
+        # R6: the mode must not contaminate prompts/dims: the dict only carries the kwarg
         self.assertEqual(set(config.thinking_body("llama", "off")), {"chat_template_kwargs"})

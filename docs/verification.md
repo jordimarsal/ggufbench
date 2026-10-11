@@ -1,7 +1,7 @@
 # Verification
 
-Aquest document defineix com es demostra que una feina funciona. Cap feature es marca
-`done` sense passar la verificació. Sense excepcions.
+This document defines how working software is demonstrated. No feature is marked
+`done` without passing verification. No exceptions.
 
 ---
 
@@ -9,109 +9,109 @@ Aquest document defineix com es demostra que una feina funciona. Cap feature es 
 
 ### Level 1: Unit Tests (Mandatory)
 
-Tota feature porta tests unitaris (stdlib `unittest`, `tests/test_<modul>.py`). Han de:
+Every feature carries unit tests (stdlib `unittest`, `tests/test_<module>.py`). They must:
 
-- Cobrir tota funció pública nova o modificada, happy path i casos d'error documentats.
-- Ser deterministes: dues execucions, mateix resultat (res de xarxa, res de GPU, res de
-  temps real).
-- Ser ràpids: la suite sencera en menys de 60 s (avui: ~6 s, 124 tests).
+- Cover every new or modified public function, happy path and documented error cases.
+- Be deterministic: two runs, same result (no network, no GPU, no real time).
+- Be fast: the whole suite in under 60 s (today: ~6 s, 124 tests).
 
 ```
 cd /home/jordi/ia/llama/
-python3 -m unittest discover -s benchmark/tests -t .   # última línia: "N tests ... OK"
+python3 -m unittest discover -s benchmark/tests -t .   # last line: "N tests ... OK"
 ```
 
-Llegeix el comptador final: una fila de punts sense `F`/`E` no és un resum.
+Read the final counter: a row of dots without `F`/`E` is not a summary.
 
 ### Level 2: Integration (Mandatory on engine/client changes)
 
-Qualsevol canvi que toqui `client.py`, `server.py` (arrencada, readiness, stop) o el
-contracte HTTP ha de tenir test d'integració simulada: el patró de
-`tests/test_smoke.py` (arrencada real de servidor + sonda de chat) i els tests de
-comanda/venv/log de `tests/test_server.py`. Sense GPU: el smoke e2e salta sol quan no
-hi ha models o el port està ocupat.
+Any change touching `client.py`, `server.py` (startup, readiness, stop) or the HTTP
+contract must have simulated integration tests: the pattern of
+`tests/test_smoke.py` (real server startup + chat probe) and the command/venv/log
+tests in `tests/test_server.py`. Without GPU: the e2e smoke skips itself when no
+models are present or the port is busy.
 
-### Level 3: Smoke del banc real (GPU, opcional)
+### Level 3: Real bench smoke (GPU, optional)
 
-`python3 -m benchmark.run --engine <engine> --models <nom> --quick` (4 tasques, ~2 min):
-smoke manual abans d'una re-mesura llarga. Mai amb els dos motors alhora.
+`python3 -m benchmark.run --engine <engine> --models <name> --quick` (4 tasks, ~2 min):
+manual smoke before a long re-measure. Never with both engines at once.
 
 ### Level 4: Requirement Traceability (Mandatory for All Features)
 
-Cada requisit R\<n\> del spec mapa a mínim un test que el verifica; el mapa es documenta
-a `harness/specs/<feature>/` (vegeu `docs/specs.md`, secció Traceability). Cap feature
-es marca `done` amb requisits sense test.
+Every requirement R\<n\> in the spec maps to at least one test that verifies it; the map
+is documented in `harness/specs/<feature>/` (see `docs/specs.md`, Traceability section). No
+feature is marked `done` with untested requirements.
 
 ---
 
 ## Anti-Patterns
 
-### "Hauria de funcionar" sense tests
+### "It should work" without tests
 
-Codi correcte per inspecció visual no és codi correcte. Sense test automatitzat, la
-feature no està feta. Un bug fix sense el test que l'hauria encertat no està tancat
-(precedents que hem de repetir: `ef48e76`, `5a6903b`).
+Correct code by visual inspection is not correct code. Without an automated test,
+the feature is not done. A bug fix without the test that would have caught it is not
+closed (precedents we must repeat: `ef48e76`, `5a6903b`).
 
-### Tests que només comproven no-throw
+### Tests that only check no-throw
 
-Un test sense assert específic sobre el resultat no valida res. Mínim: tipus i una
-propietat esperada del valor retornat.
+A test without a specific assert on the result validates nothing. Minimum: type and
+one expected property of the returned value.
 
-### Barrejar condicions al pool
+### Mixing conditions in the pool
 
-El pool (`results/models/pool.jsonl`) només és comparable si totes les entrades corren
-amb el mateix harness. Canviar tasques, pesos, flags base o afegir dimensions exigeix
-**re-mesura** (`--models all`) abans de publicar cap taula. El banner de
-`results/report.html` existeix precisament per això.
+The pool (`results/models/pool.jsonl`) is only comparable if every entry runs under
+the same harness. Changing tasks, weights, base flags or adding dimensions requires
+a **re-measure** (`--models all`) before publishing any table. The banner in
+`results/report.html` exists precisely for this.
 
-### Confondre falla del model amb error del servei
+### Confusing model failure with service error
 
-Un 500, un timeout o una resposta sense bloc extreuible són EXCLUSIONS (no abaixen el
-score, queden a la traça), no falles. Un grader que les compti com a fail està mesurant
-el servidor, no el model.
+A 500, a timeout or a response without an extractable block are EXCLUSIONS (they do
+not lower the score, they stay in the trace), not failures. A grader that counts them
+as fail is measuring the server, not the model.
 
 ### Marking done without harness/init.sh
 
-Cap feature es marca `done` sense que `harness/init.sh` acabi verd. És la porta final.
+No feature is marked `done` without `harness/init.sh` finishing green. It is the
+final gate.
 
 ### Trusting a subagent's "done" claim
 
-Una resposta de chat no és evidència. Després de cada batch de l'implementador, verifica
-a disc: tasques `[x]` a `harness/specs/<name>/tasks.md`, fitxers existents i no buits, i
-**corre els gates tu mateix** (`python3 -m unittest discover -s benchmark/tests -t .`).
+A chat response is not evidence. After every implementer batch, verify on disk:
+tasks `[x]` in `harness/specs/<name>/tasks.md`, files existing and non-empty, and
+**run the gates yourself** (`python3 -m unittest discover -s benchmark/tests -t .`).
 
 ---
 
 ## Security Audit Checklist
 
-Llegeix `"audit_level"` de `harness/feature_list.json` (`basic` → confirma cada ítem
-manualment i enregistra la confirmació al review). Aquest projecte **executa codi
-generat per LLMs** (dimensions code/agent), així que la superfície és el sandbox:
+Read `"audit_level"` from `harness/feature_list.json` (`basic` → confirm every item
+manually and record the confirmation in the review). This project **executes code
+generated by LLMs** (code/agent dimensions), so the attack surface is the sandbox:
 
-- [ ] Cap secret, API key o token commitejat (les configs de proveïdors viven fora del repo).
-- [ ] Tot `subprocess` passa per `_safe_run` amb timeout; cap execució sense límit.
-- [ ] El codi del model només s'executa al sandbox d'`executors.py`: tempdir nou per run,
-      `timeout` + `unshare -n` (best-effort), esborrat al final.
-- [ ] La sortida del model mai arriba a `eval`/`exec`; l'extrecció de codi és textual
+- [ ] No secret, API key or token committed (provider configs live outside the repo).
+- [ ] Every `subprocess` goes through `_safe_run` with timeout; no unbounded execution.
+- [ ] Model code only runs in the `executors.py` sandbox: fresh tempdir per run,
+      `timeout` + `unshare -n` (best-effort), deleted at the end.
+- [ ] Model output never reaches `eval`/`exec`; code extraction is textual
       (`code_extract.py`).
-- [ ] L'HTML generat (`html_report.py`) escapa tot el text del pool (`_esc`) i no inclou
-      scripts ni recursos externs (test de self-contenció).
-- [ ] Els servidors escolten a 127.0.0.1 només; cap exposició de xarxa.
-- [ ] Cap `curl | sh` als scripts del projecte (l'única excepció documentada és la
-      instal·lació de l'harness mateix, feta una vegada i revisada).
+- [ ] Generated HTML (`html_report.py`) escapes all pool text (`_esc`) and includes
+      no scripts or external resources (self-containment test).
+- [ ] Servers listen on 127.0.0.1 only; no network exposure.
+- [ ] No `curl | sh` in project scripts (the only documented exception is installing
+      the harness itself, done once and reviewed).
 
 ---
 
 ## Final Verification
 
-L'últim pas abans de marcar qualsevol feature com a `done`:
+The last step before marking any feature `done`:
 
 ```
 harness/init.sh
 ```
 
-Ha d'acabar verd (`[OK]` a l'última línia, inclou la suite de tests). Si falla, la
-feature continua `in_progress`. No és opcional.
+It must finish green (`[OK]` on the last line, including the test suite). If it
+fails, the feature stays `in_progress`. Not optional.
 
 <!-- harness:module:performance-benchmarks:start -->
 ## Performance Benchmarks (performance-benchmarks module)
@@ -166,9 +166,9 @@ Without a baseline, `bench.sh` records values and warns; it never blocks.
 A transient `harness/.bench-last.json` may be produced by the benchmark run;
 delete it before closing the session (it is not user state).
 
-### Nota pròpia del projecte (2026-10-09)
+### Project note (2026-10-09)
 
-Aquest projecte ÉS un benchmark: el mòdul s'aplica al *rendiment del propi harness* (no
-al dels models mesurats). La re-mesura de models (GPU, minuts) no passa per aquí: es
-governada pels specs de feature i `docs/MILLORA.md §C7`.
+This project IS a benchmark: the module applies to the *harness's own performance*
+(not the measured models'). Model re-measurement (GPU, minutes) does not go through
+here: it is governed by feature specs and `docs/MILLORA.md §C7`.
 <!-- harness:module:performance-benchmarks:end -->

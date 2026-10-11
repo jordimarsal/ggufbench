@@ -1,9 +1,9 @@
 # Requirements: hard_code_tier
 
-Avui les 32 tasques de code són trivials: tots els models seriosos fan 84-100% i la
-dimensió amb més pes (0.30) no discrimina. Aquesta feature afegeix un nivell **hard**
-(4 tasques per llengua, 16 en total) plegat dins la dimensió code, sense canviar pesos
-ni la resta de dimensions.
+Today the 32 code tasks are trivial: every serious model scores 84-100% and the
+heaviest dimension (0.30) does not discriminate. This feature adds a **hard** level
+(4 tasks per language, 16 total) folded inside the code dimension, without changing
+weights or any other dimension.
 
 ## R1
 The system shall assign each code task a `level` of `"hard"` when its `ID` ends with

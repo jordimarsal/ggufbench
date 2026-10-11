@@ -1,62 +1,62 @@
 # Design: lora_eval
 
-## Fitxers a modificar
+## Files to modify
 
-| Fitxer | Canvi |
+| File | Change |
 |---|---|
-| `config.py` | `load_model_config_args`/`_strip_infra`: la línia `--lora <fitxer>` del `.txt` surt de "flags lliures" i passa a tractar-se com a metadada (no duplicable amb la CLI; la CLI guanya). `LORA_DEFAULT = None`. |
-| `server.py` | `build_args` afegeix `["--lora", <path>]` quan n'hi ha (després dels base flags, abans de l'extra del `.txt`); `ServerManager.__init__` valida que el fitxer existeix (`ValueError` si no) i registra `self.lora`. Strata: `ValueError` explícit ("LoRA fora d'abast a Strata"). |
-| `run.py` | `--lora <gguf>` (default: el del perfil, si n'hi ha); passa la ruta a `_bench_one` → `ServerManager`; `result["lora"] = <stem>` quan n'hi ha. |
-| `report.py` | `_key_of`: `(slug, thinking, lora)`; legacy sense `lora` = `(slug, thinking, None)` — igual que avui. `save_result`: filenames amb sufix `-lora` quan n'hi ha. |
-| `html_report.py` | `_rows`: nom mostrat amb sufix ` [+LoRA <stem>]` quan n'hi ha; badge `lora:<stem>` al ranking i targeta (mateix patró que think). |
+| `config.py` | `load_model_config_args`/`_strip_infra`: the `.txt`'s `--lora <file>` line leaves the "free flags" set and becomes metadata (not duplicated with the CLI; CLI wins). `LORA_DEFAULT = None`. |
+| `server.py` | `build_args` adds `["--lora", <path>]` when present (after base flags, before the `.txt` extra); `ServerManager.__init__` validates the file exists (`ValueError` if not) and records `self.lora`. Strata: explicit `ValueError` ("LoRA out of scope in Strata"). |
+| `run.py` | `--lora <gguf>` (default: the profile's, if any); passes the path to `_bench_one` → `ServerManager`; `result["lora"] = <stem>` when present. |
+| `report.py` | `_key_of`: `(slug, thinking, lora)`; legacy without `lora` = `(slug, thinking, None)` — same as today. `save_result`: filenames with a `-lora` suffix when present. |
+| `html_report.py` | `_rows`: displayed name with a ` [+LoRA <stem>]` suffix when present; `lora:<stem>` badge in the ranking and card (same pattern as think). |
 
-## Signatures noves
+## New signatures
 
 ```python
 # server.py
 ServerManager(model_path, context_mode, port, engine, thinking="off", lora=None)
 # run.py
 ap.add_argument("--lora", default=None,
-                help="adaptador LoRA GGUF per a llama-server (default: el del perfil)")
+                help="GGUF LoRA adapter for llama-server (default: the profile's)")
 ```
 
-`result["lora"]` és el **stem** del fitxer (no la ruta): la meta ha de ser estable i
-comparable. La ruta completa queda al `model_config_flags` que ja registra l'script
-del servidor via stderr (no cal duplicar).
+`result["lora"]` is the file's **stem** (not the path): the meta must be stable and
+comparable. The full path stays in `model_config_flags` already recorded by the server
+script via stderr (no duplication needed).
 
-## Casos d'error
+## Error cases
 
-- `--lola` (typo) → argparse mor (choices de fitxer no aplicable; es valida a
+- `--lola` (typo) → argparse dies (file choices not applicable; validated in
   `ServerManager`).
-- Fitxer LoRA inexistent → `ValueError` abans d'arrencar cap servidor.
-- `--engine strata --lora x` → `ValueError` clar (R1).
-- Files legacy: cap migració; l'upsert nou no les toca (mateix patró que thinking).
+- Non-existent LoRA file → `ValueError` before starting any server.
+- `--engine strata --lora x` → clear `ValueError` (R1).
+- Legacy rows: no migration; the new upsert does not touch them (same pattern as thinking).
 
-## Alternativa descartada
+## Discarded alternative
 
-**Identificar el model+LoRA com a slug nou** (`<model>-<lora>`): sense duplicació de
-perfil ni de flag, però trenca la comparabilitat per slug (el marcador no sabria que
-és el mateix base model) i `--forget` del model base deixaria orfes les files LoRA.
+**Identifying model+LoRA as a new slug** (`<model>-<lora>`): no profile or flag
+duplication, but it breaks per-slug comparability (the scoreboard would not know it is
+the same base model) and `--forget` of the base model would orphan the LoRA rows.
 
 ## Tests
 
 `test_lora_rejected_on_strata`, `test_lora_file_must_exist`, `test_lora_reaches_build_args`,
 `test_lora_recorded_in_result`, `test_upsert_keeps_lora_rows`,
-`test_legacy_lora_none_coexists`, `test_render_labels_lora_rows` (noms nous, cap renomenat:
-cap traçabilitat antiga afectada).
+`test_legacy_lora_none_coexists`, `test_render_labels_lora_rows` (new names, nothing
+renamed: no old traceability affected).
 
 ## Architectural Decisions
 
-### ADR-1: el LoRA és condició del pool, no part del slug
-**Context:** comparar nu-vs-adapter exigeix que convigin files del mateix model base.
-**Decision:** clau `(slug, thinking, lora)`; badge/sufix només visual.
-**Alternatives considered:** slug sintètic (descartada: vegeu a dalt).
-**Consequences:** mateix patró d'extensió que `thinking`; `forget` del base model
-esborra també les seves files LoRA (comportament desitjat).
+### ADR-1: the LoRA is a pool condition, not part of the slug
+**Context:** comparing bare-vs-adapter requires rows of the same base model to coexist.
+**Decision:** key `(slug, thinking, lora)`; badge/suffix visual only.
+**Alternatives considered:** synthetic slug (discarded: see above).
+**Consequences:** same extension pattern as `thinking`; `forget` of the base model
+also deletes its LoRA rows (desired behaviour).
 
-### ADR-2: la font del LoRA és el `.txt` del perfil o la CLI, mai hardcoded
-**Context:** cada model pot voler un adaptador per defecte.
-**Decision:** mateixa convenció que mmproj: perfil si no hi ha CLI.
-**Alternatives considered:** directori convencional `models/lora/` amb auto-detecció
-(descartada: màgia implícita; el perfil és l'única font de veritat de flags).
-**Consequences:** cap canvi a scripts de serving; el `.txt` continua aplicant-se AL FINAL.
+### ADR-2: the LoRA source is the `.txt` profile or the CLI, never hardcoded
+**Context:** each model may want a default adapter.
+**Decision:** same convention as mmproj: profile if no CLI.
+**Alternatives considered:** conventional `models/lora/` directory with auto-detection
+(discarded: implicit magic; the profile is the single source of truth for flags).
+**Consequences:** no changes to serving scripts; the `.txt` still applies LAST.

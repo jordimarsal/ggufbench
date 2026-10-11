@@ -24,7 +24,7 @@ class TestLoad(unittest.TestCase):
         self.assertFalse(any(t["id"] == "tmp" for t in ts))
 
 class TestLevel(unittest.TestCase):
-    """R1 hard_code_tier + R1 discriminative_tasks: level per sufix a l'ID, filtre a load()."""
+    """R1 hard_code_tier + R1 discriminative_tasks: level by ID suffix, filter in load()."""
 
     @classmethod
     def setUpClass(cls):
@@ -61,7 +61,7 @@ class TestLevel(unittest.TestCase):
         self.assertIn("zz_tmp_expert", expert)
         self.assertNotIn("zz_tmp_hard", expert)
         self.assertNotIn("zz_easy", expert)
-        # les expert reals hi són; cap easy s'hi cola
+        # the real expert tasks are there; no easy one sneaks in
         self.assertIn("vault_engine_expert", expert)
         for t in tasks_loader.load("code", level="easy"):
             self.assertNotIn(t["id"], expert)
@@ -72,11 +72,11 @@ class TestLevel(unittest.TestCase):
 
 
 class TestExtraFiles(unittest.TestCase):
-    """R2 discriminative_tasks: EXTRA_FILES validat al loader i passat al task dict."""
+    """R2 discriminative_tasks: EXTRA_FILES validated in the loader and passed to the task dict."""
 
     def test_code_tasks_carry_extra_files(self):
-        # relatiu al manifest: la clau hi és a TOTA task de code i és un dict;
-        # les tasques amb fixture real la porten plena, les sense, buida.
+        # relative to the manifest: the key is present in EVERY code task and is a dict;
+        # tasks with a real fixture carry it full, those without, empty.
         by_id = {t["id"]: t for t in tasks_loader.load("code")}
         for tid, t in by_id.items():
             self.assertIn("extra_files", t, tid)

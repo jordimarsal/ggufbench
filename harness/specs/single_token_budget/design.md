@@ -2,28 +2,28 @@
 
 ## Files to create or modify
 
-| Fitxer | Canvi |
+| File | Change |
 |---|---|
-| `graders.py` | `CODE_MAX_TOKENS = 16384` (sostre de context), `CODE_LADDER = [CODE_MAX_TOKENS]`; tracca amb `out_tokens` |
+| `graders.py` | `CODE_MAX_TOKENS = 16384` (context ceiling), `CODE_LADDER = [CODE_MAX_TOKENS]`; trace gains `out_tokens` |
 | `harness/decisions/0002-single-code-token-budget.md` | ADR-0002 |
 | `tests/test_graders.py` | TestCodeEscalation -> TestCodeBudget (4 tests) |
-| `AGENTS.md` | Actualitzar la nota de calibracio (bloc harness:project / notes) |
+| `AGENTS.md` | Update the calibration note (harness:project block / notes) |
 
 ## Public signatures
 
-(cap canvi public: `CODE_LADDER`/`CODE_MAX_TOKENS` constants; la tracca guanya `out_tokens`)
+(no public change: `CODE_LADDER`/`CODE_MAX_TOKENS` constants; the trace gains `out_tokens`)
 
 ## Exceptions and error cases
 
-| Cas | Comportament | Req |
+| Case | Behavior | Req |
 |---|---|---|
-| Bucle degenerat sense EOS | Sostre de tokens 8192 + guarda de rellotge 600 s (ADR-0001) -> exclusio | R1 |
-| Model concise | Para a l'EOS molt abans del sostre: cost zero | R1 |
-| Pressupost guardat antic (< 8192) | S'honora: per construccio, el guardat es el que va funcionar | R3 |
+| Degenerate loop without EOS | 8192 token ceiling + 600 s clock guard (ADR-0001) -> exclusion | R1 |
+| Concise model | Stops at EOS well before the ceiling: zero cost | R1 |
+| Old stored budget (< 8192) | Honoured: by construction, the stored one is what worked | R3 |
 
 ## Discarded alternatives
 
-1. **Mantenir l'escala** — 1-2 peticions mortes per tasca amb models que pensen.
-2. **Comencar a 4096** — mateixa objeccio.
-3. **16384** — bucles degenerats de 7+ min a 38 t/s: excessiu per aquesta classe de
-   models i tasques (el guarda de 600 s ja limita).
+1. **Keep the ladder** — 1-2 dead requests per task with thinking models.
+2. **Start at 4096** — same objection.
+3. **16384** — degenerate loops of 7+ min at 38 t/s: excessive for this class of
+   models and tasks (the 600 s guard already bounds it).

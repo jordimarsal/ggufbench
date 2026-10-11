@@ -8,8 +8,8 @@ from benchmark import config, html_report, report
 
 def _mk(name="models/foo.gguf", engine="llama", code_score=0.9, tools_score=0.75,
         thinking=None, code_excluded=0):
-    """Resultat mínim però complert (les 4 dimensions + metadades).
-    thinking=None -> sense clau (fila legacy); "on"/"off" -> nova (R4)."""
+    """Minimal but complete result (the 4 dimensions + metadata).
+    thinking=None -> no key (legacy row); "on"/"off" -> new (R4)."""
     r = {"model": name, "engine": engine, "ts": "2026-10-09T10:00:00",
             "context_mode": "fixed", "tasks_version": "v1", "server_build": "b1234",
             "model_config_flags": "-c 16384 --flash-attn auto",
@@ -30,14 +30,14 @@ class TestRender(unittest.TestCase):
     def test_contains_model_dims_and_global(self):
         html = html_report.render([_mk()])
         self.assertIn("foo", html)
-        self.assertIn("Global ponderat", html)
+        self.assertIn("Weighted global", html)
         self.assertIn("90%", html)                       # code 0.9
         self.assertIn("75%", html)                       # tools 0.75
-        # global = .3*.75 + .3*.9 + .25*.5 + .15*1.0 = 0.77 (speed: és el mínim -> 1.0)
+        # global = .3*.75 + .3*.9 + .25*.5 + .15*1.0 = 0.77 (speed: it is the minimum -> 1.0)
         self.assertIn("0.77", html)
 
     def test_self_contained_no_js_no_network(self):
-        """La promesa del mòdul: doble clic i funciona. Cap script, cap recurs extern."""
+        """The promise of the module: double click and it works. No script, no external resource."""
         html = html_report.render([_mk()])
         self.assertNotIn("<script", html)
         self.assertNotIn("http://", html)
@@ -53,35 +53,35 @@ class TestRender(unittest.TestCase):
         self.assertIn("badge strata", html)
 
     def test_missing_lang_cell(self):
-        html = html_report.render([_mk()])   # només python a by_lang
+        html = html_report.render([_mk()])   # only python in by_lang
         self.assertIn('class="miss">—</td>', html)
 
     def test_code_by_level_shown_when_present(self):
-        # R5 hard_code_tier / R4 discriminative_tasks: easy/hard/expert a la fitxa
+        # R5 hard_code_tier / R4 discriminative_tasks: easy/hard/expert in the card
         m = _mk()
         m["code"]["by_level"] = {"easy": 1.0, "hard": 0.25, "expert": 0.0}
         html = html_report.render([m])
-        self.assertIn("code per nivell:", html)
+        self.assertIn("code by level:", html)
         self.assertIn("easy 100%", html)
         self.assertIn("hard 25%", html)
         self.assertIn("expert 0%", html)
 
     def test_think_badges_and_excluded_line(self):
-        # R4+R5 thinking_batches: badge de mode + recompte d'excloses
+        # R4+R5 thinking_batches: mode badge + count of excluded
         html = html_report.render([_mk(thinking="off", code_excluded=2),
                                    _mk("models/bar.gguf", thinking="on")])
         self.assertIn("think:off", html)
         self.assertIn("think:on", html)
-        self.assertIn("excloses code: 2", html)
+        self.assertIn("excluded code: 2", html)
 
     def test_legacy_row_without_thinking_has_no_badge(self):
         html = html_report.render([_mk()])
         self.assertNotIn("think:", html)
-        self.assertIn("excloses code: 0", html)
+        self.assertIn("excluded code: 0", html)
 
     def test_heat_cells_have_readable_solid_background(self):
-        # El text de la matriu s'ha de llegir a tot el rang: fons sòlid rgb +
-        # color per lluminància (mai alfa ni inherit).
+        # The matrix text must read across the whole range: solid rgb background +
+        # color by luminance (never alpha nor inherit).
         html = html_report.render([_mk(code_score=0.1), _mk("models/bar.gguf",
                                                            code_score=0.9)])
         self.assertNotIn("rgba(52,211,153", html)
@@ -90,50 +90,50 @@ class TestRender(unittest.TestCase):
         self.assertIn("0.90", html)
 
     def test_every_model_row_shows_think_mode(self):
-        # Totes les seccions per model (matriu + barres) marquen el mode, DAVANT
-        # del nom (l'ellipsis retallava el badge al final en columnes estretes).
+        # Every per-model section (matrix + bars) marks the mode, BEFORE
+        # the name (the ellipsis used to clip the badge at the end in narrow columns).
         html = html_report.render([_mk(thinking="off"), _mk("models/bar.gguf",
                                                              thinking="on")])
-        base, _, rec = html.partition("Recomanacions (per ús)")
-        self.assertEqual(base.count("think:off"), 8)  # ranking + 6 files + matriu
+        base, _, rec = html.partition("Recommendations (by use)")
+        self.assertEqual(base.count("think:off"), 8)  # ranking + 6 rows + matrix
         self.assertEqual(base.count("think:on"), 8)
         self.assertIn('<span class="badge">think:off</span> foo', base)
         self.assertIn('title="foo"', base)
-        self.assertIn("think:off", rec)  # també a les cards
+        self.assertIn("think:off", rec)  # also in the cards
         self.assertIn("think:on", rec)
 
     def test_bar_rows_align_to_four_column_grid(self):
-        # Sense barres: les files són text (trow: nom + valor), sense .bar/.fill
-        # (el grid .rank de 4 columnes esclafava el nom al track de 22px).
+        # No bars: rows are text (trow: name + value), no .bar/.fill
+        # (the 4-column .rank grid crushed the name into the 22px track).
         html = html_report.render([_mk(thinking="off")])
         self.assertNotIn('class="bar"', html)
         self.assertNotIn('class="fill', html)
         self.assertIn('class="trow"', html)
 
     def test_recommendation_cards(self):
-        # Una card per guanyador (model+mode) amb dades, badge i raons d'ús.
+        # One card per winner (model+mode) with data, badge and use cases.
         a = _mk("models/aaa.gguf", code_score=0.5, thinking="off")
         a["speed"]["speed_ms"] = 10
         a["speed"]["gen_tps"] = 500.0
         a["tools"]["score"] = 1.0
         b = _mk("models/bbb.gguf", code_score=0.9, thinking="on")
         html = html_report.render([a, b])
-        self.assertIn("Recomanacions (per ús)", html)
-        self.assertIn("aaa", html)  # guanya velocitat/throughput/tools
-        self.assertIn("bbb", html)  # guanya global/codi/pensant
-        self.assertIn("Més ràpid", html)
-        self.assertIn("Millor codi", html)
-        self.assertIn("excloses code:", html)
+        self.assertIn("Recommendations (by use)", html)
+        self.assertIn("aaa", html)  # wins speed/throughput/tools
+        self.assertIn("bbb", html)  # wins global/code/thinking
+        self.assertIn("Fastest", html)
+        self.assertIn("Best code", html)
+        self.assertIn("excluded code:", html)
 
     def test_recommendations_empty_pool(self):
         self.assertNotIn("Recomanacions", html_report.render([]))
 
     def test_no_by_level_section_when_absent(self):
-        html = html_report.render([_mk()])   # pool vell sense by_level
-        self.assertNotIn("code per nivell", html)
+        html = html_report.render([_mk()])   # old pool without by_level
+        self.assertNotIn("code by level", html)
 
     def test_escaped_flags(self):
-        """model_config_flags és text lliure del .txt: ha d'arribar escapament."""
+        """model_config_flags is free text from the .txt: it must arrive escaped."""
         m = _mk()
         m["model_config_flags"] = "-c 16384 <script>alert(1)</script>"
         html = html_report.render([m])
@@ -141,10 +141,10 @@ class TestRender(unittest.TestCase):
         self.assertIn("&lt;script&gt;", html)
 
     def test_banner_only_with_mixed_dates(self):
-        self.assertNotIn("Condicions barrejades", html_report.render([_mk()]))
+        self.assertNotIn("Mixed conditions", html_report.render([_mk()]))
         other = _mk()
         other["ts"] = "2026-09-01T10:00:00"
-        self.assertIn("Condicions barrejades", html_report.render([_mk(), other]))
+        self.assertIn("Mixed conditions", html_report.render([_mk(), other]))
 
 
 class TestMain(unittest.TestCase):

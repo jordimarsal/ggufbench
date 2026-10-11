@@ -1,6 +1,6 @@
 # Spec Gate — remeasure_pool
 
-**Data:** 2026-10-09 · **Decisió:** APPROVED (pending → spec_ready → in_progress)
+**Date:** 2026-10-09 · **Decision:** APPROVED (pending → spec_ready → in_progress)
 
-Revisor: Jordi (human gate). Protocol de 5 passes amb backup de pool per rollback.
-Nota registrada: la run crema GPU ~45-65 min; res mes ha de tocar les 2x RTX 5080.
+Reviewer: Jordi (human gate). 5-step protocol with pool backup for rollback.
+Noted: the run burns ~45-65 min of GPU; nothing else may touch the 2x RTX 5080.

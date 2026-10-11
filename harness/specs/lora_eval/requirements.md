@@ -1,9 +1,9 @@
 # Requirements: lora_eval
 
-El banc mesura models nuus, però un fine-tune propi (QLoRA del 27B, MILLORA §6) només
-es pot demostrar amb una comparació controlada: **el mateix model, amb i sense
-adaptador**, mateix protocol i gates. Avui el harness no té per on passar un LoRA al
-llama-server ni com distingir-lo al pool.
+The bench measures bare models, but an own fine-tune (QLoRA of the 27B, MILLORA §6) can
+only be demonstrated with a controlled comparison: **the same model, with and without
+adapter**, same protocol and gates. Today the harness has no way to pass a LoRA to
+llama-server nor to distinguish it in the pool.
 
 ## R1
 The system SHALL accept a LoRA adapter for code models served by llama.cpp — declared
@@ -23,7 +23,7 @@ or a badge) without changing the rendering of existing entries, and the empty po
 case SHALL render no recommendations change.
 
 ## R4
-The comparison nu-vs-LoRA SHALL be elective: the same protocol (dims, langs, levels,
+The comparison bare-vs-LoRA SHALL be elective: the same protocol (dims, langs, levels,
 thinking) applies, and no run is started automatically; whoever evaluates launches two
 runs with identical options except the adapter.
 

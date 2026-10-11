@@ -4,18 +4,18 @@ import urllib.error
 from . import agent as A, client as C, code_extract, executors, token_budget
 
 SPEED_MAX_TOKENS = 128
-# Un unic pressupost generos (ADR-0002; R3 thinking_batches: inicia a 32768 per decisió
-# del revisor — les tasques expert el necessiten). Amb seed/temp fixos, max_tokens es un
-# sostre, no un objectiu: no penalitza els concisos (paren a l'EOS igualment).
-# Precondició d'entorn: tot model del pool ha de tenir context per a prompt + 32768
-# (els perfils sense -c cauen a CONTEXT_FIXED=16384 i no hi cabrien; vegeu T4 a impl).
-# Els tokens de sortida queden registrats a la tracca (out_tokens) com a metrica
-# d'eficiencia, no com a castig.
+# A single generous budget (ADR-0002; R3 thinking_batches: starts at 32768 by the
+# reviewer's decision — the expert tasks need it). With fixed seed/temp, max_tokens is a
+# ceiling, not a target: it does not penalize concise models (they stop at EOS anyway).
+# Environment precondition: every model in the pool must have context for prompt + 32768
+# (profiles without -c fall back to CONTEXT_FIXED=16384 and would not fit; see T4 in impl).
+# Output tokens are recorded in the trace (out_tokens) as an efficiency
+# metric, not a penalty.
 CODE_MAX_TOKENS = 32768
 CODE_LADDER = [CODE_MAX_TOKENS]
 
-# Errors transients del servidor/xarxa (500, timeouts, connexió tombada...).
-# Aïllar-los per tasca: una resposta 500 només ha de fallar aquella tasca, no avortar tota la run.
+# Transient server/network errors (500, timeouts, dropped connection...).
+# Isolate them per task: a 500 response must only fail that task, not abort the whole run.
 _TRANSIENT = (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, OSError)
 
 
@@ -37,7 +37,7 @@ def grade_speed(client_mod, tasks, on_task=None):
                 if t.get("prompt_tps"):
                     prompt_tps_values.append(t["prompt_tps"])
             except _TRANSIENT:
-                pass  # mostra descartada; una altra ho pot compensar
+                pass  # sample discarded; another one can compensate
         avg = lambda xs: statistics.mean(xs) if xs else 0
         entry = {
             "passed": True,
@@ -86,11 +86,11 @@ def grade_tools(client_mod, tasks, max_turns=6, on_task=None):
             passed = got is None
             detail = "correctly did not call a tool" if passed else f"unexpected call: {got}"
         else:
-            # 'arguments' absent a EXPECTED -> només es comprova el nom de la tool:
-            # l'autor de la tasca no els fixa (get_env demana 'qualsevol variable').
-            # Exigir-los absents era impossible quan l'schema els marca required i
-            # cap model ho havia passat mai. 'arguments': {} sí que exigeix una
-            # crida sense cap argument.
+            # 'arguments' absent in EXPECTED -> only the tool name is checked:
+            # the task author does not fix them (get_env asks for 'any variable').
+            # Requiring them absent was impossible when the schema marks them required and
+            # no model had ever passed it. 'arguments': {} does require a
+            # call with no arguments.
             passed = (got is not None and got.get("name") == exp.get("name")
                       and ("arguments" not in exp
                            or _args_equal(got.get("arguments"), exp["arguments"])))
@@ -103,10 +103,10 @@ def grade_tools(client_mod, tasks, max_turns=6, on_task=None):
 
 
 def _code_system_prompt(lang):
-    """Instrucció de format comuna a totes les tasques de codi. Centralitzada aquí
-    per no haver de repetir-la a cada fitxer de tasca i per donar a tots els models
-    les mateixes condicions (es testa 'sap implementar la funció?', no 'endevina
-    el nostre format d'extracció')."""
+    """Format instruction shared by all code tasks. Centralized here
+    so it does not have to be repeated in every task file and to give all models
+    the same conditions (we test 'can implement the function?', not 'guesses
+    our extraction format')."""
     extra = ""
     if lang == "typescript":
         extra = " You MUST export it (e.g. `export function add(...)`)."
@@ -118,10 +118,10 @@ def _code_system_prompt(lang):
 
 
 def code_timeout(budget, gen_tps):
-    """Temps maxim (s) d'un intent de chat de code: el pressupost real es en tokens
-    (mateix per a tots els models) i el rellotge nomes es guarda anti-penjam, derivat
-    de la velocitat mesurada del model (ADR-0001). Sense gen_tps -> 90 s fixes.
-    El sostre cobreix 32768 tokens al model mes lent observat (44 t/s -> 991 s)."""
+    """Max time (s) for one code chat attempt: the real budget is in tokens
+    (same for all models) and the clock is only kept as an anti-hang guard, derived
+    from the model's measured speed (ADR-0001). Without gen_tps -> fixed 90 s.
+    The ceiling covers 32768 tokens at the slowest model observed (44 t/s -> 991 s)."""
     if not gen_tps:
         return 90
     return int(min(1000, max(90, 60 + (budget / gen_tps) * 1.25)))
@@ -147,9 +147,9 @@ def grade_code(client_mod, tasks, max_turns=8, on_task=None, model_slug=None, ge
             code = code_extract.extract(text, t["lang"])
             if code is not None:
                 break
-        # Calibratge (una sola vegada): si no hi havia pressupost guardat i no hi ha
-        # hagut error de servidor, persistim el resolt — sempre que difereixi del
-        # default (si passa amb el default no cal anotar res).
+        # Calibration (once only): if there was no stored budget and no
+        # server error, we persist the resolved one — as long as it differs from
+        # the default (if it resolves with the default, nothing to record).
         if not stored and not server_err:
             resolved = budget if code is not None else budgets[-1]
             if resolved != CODE_MAX_TOKENS:
@@ -164,10 +164,11 @@ def grade_code(client_mod, tasks, max_turns=8, on_task=None, model_slug=None, ge
             continue
         out_tokens = (resp.get("usage") or {}).get("completion_tokens")
         if code is None:
-            # Truncament o format sense bloc extrebable: NO demostra capacitat del
-            # model, per tant s'exclou del score (es marca excluded=True).
+            # Truncated output or a format with no extractable block: this does NOT
+            # demonstrate the model's ability, so it is excluded from the score
+            # (marked excluded=True).
             snippet = " ".join(text.split())[:120]
-            detail = f"no code block ({t['lang']}, no comptat); reply: {snippet}"[:160]
+            detail = f"no code block ({t['lang']}, not counted); reply: {snippet}"[:160]
             results.append({"id": t["id"], "lang": t["lang"], "level": t.get("level", "easy"),
                             "passed": False, "excluded": True, "detail": detail,
                             "out_tokens": out_tokens})
@@ -184,9 +185,9 @@ def grade_code(client_mod, tasks, max_turns=8, on_task=None, model_slug=None, ge
         if on_task:
             on_task("code", {"id": t["id"], "lang": t["lang"], "excluded": False,
                              "passed": r["passed"], "detail": r["output"]})
-    # Score sobre les tasques que SÍ van produir codi executable: els truncaments
-    # i errors de servidor (excluded=True) no compten al numerador ni al denominador.
-    # by_level (hard_code_tier R4): desglossament easy/hard sobre les mateixes scored.
+    # Score over the tasks that DID produce executable code: truncations
+    # and server errors (excluded=True) count neither in the numerator nor the denominator.
+    # by_level (hard_code_tier R4): easy/hard breakdown over the same scored tasks.
     scored = [r for r in results if not r["excluded"]]
     bl = {k: (sum(v) / len(v)) for k, v in by_lang.items()}
     by_level = {}

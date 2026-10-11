@@ -23,7 +23,7 @@ class TestBuildArgs(unittest.TestCase):
             self.assertIn(flag, a)
 
 class TestModelConfigTxt(unittest.TestCase):
-    """models/<model>.txt s'aplica al final (pot sobreescriure defaults)."""
+    """models/<model>.txt is applied last (can override defaults)."""
     def _args_with_txt(self, txt_body, name="m.gguf"):
         with tempfile.TemporaryDirectory() as d:
             (Path(d) / Path(name).with_suffix(".txt").name).write_text(txt_body)
@@ -31,20 +31,20 @@ class TestModelConfigTxt(unittest.TestCase):
     def test_parser_skips_comments_blanks_and_joins(self):
         with tempfile.TemporaryDirectory() as d:
             (Path(d) / "m.txt").write_text(
-                "# comentari de capçalera\n\n-md /ruta/draft.gguf \\\n--mmproj /ruta/mm.gguf\n")
+                "# header comment\n\n-md /ruta/draft.gguf \\\n--mmproj /ruta/mm.gguf\n")
             self.assertEqual(config.load_model_config_args(Path(d) / "m.gguf"),
                              ["-md", "/ruta/draft.gguf", "--mmproj", "/ruta/mm.gguf"])
-        # sense .txt al costat del gguf: cap flag extra
+        # no .txt next to the gguf: no extra flags
         self.assertEqual(server.describe_config("/p/sense_txt.gguf"), None)
     def test_txt_overrides_context(self):
         a = self._args_with_txt("-c 32000\n")
         self.assertEqual(a[a.index("-c") + 1], "32000")
-        self.assertEqual(a.count("-c"), 1)  # el -c del harness no es duplica
+        self.assertEqual(a.count("-c"), 1)  # the harness' -c is not duplicated
     def test_txt_overrides_cache_k_only(self):
         a = self._args_with_txt("--cache-type-k q8_0\n")
         self.assertEqual(a.count("--cache-type-k"), 1)
         self.assertEqual(a[a.index("--cache-type-k") + 1], "q8_0")
-        # la v del baseline es conserva
+        # the baseline's v is kept
         self.assertIn("--cache-type-v", a)
         i = a.index("--cache-type-v"); self.assertEqual(a[i + 1], "q4_0")
     def test_txt_spec_type_appended_last(self):
@@ -57,15 +57,15 @@ class TestModelConfigTxt(unittest.TestCase):
         self.assertNotIn("0.0.0.0", a)
         self.assertIn("draft-mtp", a)
     def test_equals_form_and_comments(self):
-        a = self._args_with_txt("# comentari\n\n--ctx-size=65536\n--cache-type-v=q8_0\n")
-        # el -c del harness desapareix (el .txt defineix context) i no hi ha duplicats
+        a = self._args_with_txt("# comment\n\n--ctx-size=65536\n--cache-type-v=q8_0\n")
+        # the harness' -c disappears (the .txt defines context) and there are no duplicates
         self.assertNotIn("-c", a)
         self.assertIn("--ctx-size=65536", a)
         self.assertIn("--cache-type-v=q8_0", a)
-        self.assertEqual(a.count("--cache-type-k"), 1)  # només el del baseline
+        self.assertEqual(a.count("--cache-type-k"), 1)  # only the baseline one
 
 class TestStrata(unittest.TestCase):
-    """Mode --engine strata: comanda d'arrencada, port, esperes i configuració."""
+    """--engine strata mode: startup command, port, waits and configuration."""
 
     def test_strata_command(self):
         a = server.strata_command("/c/strata-iq3_xxs.json", 8080)
@@ -79,9 +79,9 @@ class TestStrata(unittest.TestCase):
         ll = server.ServerManager("/p/m.gguf")
         self.assertEqual(st.port, config.STRATA_PORT)
         self.assertEqual(ll.port, config.PORT)
-        # Strata triga minuts a carregar desenes de GB: més espera que llama-server
+        # Strata takes minutes to load tens of GB: longer wait than llama-server
         self.assertGreater(st.ready_timeout, ll.ready_timeout)
-        # --port explícit guanya (el harness ha de poder triar el port)
+        # an explicit --port wins (the harness must be able to choose the port)
         self.assertEqual(server.ServerManager("/p/m.gguf", port=9000).port, 9000)
         self.assertEqual(server.ServerManager("/c/x.json", engine="strata", port=9001).port, 9001)
 
@@ -90,7 +90,7 @@ class TestStrata(unittest.TestCase):
             server.ServerManager("/p/m.gguf", engine="vllm")
 
     def test_thinking_recorded_and_validated(self):
-        # R1 thinking_batches: el mode es registra (el control va pel cos, ADR-4)
+        # R1 thinking_batches: the mode is recorded (control goes via the body, ADR-4)
         self.assertEqual(server.ServerManager("/p/m.gguf").thinking, "off")
         self.assertEqual(server.ServerManager("/p/m.gguf", thinking="on").thinking, "on")
         with self.assertRaises(ValueError):
@@ -104,10 +104,10 @@ class TestStrata(unittest.TestCase):
             desc = server.describe_config(p, engine="strata")
             self.assertIn("qwen3.8-flash-next-iq3_xxs", desc)
             self.assertIn("--max-context 131072", desc)
-            # config ilegible: None (l'error real surtirà a l'arrencada)
+            # unreadable config: None (the real error will surface at startup)
             self.assertIsNone(server.describe_config(Path(d) / "no-te-la-tinc.json",
                                                      engine="strata"))
-        # el per defecte continua sent llama (compatibilitat amb el codi existent)
+        # the default stays llama (compatibility with existing code)
         self.assertIsNone(server.describe_config("/p/sense_txt.gguf"))
 
 
@@ -117,22 +117,22 @@ class TestStrata(unittest.TestCase):
         try:
             with tempfile.TemporaryDirectory() as d:
                 config.STRATA_DIR = Path(d)
-                # sense .venv: fallback al python del harness (l'error queda al log)
+                # no .venv: fallback to the harness' python (the error stays in the log)
                 self.assertEqual(server.strata_python(), _sys.executable)
                 (Path(d) / ".venv" / "bin").mkdir(parents=True)
                 (Path(d) / ".venv" / "bin" / "python").write_text("")
-                # amb .venv (el normal: setup.sh el crea) fa servir l'intèrpret d'Strata
+                # with .venv (the normal case: setup.sh creates it) it uses Strata's interpreter
                 self.assertEqual(server.strata_python(),
                                  str(Path(d) / ".venv" / "bin" / "python"))
-                # la comanda el fa servir de veritat
+                # the command really uses it
                 a = server.strata_command("/c/strata-iq3_xxs.json", 8080)
                 self.assertEqual(a[0], server.strata_python())
         finally:
             config.STRATA_DIR = old
 
     def test_strata_server_output_is_logged(self):
-        # la sortida del servidor no pot anar a DEVNULL: un error d'arrencada
-        # (venv mal posat, port ocupat) ha de ser llegible
+        # the server output must not go to DEVNULL: a startup error
+        # (bad venv, busy port) must be readable
         sm = server.ServerManager("/c/strata-iq3_xxs.json", engine="strata", port=8123)
         self.assertIn("strata-server-8123.log", str(sm.log_path))
 

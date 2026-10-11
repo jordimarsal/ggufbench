@@ -1,9 +1,9 @@
 # Requirements: single_token_budget
 
-Amb seed/temp fixos, max_tokens es un sostre i no un objectiu: l'escala
-2048->4096->8192 reprodueix la mateixa generacio que un unic intent a 8192, pero afegeix
-1-2 peticions mortes per tasca amb models que pensen. (Proposta del revisor: "jo
-comencaria a 8192".)
+With fixed seed/temp, max_tokens is a ceiling and not a target: the ladder
+2048->4096->8192 reproduces the same generation as a single attempt at 8192, but adds
+1-2 dead requests per task with thinking models. (Reviewer proposal: "I would start
+at 8192".)
 
 ## R1
 The system shall use a single per-task code token budget at the harness context ceiling:

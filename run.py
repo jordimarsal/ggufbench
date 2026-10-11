@@ -19,16 +19,16 @@ def parse_weights(s):
 
 
 def resolve_models(spec, engine="llama"):
-    """all -> glob del directori de models. Altrament, cada item (separat per
-    comes) pot ser:
-      - un camí existent (s'usa tal qual),
-      - un nom de fitxer curt o parcial ('Ornith-...APEX-MTP-Quality[.gguf]'),
-        que es resol contra models/*.gguf (mateix esperit que --forget);
-        si coincideix amb més d'un fitxer, s'avisa i s'ignora (ambigu),
-      - un camí inexistent: passa tal qual i llama-server en donarà l'error.
+    """all -> glob of the models directory. Otherwise, each item (comma-separated)
+    can be:
+      - an existing path (used as is),
+      - a short or partial file name ('Ornith-...APEX-MTP-Quality[.gguf]'),
+        resolved against models/*.gguf (same spirit as --forget);
+        if it matches more than one file, a warning is printed and it is skipped (ambiguous),
+      - a nonexistent path: passes through as is and llama-server will report the error.
 
-    Amb ``engine='strata'`` el 'model' és un config: 'iq3_xxs' ->
-    Strata/strata-iq3_xxs.json (i 'all' = tots els strata-*.json)."""
+    With ``engine='strata'`` the 'model' is a config: 'iq3_xxs' ->
+    Strata/strata-iq3_xxs.json (and 'all' = every strata-*.json)."""
     if engine == "strata":
         return _resolve_strata_models(spec)
     if spec == "all":
@@ -45,7 +45,7 @@ def resolve_models(spec, engine="llama"):
             resolved.append(str(matches[0]))
         elif len(matches) > 1:
             names = ", ".join(m.name for m in matches)
-            print(f"⚠️  '{item}' és ambigu ({names}); cap coincidència única, s'ignora",
+            print(f"⚠️  '{item}' is ambiguous ({names}); no unique match, ignored",
                   file=sys.stderr, flush=True)
         else:
             resolved.append(item)
@@ -53,9 +53,9 @@ def resolve_models(spec, engine="llama"):
 
 
 def _resolve_strata_models(spec):
-    """Resol l'especificació de models d'Strata contra STRATA_DIR. Accepta 'all',
-    el nom curt ('iq3_xxs'), el nom del fitxer ('strata-iq3_xxs[.json]') o un camí
-    complet. Sense cap coincidència passa tal qual (server.py en donarà l'error)."""
+    """Resolves the Strata model specification against STRATA_DIR. Accepts 'all',
+    the short name ('iq3_xxs'), the file name ('strata-iq3_xxs[.json]') or a full path.
+    With no match it passes through as is (server.py will report the error)."""
     if spec == "all":
         return sorted(str(p) for p in config.STRATA_DIR.glob("strata-*.json"))
     if isinstance(spec, str):
@@ -74,9 +74,9 @@ def _resolve_strata_models(spec):
 
 
 def model_id(engine, model_path):
-    """Identificador del model al pool (i per al slug del marcador): el camí .gguf
-    tal qual per a llama-server; per a Strata, el nom del config sense extensió
-    ('strata-iq3_xxs') — que és el que identifica model + pack + configuració."""
+    """Model identifier in the pool (and for the scoreboard slug): the .gguf path
+    as is for llama-server; for Strata, the config name without extension
+    ('strata-iq3_xxs') — which is what identifies model + quantization + configuration."""
     if engine == "strata":
         return Path(model_path).stem
     return model_path
@@ -90,7 +90,7 @@ def warmup(client_mod, model_url, n=3, extra=None):
             C.chat([{"role": "user", "content": "hi"}], max_tokens=4,
                    base_url=model_url, extra=extra)
         except (OSError, ValueError):
-            # Best-effort: urlopen -> OSError (URLError), json -> ValueError; només mesurem temps.
+            # Best-effort: urlopen -> OSError (URLError), json -> ValueError; we only measure time.
             pass
         elapsed = (datetime.datetime.now() - start).total_seconds()
         times.append(elapsed)
@@ -98,9 +98,8 @@ def warmup(client_mod, model_url, n=3, extra=None):
     return times
 
 def _print_task(dim, info):
-    """Mostra el resultat d'una tasca a mida que es completa (stderr + flush, perquè
-    la terminal no es quedi congelada durant les dimensions lentes i --json mantingui
-    stdout net)."""
+    """Prints the result of a task as it completes (stderr + flush, so the terminal
+    does not stay frozen during slow dimensions and --json keeps stdout clean)."""
     lang = info.get("lang") or "—"
     tid = info.get("id", "")
     if dim == "speed":
@@ -109,7 +108,7 @@ def _print_task(dim, info):
         return
     mark = "✓" if info.get("passed") else "✗"
     if info.get("excluded"):
-        mark = "⊘"  # truncament/format o error de servidor: no compta al score
+        mark = "⊘"  # truncation/format or server error: does not count toward the score
     if dim == "agent":
         extra = f"turns={info.get('turns', 0)}"
     else:
@@ -119,11 +118,11 @@ def _print_task(dim, info):
 
 
 def _level_for_code(dims, level):
-    """--level només afecta la dimensió code; si code no hi és, avisa i el descarta."""
+    """--level only affects the code dimension; if code is absent, warn and drop it."""
     if not level:
         return None
     if "code" not in dims:
-        print(f"⚠️  --level {level}: code no és a --dims, s'ignora",
+        print(f"⚠️  --level {level}: code is not in --dims, ignored",
               file=sys.stderr, flush=True)
         return None
     return level
@@ -137,14 +136,14 @@ def _bench_one(model_path, pool, dims, lang_filter, port, quick=False, engine="l
                          thinking=thinking)
     mid = model_id(engine, model_path)
     slug = config.slug(mid)
-    print(f"→ {slug}: arrencant servidor ({engine})...", file=sys.stderr, flush=True)
+    print(f"→ {slug}: starting server ({engine})...", file=sys.stderr, flush=True)
     sm.start()
     if not sm.wait_ready():
         sm.stop(); return {"model": mid, "engine": engine, "serve_failed": True}
     try:
         model_url = f"http://127.0.0.1:{port}"
-        # Pensament (R1 thinking_batches): `off` el desactiva pel cos (mateix canal pels
-        # dos motors); `on` el deixa lliure. El protocol (dims, tasques, prompts) no el toca.
+        # Thinking (R1 thinking_batches): `off` disables it in the body (same channel for
+        # both engines); `on` leaves it free. The protocol (dims, tasks, prompts) is untouched.
         extra = config.thinking_body(engine, thinking)
 
         class ClientWrapper:
@@ -170,7 +169,7 @@ def _bench_one(model_path, pool, dims, lang_filter, port, quick=False, engine="l
         if "code" in dims:
             code_tasks = _limit(T.load("code", lang_filter=lf, level=level), quick)
             if level and not code_tasks:
-                print(f"⚠️  cap tasca code level={level}", file=sys.stderr, flush=True)
+                print(f"⚠️  no code task at level={level}", file=sys.stderr, flush=True)
             result["code"] = G.grade_code(c, code_tasks,
                                           on_task=_print_task, model_slug=slug,
                                           gen_tps=result["speed"]["gen_tps"] if "speed" in result else None,
@@ -183,12 +182,12 @@ def _bench_one(model_path, pool, dims, lang_filter, port, quick=False, engine="l
 
 
 def _limit(tasks, quick):
-    """--quick: només la primera tasca de cada dimensió (smoke test del harness)."""
+    """--quick: only the first task of each dimension (harness smoke test)."""
     return tasks[:1] if quick else tasks
 
 def _server_build(engine="llama"):
-    """Versió del motor: la de llama-server per a 'llama'; la de Strata la llegeix
-    d'strata/engine/BUILD.json (versió de l'executable compilat)."""
+    """Engine version: llama-server's for 'llama'; Strata's is read from
+    strata/engine/BUILD.json (version of the compiled executable)."""
     if engine == "strata":
         try:
             return str(json.loads((config.STRATA_DIR / "engine" / "BUILD.json")
@@ -198,7 +197,7 @@ def _server_build(engine="llama"):
     try:
         out = subprocess.run([str(config.SERVER_BIN), "--version"],
                              capture_output=True, text=True, timeout=10)
-        # llama-server escriu la versió a stderr, no a stdout: cal mirar els dos.
+        # llama-server writes the version to stderr, not stdout: both must be checked.
         for line in (out.stdout + out.stderr).splitlines():
             if line.startswith("version:"):
                 return line.split()[1]
@@ -207,33 +206,33 @@ def _server_build(engine="llama"):
     return "unknown"
 
 def _parse_args(argv=None):
-    """Parsejat pur de la CLI (testejable sense GPU): totes les opcions, inclòs
-    --thinking. main() només l'executa."""
+    """Pure CLI parsing (testable without a GPU): every option, including
+    --thinking. main() only runs it."""
     ap = argparse.ArgumentParser(prog="benchmark")
     ap.add_argument("--models", default="all",
-                    help="all | camí .gguf | nom (curt o parcial) — separats per comes "
-                         "(amb --engine strata: all | nom del config, ex. iq3_xxs)")
+                    help="all | .gguf path | name (short or partial) — comma-separated "
+                         "(with --engine strata: all | config name, ex. iq3_xxs)")
     ap.add_argument("--engine", choices=list(S.ENGINES), default="llama",
-                    help="motor que serveix el model: llama = llama-server (default); "
-                         "strata = serve/server.py amb un config strata-<model>.json")
+                    help="engine that serves the model: llama = llama-server (default); "
+                         "strata = serve/server.py with a strata-<model>.json config")
     ap.add_argument("--context", default="fixed", choices=["fixed", "adapted"])
     ap.add_argument("--dims", default="speed,tools,code,agent")
     ap.add_argument("--lang", default=None)
     ap.add_argument("--level", choices=["easy", "hard", "expert"], default=None,
-                    help="filtra NOMÉS les tasques de code per nivell "
-                         "(sufix _hard o _expert a l'ID)")
+                    help="filters ONLY the code tasks by level "
+                         "(ID suffix _hard or _expert)")
     ap.add_argument("--thinking", choices=["on", "off"], default=config.THINKING_DEFAULT,
-                    help="cadena de pensament del model: off la desactiva via "
-                         "chat_template_kwargs (default); on la deixa lliure. "
-                         "Es registra a cada resultat.")
+                    help="chain of thought of the model: off disables it via "
+                         "chat_template_kwargs (default); on leaves it free. "
+                         "It is recorded in every result.")
     ap.add_argument("--quick", action="store_true",
-                    help="1 tasca per dimensió (smoke test del harness)")
+                    help="1 task per dimension (harness smoke test)")
     ap.add_argument("-v", "--verbose", action="store_true",
-                   help="granularitat: Taula 1 + per-llenguatge (Taula 2); NO inclou tasques")
+                   help="granularity: Table 1 + per-language (Table 2); does NOT include tasks")
     ap.add_argument("--task", action="store_true",
-                   help="detall de tasca (Taula 3): mostra on acerta/falla cada model; es composa amb --verbose")
+                   help="per-task detail (Table 3): shows where each model succeeds/fails; composes with --verbose")
     ap.add_argument("--info", action="store_true",
-                   help="Taula 1 + Taula 3 (detall de tasca)")
+                   help="Table 1 + Table 3 (per-task detail)")
     ap.add_argument("--scoreboard", action="store_true")
     ap.add_argument("--forget")
     ap.add_argument("--json", action="store_true")
@@ -247,17 +246,17 @@ def main(argv=None):
     args = _parse_args(argv)
     weights = parse_weights(args.weights)
     port = args.port or (config.STRATA_PORT if args.engine == "strata" else config.PORT)
-    # Granularitat: --verbose afegix la Taula 2 (per-llenguatge); --task l'afegiment del
-    # detall de tasques (Taula 3). Són independents i es poden combinar (--verbose +
-    # --task = Taula 1 + Taula 2 + Taula 3).
+    # Granularity: --verbose adds Table 2 (per-language); --task adds the task
+    # detail (Table 3). They are independent and can be combined (--verbose +
+    # --task = Table 1 + Table 2 + Table 3).
     level = "verbose" if args.verbose else ("info" if args.info else "default")
 
     if args.forget:
         removed = R.forget(args.forget)
         if removed:
-            print(f"esborrat {removed} model(s) del pool", file=sys.stderr, flush=True)
+            print(f"removed {removed} model(s) from the pool", file=sys.stderr, flush=True)
         else:
-            print(f"no s'ha trobat cap model coincident amb '{args.forget}'",
+            print(f"no model matching '{args.forget}' found",
                   file=sys.stderr, flush=True)
         return
     if args.scoreboard:
@@ -270,14 +269,14 @@ def main(argv=None):
     level = _level_for_code(dims, args.level)
     models = resolve_models(args.models, engine=args.engine)
     if not models:
-        print("cap model a executar (revisa --models)", file=sys.stderr, flush=True)
+        print("no model to run (check --models)", file=sys.stderr, flush=True)
         return
     for mp in models:
         try:
             res = _bench_one(mp, [], dims, lang_filter, port, quick=args.quick,
                              engine=args.engine, level=level, thinking=args.thinking)
             if res.get("serve_failed"):
-                print(f"✗ {mp}: no carrega", file=sys.stderr, flush=True); continue
+                print(f"✗ {mp}: failed to load", file=sys.stderr, flush=True); continue
             R.save_result(res)
             slug = config.slug(model_id(args.engine, mp))
             speed = res.get("speed", {}).get("speed_ms", 0)
@@ -286,12 +285,12 @@ def main(argv=None):
             code = res.get("code", {}).get("score", 0)
             code_excl = res.get("code", {}).get("excluded", 0)
             agent = res.get("agent", {}).get("score", 0)
-            code_lbl = f"{code:.2f}" + (f" ({code_excl} excloses)" if code_excl else "")
+            code_lbl = f"{code:.2f}" + (f" ({code_excl} excluded)" if code_excl else "")
             print(f"✓ {slug}: speed={speed}ms ({gen_tps} t/s) "
                   f"tools={tools:.2f} code={code_lbl} agent={agent:.2f}",
                   file=sys.stderr, flush=True)
         except Exception as e:
-            # Xarxa de seguretat del batch: aïlla la fallada d'un model per no tomba tota la run.
+            # Safety net of the batch: isolates one model's failure so it does not take down the whole run.
             print(f"✗ {mp}: {e}", file=sys.stderr, flush=True)
     pool = R.load_pool()
     if args.json:

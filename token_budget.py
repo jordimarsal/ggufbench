@@ -1,11 +1,11 @@
-"""Memòria de pressupost de tokens per (model, thinking, llenguatge, tasca).
+"""Token budget memory per (model, thinking, language, task).
 
-La idea: quan una tasca de codi falla amb 'no code block' perquè el model es
-queda sense tokens a mig bloc, el grader fa un escalat (provem pressupostos més
-alts). Per no repetir aquest escalat cada run, persistim aquí el pressupost
-resolt per cada (model, thinking, llenguatge, tasca). Amb l'era 16384 finida
-(R3 thinking_batches: el pressupost inicia a 32768), les entrades sense
-`_schema == 2` s'ignoren i el fitxer es regenera al pròxim put.
+The idea: when a code task fails with 'no code block' because the model runs
+out of tokens mid-block, the grader scales up (we try higher budgets).
+To avoid repeating that scaling every run, we persist here the resolved
+budget for each (model, thinking, language, task). With the 16384 era over
+(R3 thinking_batches: the budget starts at 32768), entries without
+`_schema == 2` are ignored and the file is regenerated on the next put.
 """
 import json
 
@@ -29,7 +29,7 @@ def _key(dim, model_slug, thinking, lang, task_id) -> str:
 
 
 def get(dim, model_slug, thinking, lang, task_id):
-    """Pressupost guardat per a aquesta tasca i mode, o None si no està calibrat."""
+    """Stored budget for this task and mode, or None if not calibrated."""
     return _load().get(_key(dim, model_slug, thinking, lang, task_id))
 
 
@@ -42,6 +42,6 @@ def put(dim, model_slug, thinking, lang, task_id, value) -> None:
 
 
 def reset_cache() -> None:
-    """Per tests: invalida la cache perquè la propera lectura torni a llegir disc."""
+    """For tests: invalidates the cache so the next read re-reads disk."""
     global _cache
     _cache = None

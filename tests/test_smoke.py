@@ -9,15 +9,15 @@ class SmokeTest(unittest.TestCase):
     def setUpClass(cls):
         from benchmark import config
         cls.config = config
-        # Només MAIN GGUFs servibles (>= 1 GB, fora mmproj/drafts/embeddings),
-        # ordenats per mida: el smoke vol carregar ràpid, no el model més gros.
+        # Only MAIN servable GGUFs (>= 1 GB, excluding mmproj/drafts/embeddings),
+        # sorted by size: the smoke wants to load fast, not the biggest model.
         candidates = [p for p in config.MODELS_DIR.glob("*.gguf")
                       if p.stat().st_size >= 1_000_000_000
                       and not p.name.startswith(("mmproj-", "dflash-", "nomic-"))]
         cls.models = sorted(candidates, key=lambda p: p.stat().st_size)
         cls.has_models = len(cls.models) > 0
-        # Si ja hi ha un servidor al port del harness (benchmark en curs o el
-        # server de producció), la suite no pot competir per la VRAM: skip.
+        # If there is already a server on the harness port (benchmark running or the
+        # production server), the suite cannot compete for the VRAM: skip.
         cls.port_busy = False
         try:
             s = socket.create_connection(("127.0.0.1", config.PORT), timeout=1)
@@ -34,7 +34,7 @@ class SmokeTest(unittest.TestCase):
         if not self.has_models:
             self.skipTest("No models found in MODELS_DIR")
         if self.port_busy:
-            self.skipTest(f"hi ha un servidor escoltant al port {self.config.PORT}: GPUs ocupades")
+            self.skipTest(f"a server is listening on port {self.config.PORT}: GPUs busy")
 
         from benchmark import server as S, client as C, graders as G, tasks_loader as T
         from benchmark import config

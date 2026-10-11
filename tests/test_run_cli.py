@@ -17,7 +17,7 @@ def _mk(model="m"):
 
 
 class TestForgetCLI(unittest.TestCase):
-    """--forget ha d'informar honestament: no pot dir 'esborrat' si no esborra res."""
+    """--forget must report honestly: it cannot say 'removed' if it removes nothing."""
 
     def setUp(self):
         self.tmpdir = Path(tempfile.mkdtemp())
@@ -35,15 +35,15 @@ class TestForgetCLI(unittest.TestCase):
         return out.getvalue() + err.getvalue()
 
     def test_forget_reports_when_nothing_matches(self):
-        # Sense cap entrada coincident: NO ha de dir "esborrat".
+        # With no matching entry: it must NOT say "removed".
         out = self._run(["--forget", "aixonoexisteix"])
-        self.assertNotIn("esborrat", out)
-        self.assertIn("no s'ha trobat", out)
+        self.assertNotIn("removed", out)
+        self.assertIn("no model matching", out)
 
     def test_forget_reports_actual_removal(self):
         report.save_result(_mk("m"))
         out = self._run(["--forget", "m"])
-        self.assertIn("esborrat", out)
+        self.assertIn("removed", out)
         self.assertEqual(len(report.load_pool()), 0)
 
 
@@ -65,7 +65,7 @@ class TestParseWeights(unittest.TestCase):
         self.assertEqual(run._limit(tasks, False), tasks)
 
 class TestResolveModelsResolution(unittest.TestCase):
-    """--models ha d'acceptar noms curts/parcials, no només camins complets."""
+    """--models must accept short/partial names, not only full paths."""
 
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
@@ -92,7 +92,7 @@ class TestResolveModelsResolution(unittest.TestCase):
         err = io.StringIO()
         with contextlib.redirect_stderr(err):
             self.assertEqual(run.resolve_models("abc"), [])
-        self.assertIn("ambigu", err.getvalue())
+        self.assertIn("ambiguous", err.getvalue())
 
     def test_existing_path_passthrough(self):
         f = self.tmp / "real.gguf"
@@ -100,12 +100,12 @@ class TestResolveModelsResolution(unittest.TestCase):
         self.assertEqual(run.resolve_models(str(f)), [str(f)])
 
     def test_nonexistent_passthrough(self):
-        # camí inexistent: passa tal qual (llama-server en donarà l'error clar)
+        # nonexistent path: passes through as is (llama-server will report the clear error)
         self.assertEqual(run.resolve_models("inexistent.gguf"), ["inexistent.gguf"])
 
 
 class TestResolveStrataModels(unittest.TestCase):
-    """--engine strata: 'model' = un config strata-<nom>.json de STRATA_DIR."""
+    """--engine strata: 'model' = a strata-<name>.json config from STRATA_DIR."""
 
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
@@ -137,12 +137,12 @@ class TestResolveStrataModels(unittest.TestCase):
         self.assertEqual(run.resolve_models(str(p), engine="strata"), [str(p)])
 
     def test_unknown_passes_through(self):
-        # mateix criteri que amb llama: passa tal qual i el servidor dona l'error
+        # same criterion as with llama: passes through as is and the server reports the error
         self.assertEqual(run.resolve_models("inexistent", engine="strata"), ["inexistent"])
 
 
 class TestModelId(unittest.TestCase):
-    """Identitat del model al pool: camí .gguf per a llama, nom del config per a Strata."""
+    """Model identity in the pool: .gguf path for llama, config name for Strata."""
 
     def test_llama_keeps_path(self):
         self.assertEqual(run.model_id("llama", "models/foo.gguf"), "models/foo.gguf")
@@ -150,12 +150,12 @@ class TestModelId(unittest.TestCase):
     def test_strata_uses_config_stem(self):
         mid = run.model_id("strata", "/x/Strata/strata-iq3_xxs.json")
         self.assertEqual(mid, "strata-iq3_xxs")
-        # és el que arriba al marcador: un slug net, sense camí ni extensió
+        # this is what reaches the scoreboard: a clean slug, without path or extension
         self.assertEqual(run.config.slug(mid), "strata-iq3_xxs")
 
 
 class TestThinkingCli(unittest.TestCase):
-    """R1 thinking_batches: --thinking on|off (default off); R6: el mode no toca el protocol."""
+    """R1 thinking_batches: --thinking on|off (default off); R6: the mode does not touch the protocol."""
 
     def test_thinking_defaults_off(self):
         self.assertEqual(run._parse_args(["--forget", "zz"]).thinking, "off")
@@ -170,7 +170,7 @@ class TestThinkingCli(unittest.TestCase):
                 run._parse_args(["--thinking", "maybe"])
 
     def test_thinking_leaves_protocol_untouched(self):
-        # R6: mateixos dims/langs/levels en els dos modes (el mode només viatja al cos)
+        # R6: same dims/langs/levels in both modes (the mode only travels in the body)
         a = run._parse_args(["--thinking", "on"])
         b = run._parse_args(["--thinking", "off"])
         self.assertEqual((a.dims, a.lang, a.level), (b.dims, b.lang, b.level))
@@ -178,7 +178,7 @@ class TestThinkingCli(unittest.TestCase):
 
 
 class TestServerBuild(unittest.TestCase):
-    """_server_build ha de llegir la versió vagi on vagi (llama-server l'escriu a stderr)."""
+    """_server_build must read the version wherever it is (llama-server writes it to stderr)."""
 
     def _fake(self, stdout, stderr=""):
         import subprocess as _sp
@@ -209,7 +209,7 @@ class TestServerBuild(unittest.TestCase):
 
 
 class TestLevelForCode(unittest.TestCase):
-    """--level només afecta code (R2 de hard_code_tier); fora de code, avís i fora."""
+    """--level only affects code (R2 of hard_code_tier); outside code, warn and drop it."""
 
     def test_level_passes_through_with_code(self):
         self.assertEqual(run._level_for_code(["code", "tools"], "hard"), "hard")
@@ -219,19 +219,19 @@ class TestLevelForCode(unittest.TestCase):
         err = io.StringIO()
         with contextlib.redirect_stderr(err):
             self.assertIsNone(run._level_for_code(["tools", "agent"], "hard"))
-        self.assertIn("code no és a --dims", err.getvalue())
+        self.assertIn("code is not in --dims", err.getvalue())
 
     def test_none_level_is_passthrough(self):
         self.assertIsNone(run._level_for_code(["tools"], None))
         self.assertIsNone(run._level_for_code(["code"], None))
 
     def test_expert_is_a_valid_level(self):
-        # discriminative_tasks R1: el parser accepta expert (i rebutja desconeguts)
+        # discriminative_tasks R1: the parser accepts expert (and rejects unknown ones)
         self.assertEqual(run._level_for_code(["code"], "expert"), "expert")
         with contextlib.redirect_stderr(io.StringIO()):
             with self.assertRaises(SystemExit):
                 run.main(["--level", "bogus", "--forget", "zz_nothing"])
-        # --level expert parseja bé (el branch --forget no toca res si no hi ha match)
+        # --level expert parses fine (the --forget branch touches nothing when there is no match)
         out, err = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
             run.main(["--level", "expert", "--forget", "zz_nothing"])

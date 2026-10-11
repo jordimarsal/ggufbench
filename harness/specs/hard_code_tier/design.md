@@ -1,21 +1,21 @@
 # Design: hard_code_tier
 
-Cobreix R1-R8 de `requirements.md`. Principi guia: el nivell hard són **més tasques de
-code**, no una dimensió nova — la mínima superfície possible.
+Covers R1-R8 of `requirements.md`. Guiding principle: the hard level is **more code
+tasks**, not a new dimension — the smallest possible surface.
 
 ---
 
 ## Files to create or modify
 
-| Fitxer | Canvi |
+| File | Change |
 |---|---|
-| `tasks_loader.py` | Cada task dict guanya la clau `level` (R1); `load(dim, level=None)` filtra per nivell (R2) |
-| `run.py` | Nou flag `--level {easy,hard}` aplicat només a code (R2); `tasks_version = "v2"` (R7) |
-| `graders.py` | Les entrades de traça de code guanyen `level`; el resultat de code guanya `by_level` (R3, R4) |
-| `tasks/code/<lang>/*_hard.py` (x16) | 4 tasques noves per llengua, `ID` acabat en `_hard` (R6) |
-| `html_report.py` | La fitxa de condicions de cada model mostra `code easy/hard` quan n'hi ha (R5) |
-| `docs/SPEC.md`, `AGENTS.md` | Documentar la convenció `_hard` i el flag `--level` (R1, R2) |
-| `tests/test_tasks_loader.py`, `tests/test_run_cli.py`, `tests/test_graders.py`, `tests/test_html_report.py`, `tests/test_hard_tasks.py` (nou) | Tests de tots els requisits |
+| `tasks_loader.py` | Every task dict gains the `level` key (R1); `load(dim, level=None)` filters by level (R2) |
+| `run.py` | New flag `--level {easy,hard}` applied only to code (R2); `tasks_version = "v2"` (R7) |
+| `graders.py` | Code trace entries gain `level`; the code result gains `by_level` (R3, R4) |
+| `tasks/code/<lang>/*_hard.py` (x16) | 4 new tasks per language, `ID` ending in `_hard` (R6) |
+| `html_report.py` | Each model's conditions card shows `code easy/hard` when present (R5) |
+| `docs/SPEC.md`, `AGENTS.md` | Document the `_hard` convention and the `--level` flag (R1, R2) |
+| `tests/test_tasks_loader.py`, `tests/test_run_cli.py`, `tests/test_graders.py`, `tests/test_html_report.py`, `tests/test_hard_tasks.py` (new) | Tests for all requirements |
 
 ---
 
@@ -24,17 +24,17 @@ code**, no una dimensió nova — la mínima superfície possible.
 ```python
 # tasks_loader.py
 def load(dim: str, level: str | None = None) -> list[dict]:
-    """Com abans; amb level=("easy"|"hard") filtra per la clau level del task dict.
-    Els task dicts de code porten level: "hard" si ID acaba en _hard, sinó "easy"."""
+    """As before; with level=("easy"|"hard") filters by the level key of the task dict.
+    Code task dicts carry level: "hard" if ID ends in _hard, else "easy"."""
 
 
-# graders.py  (canvi dins del dict de retorn de grade_code)
+# graders.py  (change inside grade_code's return dict)
 #   trace[i]["level"] -> "easy" | "hard"
-#   resultat["by_level"] -> {"easy": float, "hard": float}   # només nivells presents
+#   result["by_level"] -> {"easy": float, "hard": float}   # only present levels
 
 # run.py
 #   ap.add_argument("--level", choices=["easy", "hard"], default=None)
-#   aplica el filtre NOMÉS a la dimensió code (abans de _limit)
+#   applies the filter ONLY to the code dimension (before _limit)
 #   result["tasks_version"] = "v2"
 ```
 
@@ -42,42 +42,41 @@ def load(dim: str, level: str | None = None) -> list[dict]:
 
 ## Exceptions and error cases
 
-| Cas | Comportament | Req |
+| Case | Behavior | Req |
 |---|---|---|
-| `--level hard` i zero tasques hard carregables | Print d'avís a stderr i dimensió code sense tasques (score 0, `excluded` no aplicable) | R2 |
-| `--level` donat sense `code` a `--dims` | Ignorat amb un avís únic a stderr | R2 |
-| Task file sense `ID` (fallback per defecte del loader) | `level = "easy"` | R1 |
-| Model antic del pool sense `by_level` | `html_report` mostra només el score agregat, sense secció easy/hard | R5 |
-| Tasca hard amb TEST_CODE que no compila/executa | La mateixa mecànica d'exclusió de code (CODE_LADDER, transient) — cap tracte especial | R3 |
+| `--level hard` and zero loadable hard tasks | Warning printed to stderr and code dimension without tasks (score 0, `excluded` not applicable) | R2 |
+| `--level` given without `code` in `--dims` | Ignored with a single stderr warning | R2 |
+| Task file without `ID` (loader default fallback) | `level = "easy"` | R1 |
+| Old pool model without `by_level` | `html_report` shows only the aggregate score, no easy/hard section | R5 |
+| Hard task with TEST_CODE that does not compile/run | The same code exclusion mechanics (CODE_LADDER, transient) — no special treatment | R3 |
 
 ---
 
 ## Discarded alternatives
 
-1. **Sub-dimensions `code_easy`/`code_hard` amb pesos propis** — canvia el GLOBAL i
-   trencaria la comparabilitat del pool: descartada (decisió de l'usuari: plegades).
-2. **Runs separades amb slug `-hard`** — duplica el temps de re-mesura i parteix el
-   marcador en dos: descartada.
-3. **Nivell com a directori (`tasks/code/hard/<lang>/`)** — la convenció de niat és
-   per-llengua i el loader és de nivell únic; el sufix `_hard` a l'ID manté "un fitxer =
-   una tasca" i fa el filtre trivial: descartada.
-4. **No pujar `tasks_version`** — el pool no podria distingir condicions pre/post
-   (MILLORA §C7): descartada.
-5. **Solution de referència dins de cada tasca hard per testar-la en unitaris** — posaria
-   la solució a maniga dels models (el PROMPT i el TEST_CODE són dades que alguns
-   servidors enregistraran); la validació d'una tasca hard és manual en crear-la +
-   test estructural del loader: descartada.
+1. **Sub-dimensions `code_easy`/`code_hard` with their own weights** — changes GLOBAL and
+   would break pool comparability: discarded (user decision: folded).
+2. **Separate runs with a `-hard` slug** — doubles re-measure time and splits the
+   scoreboard in two: discarded.
+3. **Level as a directory (`tasks/code/hard/<lang>/`)** — the nesting convention is
+   per-language and the loader is single-level; the `_hard` ID suffix keeps "one file =
+   one task" and makes the filter trivial: discarded.
+4. **Not bumping `tasks_version`** — the pool could not tell pre/post conditions apart
+   (MILLORA §C7): discarded.
+5. **Reference solution inside each hard task to unit-test it** — would put the solution
+   within reach of the models (PROMPT and TEST_CODE are data some servers log); hard-task
+   validation is manual at creation + a structural loader test: discarded.
 
 ---
 
-## Tasques hard: criteri de contingut (R6)
+## Hard tasks: content criterion (R6)
 
-Per llengua, un per patró — el naive falla per disseny:
+Per language, one per pattern — the naive fails by design:
 
-1. **Fix d'un bug subtil** (off-by-one, mutabilitat, condició de cursa simple).
-2. **Optimització amb test de màxim d'operacions/temps** (el TEST_CODE inclou una cota).
-3. **Implementació d'algorisme no-trivial especificat** (parsing, estat, memoització).
-4. **Refactor amb tests que fixen comportament** (API donada, no negociable).
+1. **Subtle bug fix** (off-by-one, mutability, simple race condition).
+2. **Optimization with a max-operations/time test** (TEST_CODE includes a bound).
+3. **Implementation of a specified non-trivial algorithm** (parsing, state, memoization).
+4. **Refactor with behavior-pinning tests** (given API, non-negotiable).
 
-Cada fitxer: `ID = "<nom>_hard"`, `PROMPT` en català, `TEST_CODE` auto-contingut que
-imprimeix `OK` només si tot passa (la mecànica actual dels executors).
+Each file: `ID = "<name>_hard"`, `PROMPT` in Catalan, self-contained `TEST_CODE` that
+prints `OK` only if everything passes (the executors' current mechanics).

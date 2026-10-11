@@ -8,9 +8,9 @@ from . import config
 
 
 def _sandbox_prefix(timeout: int) -> list[str]:
-    """Prefix de comanda per aïllar: timeout + xarxa bloquejada si unshare hi és."""
+    """Sandboxing command prefix: timeout + network blocked when unshare is available."""
     prefix = ["timeout", str(timeout)]
-    # unshare -n bloqueja xarxa (requerim permís de user namespace); si falla, s'omet.
+    # unshare -n blocks the network (needs user namespace permission); if it fails, it's omitted.
     if shutil.which("unshare"):
         try:
             subprocess.run(["unshare", "-n", "true"], check=True,
@@ -22,7 +22,7 @@ def _sandbox_prefix(timeout: int) -> list[str]:
 
 
 def _safe_run(cmd: list[str], cwd: str, timeout: int):
-    """Executa subprocess.run sense propagar TimeoutExpired: retorna None si excedeix."""
+    """Runs subprocess.run without propagating TimeoutExpired: returns None on timeout."""
     try:
         return subprocess.run(cmd, cwd=cwd, capture_output=True,
                               text=True, timeout=timeout)
@@ -43,10 +43,10 @@ def _write(tmp: str, files: dict[str, str]) -> None:
 
 def run(lang: str, solution_code, test_code, timeout: int = 30,
         extra_files=None) -> dict:
-    """Escriu solution+test (+extra_files de suport) en tempdir, executa segons lang.
+    """Writes solution+test (+support extra_files) to a tempdir, runs according to lang.
 
-    Els extra_files es escriuen PRIMER: si un d'ells col·lidís amb solution/test,
-    guanyen els fitxers del runner (el loader ja ho valida).
+    extra_files are written FIRST: if one of them collided with solution/test,
+    the runner's files win (the loader already validates this).
     """
     if solution_code is None:
         return {"passed": False, "output": "no solution code block found", "elapsed_ms": 0}
@@ -88,7 +88,7 @@ def _bash(tmp, solution_code, test_code, timeout, started):
 def _java(tmp, solution_code, test_code, timeout, started):
     _write(tmp, {"Solution.java": solution_code, "Test.java": test_code})
     pre = _sandbox_prefix(timeout)
-    # Compila tots els .java del sandbox: solution + test + extra_files (classes de suport)
+    # Compiles all .java in the sandbox: solution + test + extra_files (support classes)
     srcs = sorted(f for f in os.listdir(tmp) if f.endswith(".java"))
     comp = _safe_run(pre + ["javac"] + srcs, tmp, timeout + 5)
     if comp is None:

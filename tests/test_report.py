@@ -10,7 +10,7 @@ W = {"tools": 0.30, "code": 0.30, "agent": 0.25, "speed": 0.15}
 def mk(model, speed_ms=None, gen_tps=None, prompt_tps=None,
        tools=1.0, code=1.0, agent=1.0, code_lang=None, agent_lang=None,
        thinking=None, code_excluded=0):
-    # thinking=None -> sense clau (fila legacy, era pre-thinking); "on"/"off" -> nova
+    # thinking=None -> no key (legacy row, pre-thinking era); "on"/"off" -> new
     r = {"model": model, "context_mode": "fixed", "ts": "2026-08-03T00:00:00",
             "tasks_version": "x", "server_build": "10250",
             "speed": {"passed": True, "turns": 0, "trace": [],
@@ -49,16 +49,16 @@ class TestReport(unittest.TestCase):
         self.assertEqual(pool[0]["speed"]["speed_ms"], 99)
 
     def test_load_pool_dedups_stale_duplicates(self):
-        # Entrades llegades de l'època append-only: vàries línies amb el mateix slug.
+        # Entries inherited from the append-only era: several lines with the same slug.
         path = report.POOL_FILE
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w") as f:
             f.write(json.dumps(mk("m", speed_ms=10, tools=0.1)) + "\n")
             f.write(json.dumps(mk("m", speed_ms=20, tools=0.2)) + "\n")
-            f.write(json.dumps(mk("m", speed_ms=30, tools=0.3)) + "\n")  # última -> guanya
+            f.write(json.dumps(mk("m", speed_ms=30, tools=0.3)) + "\n")  # last one -> wins
         pool = report.load_pool()
-        self.assertEqual(len(pool), 1)              # colapsades a una
-        self.assertEqual(pool[0]["speed"]["speed_ms"], 30)  # l'última (més recent)
+        self.assertEqual(len(pool), 1)              # collapsed into one
+        self.assertEqual(pool[0]["speed"]["speed_ms"], 30)  # the last one (most recent)
 
     def test_render_shows_per_model_scores(self):
         report.save_result(mk("alpha", speed_ms=100, tools=0.5, code=1.0, agent=0.0))
@@ -71,24 +71,24 @@ class TestReport(unittest.TestCase):
 
     def test_global_score_weighted(self):
         r = mk("m", speed_ms=100, tools=1.0, code=1.0, agent=1.0)
-        # model únic -> min_speed = el seu -> speed_score = 1.0 -> global = 1.0
+        # single model -> min_speed = its own -> speed_score = 1.0 -> global = 1.0
         g = report._global_score(r, W, 100)
         self.assertAlmostEqual(g, 1.0)
 
     def test_global_score_missing_speed(self):
         r = mk("m", speed_ms=None, tools=1.0, code=1.0, agent=1.0)
-        # sense speed_ms -> speed_score = 0; la resta suma 0.85
+        # without speed_ms -> speed_score = 0; the rest adds up to 0.85
         g = report._global_score(r, W, 100)
         self.assertAlmostEqual(g, 0.85)
 
     def test_speed_normalization_fastest_is_best(self):
-        a = mk("a", speed_ms=100, tools=1.0, code=1.0, agent=1.0)  # ràpid
-        b = mk("b", speed_ms=200, tools=1.0, code=1.0, agent=1.0)  # lent
+        a = mk("a", speed_ms=100, tools=1.0, code=1.0, agent=1.0)  # fast
+        b = mk("b", speed_ms=200, tools=1.0, code=1.0, agent=1.0)  # slow
         report.save_result(a)
         report.save_result(b)
         ga = report._global_score(a, W, 100)
         gb = report._global_score(b, W, 100)
-        self.assertAlmostEqual(ga, 1.0)     # el més ràpid -> speed_score 1.0
+        self.assertAlmostEqual(ga, 1.0)     # the fastest -> speed_score 1.0
         self.assertAlmostEqual(gb, 0.925)   # speed_score 0.5
         self.assertGreater(ga, gb)
 
@@ -98,12 +98,12 @@ class TestReport(unittest.TestCase):
         out = report.render(report.load_pool(), W)
         i_fast = out.index("fast")
         i_slow = out.index("slow")
-        self.assertLess(i_fast, i_slow)  # fast (millor global) apareix abans
+        self.assertLess(i_fast, i_slow)  # fast (best global) comes first
 
     def test_render_has_tokens_per_second_section(self):
         report.save_result(mk("alpha", speed_ms=100, gen_tps=48.5, prompt_tps=2600.0))
         out = report.render(report.load_pool(), W)
-        self.assertIn("Tokens per segon", out)
+        self.assertIn("Tokens per second", out)
         self.assertIn("gen (out)", out)
         self.assertIn("prompt (in)", out)
         self.assertIn("48.5", out)     # gen_tps
@@ -125,7 +125,7 @@ class TestReport(unittest.TestCase):
         self.assertEqual(len(report.load_pool()), 0)
 
     def test_upsert_keeps_both_thinking_modes(self):
-        # R2 thinking_batches: la clau és (slug, thinking); els dos modes conviuen
+        # R2 thinking_batches: the key is (slug, thinking); both modes coexist
         report.save_result(mk("m", speed_ms=50, thinking="off"))
         report.save_result(mk("m", speed_ms=60, thinking="on"))
         self.assertEqual(len(report.load_pool()), 2)
@@ -136,7 +136,7 @@ class TestReport(unittest.TestCase):
         self.assertEqual(off["speed"]["speed_ms"], 99)
 
     def test_legacy_row_without_thinking_coexists_with_off(self):
-        # (m, None) no col·lisiona amb (m, 'off'): el legacy sobreviu fins re-mesurar
+        # (m, None) does not collide with (m, 'off'): the legacy one survives until re-measured
         report.save_result(mk("m", speed_ms=10))
         report.save_result(mk("m", speed_ms=20, thinking="off"))
         self.assertEqual(len(report.load_pool()), 2)
@@ -164,26 +164,26 @@ class TestReport(unittest.TestCase):
 
     def test_render_tolerates_rows_without_thinking(self):
         report.save_result(mk("m", thinking="off"))
-        report.save_result(mk("m2"))  # legacy: sense clau
+        report.save_result(mk("m2"))  # legacy: no key
         out = report.render(report.load_pool(), W)
         self.assertIn("m", out)
         self.assertIn("m2", out)
 
     def test_table1_labels_think_and_excluded(self):
-        # R4+R5 thinking_batches: columna THINK + recompte d'excloses al score
-        # (asserts per fila: "on"/"—" sols apareixerien d'altres columnes)
+        # R4+R5 thinking_batches: THINK column + count of excluded in the score
+        # (per-row asserts: "on"/"—" would only show up from other columns)
         report.save_result(mk("m", code=1.0, code_excluded=2, thinking="off"))
         report.save_result(mk("n", code=0.5, thinking="on"))
         report.save_result(mk("o", speed_ms=100))  # legacy (speed amb valor)
         out = report.render(report.load_pool(), W)
         self.assertIn("THINK", out)
-        block = out.split("\n\n")[0].splitlines()  # Taula 1 (abans del bloc de tokens)
+        block = out.split("\n\n")[0].splitlines()  # Table 1 (before the tokens block)
         rows = {l.split()[0]: l for l in block if l[:1].isalpha()}
         self.assertIn("off", rows["m"])
         self.assertIn("on", rows["n"])
         self.assertIn("100% (2 excl.)", rows["m"])
         self.assertIn("50%", rows["n"])
-        self.assertIn("—", rows["o"])  # legacy: mode — (l'speed mostra 100ms)
+        self.assertIn("—", rows["o"])  # legacy: mode — (speed shows 100ms)
 
     def test_table2_labels_rows_with_mode(self):
         report.save_result(mk("m", thinking="off"))
@@ -201,7 +201,7 @@ class TestReport(unittest.TestCase):
         self.assertIn("on", out)
 
     def test_forget_by_bare_name_when_stored_as_relative_path(self):
-        # El camp 'model' s'emmagatzema com a camí relatiu; oblidar pel nom net ha de funcionar.
+        # The 'model' field is stored as a relative path; forgetting by bare name must work.
         report.save_result(mk("models/foo.gguf"))
         self.assertEqual(len(report.load_pool()), 1)
         report.forget("foo")
@@ -218,16 +218,16 @@ class TestReport(unittest.TestCase):
         self.assertEqual(len(report.load_pool()), 0)
 
     def test_forget_bare_name_when_model_name_has_dots(self):
-        # Regressió: noms amb punts interns ('Qwen3.8', 'Ornith-1.5') han de funcionar.
-        # _model_stem ha de treure NOMÉS l'extensió .gguf, no un punt del nom.
+        # Regression: names with internal dots ('Qwen3.8', 'Ornith-1.5') must work.
+        # _model_stem must strip ONLY the .gguf extension, never a dot from the name.
         report.save_result(mk("models/Qwen3.8-27B-Heretic-Q4_K_M.gguf"))
         self.assertEqual(len(report.load_pool()), 1)
-        report.forget("Qwen3.8-27B-Heretic-Q4_K_M")   # nom net del fitxer
+        report.forget("Qwen3.8-27B-Heretic-Q4_K_M")   # bare file name
         self.assertEqual(len(report.load_pool()), 0)
 
     def test_forget_returns_removed_count(self):
-        # El caller ha de poder saber si s'ha esbarrat res: retorna el nº d'entrades
-        # borrades (0 quan no coincideix). Evita el fals "esborrat" del CLI.
+        # The caller must know whether anything was removed: it returns the number of
+        # deleted entries (0 when nothing matches). Avoids the CLI's false "removed".
         report.save_result(mk("m"))
         report.save_result(mk("other"))
         self.assertEqual(len(report.load_pool()), 2)
@@ -236,7 +236,7 @@ class TestReport(unittest.TestCase):
         self.assertEqual(report.forget("noexistent"), 0)  # no coincideix -> 0
         self.assertEqual(len(report.load_pool()), 1)      # no canvia
 
-    # --- Granularitat: --info (per-tasca) / --verbose (+per-llenguatge) ----------
+    # --- Granularity: --info (per-task) / --verbose (+per-language) ----------
     def _with_traces(self, model="m", tools=True, code=True, agent=True):
         r = mk(model, speed_ms=100, tools=1.0 if tools else 0.5,
                code=1.0 if code else 0.5, agent=1.0 if agent else 0.0)
@@ -258,36 +258,36 @@ class TestReport(unittest.TestCase):
     def test_info_shows_per_task_detail(self):
         report.save_result(self._with_traces())
         out = report.render(report.load_pool(), W, level="info")
-        self.assertIn("Detall per tasca", out)
-        self.assertIn("✓", out)   # fix-fib / func passats
-        self.assertIn("✗", out)   # stack falla
+        self.assertIn("Per-task detail", out)
+        self.assertIn("✓", out)   # fix-fib / func passed
+        self.assertIn("✗", out)   # stack fails
         self.assertIn("multi-arg", out)
 
     def test_default_level_has_no_task_detail(self):
         report.save_result(self._with_traces())
         out = report.render(report.load_pool(), W)  # level default
-        self.assertNotIn("Detall per tasca", out)
+        self.assertNotIn("Per-task detail", out)
 
     def test_verbose_adds_by_lang_table(self):
         report.save_result(self._with_traces())
         out_info = report.render(report.load_pool(), W, level="info")
         out_verbose = report.render(report.load_pool(), W, level="verbose")
-        # verbose inclou Taula 2 (per llengua), info no la té
-        self.assertIn("Per llengua", out_verbose)
-        self.assertNotIn("Per llengua", out_info)
-        # verbose JA NO inclou el detall de tasca; cal show_tasks=True per veure'l.
-        self.assertNotIn("Detall per tasca", out_verbose)
+        # verbose includes Table 2 (per language), info does not have it
+        self.assertIn("By language", out_verbose)
+        self.assertNotIn("By language", out_info)
+        # verbose NO LONGER includes the task detail; show_tasks=True is needed to see it.
+        self.assertNotIn("Per-task detail", out_verbose)
         out_verbose_task = report.render(report.load_pool(), W, level="verbose",
                                          show_tasks=True)
-        self.assertIn("Detall per tasca", out_verbose_task)
+        self.assertIn("Per-task detail", out_verbose_task)
 
     def test_render_robust_to_missing_granularity(self):
-        # Model parcial: sense dimensions/code/agent, o directament sense trace.
-        report.save_result({"model": "partial1"})                       # gairebé res
-        report.save_result(mk("partial2", tools=0.0))                   # sense code/agent
+        # Partial model: without dimensions/code/agent, or with no trace at all.
+        report.save_result({"model": "partial1"})                       # almost nothing
+        report.save_result(mk("partial2", tools=0.0))                   # without code/agent
         report.save_result(mk("partial3", tools=1.0, code=1.0, agent=1.0,
-                              code_lang={}, agent_lang={}))              # traces buides
-        # Ni --info ni --verbose han de fallar.
+                              code_lang={}, agent_lang={}))              # empty traces
+        # Neither --info nor --verbose may fail.
         for lvl in ("info", "verbose"):
             out = report.render(report.load_pool(), W, level=lvl)
             self.assertIn("MODEL", out)

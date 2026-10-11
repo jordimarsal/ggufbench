@@ -20,7 +20,7 @@ class TestTokenBudget(unittest.TestCase):
 
     def test_put_then_get(self):
         token_budget.put("code", "model-a", "off", "python", "bubble_sort", 4096)
-        token_budget.reset_cache()  # simula una nova run
+        token_budget.reset_cache()  # simulates a new run
         self.assertEqual(token_budget.get("code", "model-a", "off", "python", "bubble_sort"), 4096)
 
     def test_keys_are_per_model(self):
@@ -37,7 +37,7 @@ class TestTokenBudget(unittest.TestCase):
         self.assertIn("code/m/off/python/fib", data)
 
     def test_keys_differ_by_thinking(self):
-        # R2 thinking_batches: els dos modes calibren independentment
+        # R2 thinking_batches: the two modes calibrate independently
         token_budget.put("code", "m", "off", "python", "fib", 4096)
         token_budget.put("code", "m", "on", "python", "fib", 8192)
         token_budget.reset_cache()
@@ -45,7 +45,7 @@ class TestTokenBudget(unittest.TestCase):
         self.assertEqual(token_budget.get("code", "m", "on", "python", "fib"), 8192)
 
     def test_old_schema_ignored(self):
-        # R3: era 16384 (sense _schema) -> invisible; es regenera al pròxim put
+        # R3: it used to be 16384 (no _schema) -> invisible; it regenerates on the next put
         token_budget.BUDGET_FILE.write_text(json.dumps({"code/m/off/python/fib": 4096}))
         token_budget.reset_cache()
         self.assertIsNone(token_budget.get("code", "m", "off", "python", "fib"))

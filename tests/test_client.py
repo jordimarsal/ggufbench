@@ -24,7 +24,7 @@ class TestClient(unittest.TestCase):
         self.assertEqual(tc["name"], "get_weather")
         self.assertEqual(tc["arguments"], {"city": "Paris"})
     def test_extract_tool_call_none(self):
-        no_tc = {"choices": [{"message": {"content": "hola"}}]}
+        no_tc = {"choices": [{"message": {"content": "hi"}}]}
         self.assertIsNone(client.extract_tool_call(no_tc))
     def test_extract_tool_call_bad_json_args(self):
         bad = {"choices": [{"message": {"tool_calls": [
@@ -37,7 +37,7 @@ class TestClient(unittest.TestCase):
         self.assertEqual(client.first_text({"choices":[{"message":{"content":"x"}}]}), "x")
 
 class TestChatExtra(unittest.TestCase):
-    """`extra` afegeix/sobreescriu camps del cos (config.thinking_body)."""
+    """`extra` adds/overwrites body fields (config.thinking_body)."""
 
     def _capture(self, **kwargs):
         import json as _json
@@ -51,7 +51,7 @@ class TestChatExtra(unittest.TestCase):
                 return False
 
             def read(self):
-                return b'{"choices": [{"message": {"content": "hola"}}]}'
+                return b'{"choices": [{"message": {"content": "hi"}}]}'
 
         def fake_urlopen(req, timeout=None):
             captured["body"] = _json.loads(req.data.decode("utf-8"))
@@ -61,7 +61,7 @@ class TestChatExtra(unittest.TestCase):
         orig = client.urllib.request.urlopen
         client.urllib.request.urlopen = fake_urlopen
         try:
-            client.chat([{"role": "user", "content": "hola"}], **kwargs)
+            client.chat([{"role": "user", "content": "hi"}], **kwargs)
         finally:
             client.urllib.request.urlopen = orig
         return captured["body"]
@@ -77,9 +77,9 @@ class TestChatExtra(unittest.TestCase):
         from benchmark import config
         from benchmark import config as cfg
         body = self._capture(extra=cfg.thinking_body("strata", "off"))
-        # el camp nou hi és...
+        # the new field is there...
         self.assertEqual(body["chat_template_kwargs"], {"enable_thinking": False})
-        # ...i els camps base es conserven (el cos s'ha de seguir essent complet)
+        # ...and the base fields are kept (the body must still be complete)
         self.assertEqual(body["temperature"], config.TEMPERATURE)
         self.assertEqual(body["max_tokens"], 256)
         self.assertIn("messages", body)

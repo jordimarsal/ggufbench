@@ -12,9 +12,9 @@ def _slug_of(result):
 
 
 def _key_of(result):
-    """Clau d'upsert (R2 thinking_batches): (slug, thinking). Les files legacy sense
-    `thinking` claven (slug, None) i no col·lisionen amb (slug, 'off'). El slug sol
-    continua identificant el model (forget, visualització)."""
+    """Upsert key (R2 thinking_batches): (slug, thinking). Legacy rows without
+    `thinking` key under (slug, None) and do not collide with (slug, 'off'). The slug
+    alone still identifies the model (forget, visualization)."""
     return (_slug_of(result), result.get("thinking"))
 
 
@@ -23,8 +23,8 @@ def save_result(result):
     config.RESULTS_RUNS.mkdir(parents=True, exist_ok=True)
     slug = _slug_of(result)
     key = _key_of(result)
-    # Upsert per (slug, thinking): els dos modes conviuen; re-executar el mateix mode
-    # substitueix (abans era per slug sol i el segon batch solaparia el primer).
+    # Upsert per (slug, thinking): the two modes coexist; re-running the same mode
+    # replaces it (it used to key on the slug alone, so the second batch would overlap the first).
     pool = [r for r in load_pool() if _key_of(r) != key]
     pool.append(result)
     with open(POOL_FILE, "w") as f:
@@ -38,8 +38,8 @@ def save_result(result):
 def load_pool():
     if not POOL_FILE.exists():
         return []
-    # Dedup per (slug, thinking) mantenint l'última ocurrència (la més recent:
-    # el fitxer és cronològic). Aïsla duplicats llegats de l'època append-only.
+    # Dedup by (slug, thinking) keeping the last occurrence (the most recent one:
+    # the file is chronological). Isolates duplicates inherited from the append-only era.
     by_key = {}
     with open(POOL_FILE) as f:
         for line in f:
@@ -52,11 +52,11 @@ def load_pool():
 
 
 def _model_stem(model_field):
-    """Nom del fitxer del model sense camí ni l'extensió (.gguf/.GGUF).
-    'models/foo.gguf' -> 'foo'; 'foo' -> 'foo'. Robust davant noms amb punts interns
-    ('Qwen3.8', 'Ornith-1.5'): només s'estira l'extensió del model, mai un punt del nom.
-    Permet identificar el mateix model encara que el camp 'model' s'emmagitzema com a
-    camí relatiu o absolut, i per oblid-lo pel nom net."""
+    """Model file name without path or extension (.gguf/.GGUF).
+    'models/foo.gguf' -> 'foo'; 'foo' -> 'foo'. Robust against names with internal dots
+    ('Qwen3.8', 'Ornith-1.5'): only the model's extension is stripped, never a dot from
+    the name. Lets us identify the same model even though the 'model' field is stored as
+    a relative or absolute path, and to forget it by the bare name."""
     base = os.path.basename(str(model_field))
     for ext in (".gguf", ".GGUF"):
         if base.endswith(ext):
@@ -65,18 +65,18 @@ def _model_stem(model_field):
 
 
 def _forget_matches(r, term):
-    # Encaixa pel slug (com abans) O pel nom del fitxer, perquè el camp 'model' pot estar
-    # emmagatzemat com a camí relatiu/absolut mentre l'usuari passi el nom net.
+    # Match by slug (as before) OR by file name, because the 'model' field may be stored
+    # as a relative/absolute path while the user passes the bare name.
     return (config.slug(r["model"]) == config.slug(term)
             or _model_stem(r["model"]) == _model_stem(term))
 
 
 def forget(model_name):
-    """Borra del pool totes les entrades que coincideixen amb ``model_name``.
+    """Deletes from the pool every entry matching ``model_name``.
 
-    Retorna el nombre d'entrades borrades (0 si no hi ha cap coincidència), de manera
-    que el caller pot informar correctament l'usuari. Abans retornava ``None`` i feia
-    silenci quan no trobava res, cosa que feia que el CLI digués falsament "esborrat"."""
+    Returns the number of deleted entries (0 when there is no match), so the caller can
+    report it honestly to the user. It used to return ``None`` and stay silent when
+    nothing was found, which made the CLI falsely say "deleted"."""
     if not POOL_FILE.exists():
         return 0
     pool = load_pool()
@@ -90,7 +90,7 @@ def forget(model_name):
 
 
 def _scores(r):
-    """Score 0..1 per dimensió d'un model. Falta una dimensió (run parcial) -> 0."""
+    """Score 0..1 per dimension of a model. A missing dimension (partial run) -> 0."""
     sp = r.get("speed") or {}
     return {
         "tools": (r.get("tools") or {}).get("score", 0),
@@ -103,7 +103,7 @@ def _scores(r):
 
 
 def _global_score(r, weights, min_speed):
-    """Suma ponderada 0..1. Velocitat normalitzada: el model més ràpid (menys ms) -> 1.0."""
+    """Weighted sum 0..1. Normalized speed: the fastest model (fewest ms) -> 1.0."""
     sc = _scores(r)
     speed_score = (min_speed / sc["speed_ms"]) if (sc["speed_ms"] and min_speed) else 0
     parts = {"tools": sc["tools"], "code": sc["code"],
@@ -123,19 +123,19 @@ def lang_profile(pool, lang):
 
 
 def _fmt_pct(x):
-    """Formata un percentatge (0..1 -> %) o '—' si no hi ha dada."""
+    """Formats a percentage (0..1 -> %) or '—' when there is no data."""
     return f"{x:.0%}" if x is not None else "—"
 
 
 def _think_mark(result):
-    """Marca de mode (R4 thinking_batches): 'on'/'off'/'—' (legacy sense clau)."""
+    """Mode marker (R4 thinking_batches): 'on'/'off'/'—' (legacy rows without key)."""
     return result.get("thinking") or "—"
 
 
 def _render_global_rows(pool, weights, title):
-    """Taula 1 + secció de tokens (SPEC 4.6). Una fila per model amb el score de cada
-    dimensió i un global ponderat, ordenat de millor a pitjor."""
-    # Coerceix None -> 0 perquè un model sense velocitat (run parcial) no tombi el render.
+    """Table 1 + tokens section (SPEC 4.6). One row per model with the score of each
+    dimension and a weighted global, sorted from best to worst."""
+    # Coerce None -> 0 so a model without speed (partial run) does not break the render.
     speed_values = [int((r.get("speed") or {}).get("speed_ms") or 0) for r in pool]
     min_speed = min((v for v in speed_values if v > 0), default=0)
     rows = []
@@ -153,9 +153,9 @@ def _render_global_rows(pool, weights, title):
         code = f"{sc['code']:>5.0%}" + (f" ({excl} excl.)" if excl else "")
         out.append(f"{name:{nw}} {mode:>5} {sc['tools']:>5.0%} {code:>13} "
                    f"{sc['agent']:>5.0%} {sp:>9} {g:>7.2f}")
-    # Epígraf de tokens per segon (output i input).
+    # Tokens-per-second heading (output and input).
     out.append("")
-    out.append("=== Tokens per segon (t/s) ===")
+    out.append("=== Tokens per second (t/s) ===")
     theader = f"{'MODEL':{nw}} {'gen (out)':>10} {'prompt (in)':>12}"
     out.append(theader)
     out.append("-" * len(theader))
@@ -167,11 +167,11 @@ def _render_global_rows(pool, weights, title):
 
 
 def _render_tasks(pool):
-    """Taula 3 — detall per tasca (SPEC 4.6). Una fila per (model, dimensió, tasca).
-    Tolerant: un model sense dimensió o una dimensió sense trace no falla."""
+    """Table 3 — per-task detail (SPEC 4.6). One row per (model, dimension, task).
+    Tolerant: a model without a dimension or a dimension without a trace does not fail."""
     nw = max((len(config.slug(r["model"])) for r in pool), default=5)
-    header = f"{'MODEL':{nw}} {'THINK':>5} {'DIM':8} {'LANG':12} {'TASK':20} {'OK':4} DETALL"
-    out = ["", "=== Detall per tasca ===", header, "-" * len(header)]
+    header = f"{'MODEL':{nw}} {'THINK':>5} {'DIM':8} {'LANG':12} {'TASK':20} {'OK':4} DETAIL"
+    out = ["", "=== Per-task detail ===", header, "-" * len(header)]
     for r in pool:
         name = config.slug(r["model"])
         mode = _think_mark(r)
@@ -183,14 +183,14 @@ def _render_tasks(pool):
                 mark = "✓" if t.get("passed") else "✗"
                 detail = " ".join(str(t.get("detail") or "").split())[:30]
                 if t.get("excluded"):
-                    detail += " [exclo]"
+                    detail += " [excluded]"
                 out.append(f"{name:40.40} {mode:>5} {dim:8} {lang:12} {tid:20} {mark} {detail}")
     return out
 
 
 def _render_by_lang(pool):
-    """Taula 2 — desglossament per llenguatge de code/agent (SPEC 4.6). Cel·la '—'
-    quan no hi ha tasques d'aquell idioma per aquella dimensió."""
+    """Table 2 — per-language breakdown of code/agent (SPEC 4.6). Cell '—' when that
+    language has no tasks for that dimension."""
     langs = ["python", "bash", "java", "typescript"]
     dims = ["code", "agent"]
     nw = max((len(config.slug(r["model"])) for r in pool), default=5)
@@ -198,7 +198,7 @@ def _render_by_lang(pool):
     for dim in dims:
         for lang in langs:
             header += f" {dim}:{lang:>11}"
-    out = ["", "=== Per llenguatge (code/agent) ===", header, "-" * len(header)]
+    out = ["", "=== By language (code/agent) ===", header, "-" * len(header)]
     for r in pool:
         name = config.slug(r["model"])
         row = f"{name:{nw}} {_think_mark(r):>5}"
@@ -211,20 +211,20 @@ def _render_by_lang(pool):
 
 
 def render(pool, weights, title="Benchmark Results", level="default", show_tasks=False):
-    """Marcador per model amb granularitat descomposta en eixos independents (SPEC 4.6):
+    """Scoreboard per model with granularity decomposed into independent axes (SPEC 4.6):
 
-    - ``level='default'`` : Taula 1 (scores globals) + secció de tokens.
-    - ``level='info'``    : Taula 1 + Taula 3 (detall per tasca). Respon "en què un
-      model és bo/malament".
-    - ``level='verbose'`` : Taula 1 + Taula 2 (per llenguatge). NO inclou el detall
-      de tasques; és el nivell més fi sense per-tasca.
+    - ``level='default'`` : Table 1 (global scores) + tokens section.
+    - ``level='info'``    : Table 1 + Table 3 (per-task detail). Answers "what is a
+      model good/bad at".
+    - ``level='verbose'`` : Table 1 + Table 2 (per language). Does NOT include the task
+      detail; it is the finest level without per-task.
 
-    El detall de tasques (Taula 3) es mostra si `show_tasks=True` (via `--task`) o si
-    el nivell ja l'inclou (`info`). Així `--verbose` no el mai sol i cal `--task` per
-    veure'l; les dues opcions es composen: es pot fer servir `--verbose` (per-llenguatge)
-    juntament amb `--task`. Les dimensions o les tasques que faltin a un model (runs
-    parcials, models sense encara aquesta granularitat) no provoquen errors: totes
-    les cells es calculen amb valors per defecte."""
+    The task detail (Table 3) is shown when `show_tasks=True` (via `--task`) or when the
+    level already includes it (`info`). That way `--verbose` never shows it on its own
+    and `--task` is needed to see it; the two options compose: `--verbose` (per-language)
+    can be used together with `--task`. Dimensions or tasks missing from a model (partial
+    runs, models that do not yet have this granularity) cause no errors: every cell is
+    computed with default values."""
     if not pool:
         return "(no results in pool)"
     out = _render_global_rows(pool, weights, title)

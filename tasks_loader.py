@@ -13,10 +13,10 @@ def _load_module(path):
 
 
 def _check_extra_files(task_id, extra):
-    """Valida EXTRA_FILES (discriminative_tasks R2): noms plans al sandbox.
+    """Validates EXTRA_FILES (discriminative_tasks R2): plain names in the sandbox.
 
-    Sense barres ni '..' i sense capturar els noms reservats (solution/test):
-    l'extra mai no pot guanyar els fitxers del runner.
+    No slashes or '..' and no reserved names (solution/test):
+    an extra file can never beat the runner's files.
     """
     for name in extra:
         low = str(name).lower()
@@ -24,8 +24,8 @@ def _check_extra_files(task_id, extra):
                 or str(name) in (".", "..")
                 or low.startswith(("solution", "test"))):
             raise ValueError(
-                f"{task_id}: EXTRA_FILES invalid (nom pla requerit, "
-                f"sense solution/test): {name!r}")
+                f"{task_id}: EXTRA_FILES invalid (plain name required, "
+                f"no solution/test): {name!r}")
 
 
 def load(dimension, lang_filter=None, level=None):
@@ -40,8 +40,8 @@ def load(dimension, lang_filter=None, level=None):
             if lang_part and lang_part not in lang_filter:
                 continue
         m = _load_module(p)
-        # Nivell (hard_code_tier / discriminative_tasks): només code el porta;
-        # el sufix _hard/_expert a l'ID el decideix.
+        # Level (hard_code_tier / discriminative_tasks): only code carries it;
+        # the _hard/_expert suffix on the ID decides.
         task_id = str(getattr(m, "ID", p.stem))
         if task_id.endswith("_expert"):
             level_value = "expert"

@@ -7,9 +7,9 @@ from . import config
 
 def chat(messages, tools=None, tool_choice=None, max_tokens=256,
          base_url="http://127.0.0.1:8999", timeout=60, extra=None):
-    """Un chat a /v1/chat/completions. `extra` sobreescriu/afegeix camps del cos
-    (vegeu config.thinking_body: apagar la cadena de pensament perquè les tasques
-    es mesurin en les mateixes condicions)."""
+    """One chat call to /v1/chat/completions. `extra` overwrites/adds body fields
+    (see config.thinking_body: disable the thinking chain so tasks are
+    measured under the same conditions)."""
     body = {"messages": messages, "max_tokens": max_tokens,
             "temperature": config.TEMPERATURE, "seed": config.SEED}
     if tools:

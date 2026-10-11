@@ -1,223 +1,223 @@
-# ggufbench — Document de disseny
+# ggufbench — Design document
 
-**Data:** 2026-08-03 (en evolució; vegeu `harness/progress/history.md`)
-**Ubicació:** `/home/jordi/ia/llama/benchmark/`
-**Estat:** En producció — harness v3, 6 features lliurades (vegeu `harness/feature_list.json`)
+**Date:** 2026-08-03 (evolving; see `harness/progress/history.md`)
+**Location:** `/home/jordi/ia/llama/benchmark/`
+**Status:** In production — harness v3, 6 features delivered (see `harness/feature_list.json`)
 
-## 1. Objectiu
+## 1. Goal
 
-Benchmark automàtic per comparar models locals (servits per `llama-server`) sota
-**les mateixes condicions**, amb un marcador que puntuï 4 dimensions:
+Automatic benchmark to compare local models (served by `llama-server`) under
+**the same conditions**, with a scoreboard grading 4 dimensions:
 
-1. **Velocitat** — rendiment brut.
-2. **Tool-calling** — fiabilitat produint crides d'eina estructurades.
-3. **Codi amb tests** — correcció implementant/arreglant codi (4 idiomes).
-4. **Agent multi-pas** — capacitat de llegir → entendre → editar → verificar.
+1. **Speed** — raw throughput.
+2. **Tool-calling** — reliability producing structured tool calls.
+3. **Code with tests** — correctness implementing/fixing code (4 languages).
+4. **Multi-step agent** — ability to read → understand → edit → verify.
 
-L'objectiu final és triar el millor model per a **opencode** (agent programador).
+The end goal is picking the best model for **opencode** (coding agent).
 
-## 2. Principi: "mateixes condicions" (revisat 2026-10: baselines comunes + perfil per model)
+## 2. Principle: "same conditions" (revised 2026-10: common baselines + per-model profile)
 
-- **Flags comuns** per tots els models (baseline a `config.SERVER_FLAGS`):
+- **Common flags** for all models (baseline in `config.SERVER_FLAGS`):
   `temp 0.2`, `top-p 0.95`, `seed 42`, `repeat-penalty 1.1`, `-ngl 999`,
-  `--flash-attn auto`, `--no-mmap`, `--jinja`, cache KV `q4_0/q4_0`
+  `--flash-attn auto`, `--no-mmap`, `--jinja`, KV cache `q4_0/q4_0`
   (`config.CACHE_FLAGS`), `--parallel 1`.
-- **Perfil per model**: `models/<model>.txt` s'aplica AL FINAL i pot
-  sobreescriure el baseline (mateixa convenció que `start-dev-ai.sh`; els
-  comentaris `#` es salten). Dedup automàtic: si el `.txt` defineix
-  `-c`/`--ctx-size` fora el `-c` del harness; si defineix `--cache-type-k/v`
-  fora el corresponent comú. Flags d'infraestructura (`-m`, `--port`,
-  `--host`) es filtren: els fixa el harness. MTP/DFlash (`--spec-type`,
-  `-md`, `--mmproj`) sí que arriben tal com els tinguis al `.txt` — els
-  models competeixen amb la seva millor configuració real, no en laboratori.
-  Els flags aplicats es mostren a stderr i queden registrats al resultat
-  (`model_config_flags`) per saber com es va mesurar cada model.
-- **Context (`-c`)**: dos modes via flag `--context` (només si el `.txt`
-  no el defineix):
-  - `fixed` (default): `16384` per tots → KV igual → velocitats comparables.
-  - `adapted`: el context viable de cada model (llògica de `start-dev-ai.sh`).
-- `--tensor-split` sí adapta (multi-GPU, proporció de VRAM lliura).
-- **Segon motor (2026-10): `--engine strata`** — mateixes condicions, altre
-  execució. Els punts que no són el mateix:
-  - `--models` rep **noms de config**: `iq3_xxs` -> `Strata/strata-iq3_xxs.json`
-    (`all` = tots els `strata-*.json`; un camí explícit passa tal qual). La
-    identitat al pool és l'arrel del config (`strata-iq3_xxs`), que també és el
-    slug del marcador; el resultat porta `engine` i `server_build` = versió de
-    l'executable (`strata/engine/BUILD.json`).
-  - Port per defecte 8080 (`config.STRATA_PORT`); `--port` el canvia.
-  - **Sense cadena de pensament per defecte**: el model pensa en HIGH per defecte i amb els
-    `max_tokens` petits de les tasques (128-512) es menjaria el pressupost sense
-    respondre; el client envia `chat_template_kwargs: enable_thinking=false` (mateixa
-    política que el `bench/bench_vs_llama.py` d'Strata). Des de `thinking_batches` això
-    és el mode `--thinking off` (default, pels dos motors); `--thinking on` el deixa
-    lliure i el pool distingeix els dos modes.
-  - **Readiness**: `/health` ha de dir `loaded` abans de la sonda de chat (les
-    sondes farien cua darrere la càrrega de 34-43 GB); espera `STRATA_READY_TIMEOUT`
+- **Per-model profile**: `models/<model>.txt` is applied LAST and can
+  override the baseline (same convention as `start-dev-ai.sh`; `#` comments
+  are skipped). Automatic dedup: if the `.txt` defines
+  `-c`/`--ctx-size`, the harness `-c` is dropped; if it defines `--cache-type-k/v`
+  the corresponding common one is dropped. Infrastructure flags (`-m`, `--port`,
+  `--host`) are filtered: the harness fixes them. MTP/DFlash (`--spec-type`,
+  `-md`, `--mmproj`) do arrive as you have them in the `.txt` — models
+  compete with their real best configuration, not in a lab.
+  Applied flags are printed to stderr and recorded in the result
+  (`model_config_flags`) to know how each model was measured.
+- **Context (`-c`)**: two modes via the `--context` flag (only if the `.txt`
+  does not define it):
+  - `fixed` (default): `16384` for everyone → same KV → comparable speeds.
+  - `adapted`: each model's viable context (the `start-dev-ai.sh` logic).
+- `--tensor-split` does adapt (multi-GPU, free-VRAM proportion).
+- **Second engine (2026-10): `--engine strata`** — same conditions, different
+  runner. The non-identical points:
+  - `--models` takes **config names**: `iq3_xxs` -> `Strata/strata-iq3_xxs.json`
+    (`all` = all `strata-*.json`; an explicit path passes through as-is). The
+    pool identity is the config root (`strata-iq3_xxs`), which is also the
+    scoreboard slug; the result carries `engine` and `server_build` = binary
+    version (`strata/engine/BUILD.json`).
+  - Default port 8080 (`config.STRATA_PORT`); `--port` changes it.
+  - **No thinking chain by default**: the model thinks in HIGH by default and with the
+    small task `max_tokens` (128-512) it would eat the budget without
+    answering; the client sends `chat_template_kwargs: enable_thinking=false` (same
+    policy as Strata's `bench/bench_vs_llama.py`). Since `thinking_batches` this
+    is the `--thinking off` mode (default, for both engines); `--thinking on` leaves it
+    free and the pool distinguishes both modes.
+  - **Readiness**: `/health` must report `loaded` before the chat probe (probes
+    would queue behind the 34-43 GB load); waits `STRATA_READY_TIMEOUT`
     (600 s).
-  - **Cicle de vida**: arrenca amb `start_new_session` i `stop()` mata el grup de
-    processos sencer — el fill `engine/strata` sobreviuria al pare
-    `serve/server.py` i continuaria retenint la VRAM. La sortida del servidor
-    es desa a `/tmp/benchmark-strata-server-<port>.log` (mai a /dev/null).
-  - **Els dos motors no van mai alhora**: competeixen per les mateixes GPU.
-- **Warmup** de 1 generació abans de mesurar/qualsevol tasca.
-- Mateixos prompts/tests per tots els models.
+  - **Lifecycle**: starts with `start_new_session` and `stop()` kills the whole
+    process group — the `engine/strata` child would outlive the parent
+    `serve/server.py` and keep holding VRAM. Server output
+    is saved to `/tmp/benchmark-strata-server-<port>.log` (never /dev/null).
+  - **The two engines never run at once**: they compete for the same GPUs.
+- **Warmup** of 1 generation before measuring/any task.
+- Same prompts/tests for all models.
 
-## 3. Arquitectura
+## 3. Architecture
 
 ```
 benchmark/
 ├── run.py            # CLI / entry point
-├── config.py         # pesos, defaults, paths, flags del servidor
-├── server.py         # cicle de vida de llama-server (start/stop/ready)
-├── client.py         # client HTTP cap a /v1/chat/completions
-├── executors.py      # runners per llenguatge (py/bash/java/ts) + sandbox
-├── graders.py        # puntuació per dimensió
-├── agent.py          # loop d'agent multi-pas + entorn mock
-├── report.py         # marcador (taula terminal + JSON)
+├── config.py         # weights, defaults, paths, server flags
+├── server.py         # llama-server lifecycle (start/stop/ready)
+├── client.py         # HTTP client to /v1/chat/completions
+├── executors.py      # per-language runners (py/bash/java/ts) + sandbox
+├── graders.py        # scoring per dimension
+├── agent.py          # multi-step agent loop + mock environment
+├── report.py         # scoreboard (terminal table + JSON)
 ├── tasks/
 │   ├── speed/
 │   ├── tools/
 │   ├── code/{python,bash,java,typescript}/
 │   └── agent/{python,bash,java,typescript}/
 ├── results/
-│   ├── models/        # <slug>.json — resultat més recent per model (el POOL)
-│   └── runs/          # <ts>-<slug>.json — històric append-only de cada execució
+│   ├── models/        # <slug>.json — latest result per model (the POOL)
+│   └── runs/          # <ts>-<slug>.json — append-only history of every run
 └── docs/SPEC.md
 ```
 
-### Flux principal (run.py)
+### Main flow (run.py)
 ```
-si --scoreboard:                      # mode només-lectura
-    report(results/models/*.json)     # mostra taules acumulades i surt
+if --scoreboard:                      # read-only mode
+    report(results/models/*.json)     # show accumulated tables and exit
 
 models = resolve_models(args)
-per cada model:
-    server.start(model)            # arrenca amb flags de config.py
-    wait_ready()                   # inferència real (no /v1/models)
+for each model:
+    server.start(model)               # starts with config.py flags
+    wait_ready()                      # real inference (not /v1/models)
     warmup()
     result = {}
-    per cada dimensió habilitada:
-        result[dim] = run_dimension(dim, model)   # corre tasques + classifica
+    for each enabled dimension:
+        result[dim] = run_dimension(dim, model)   # run tasks + grade
     server.stop()
-    save result/models/<slug>.json      # actualitza el pool (sobreescriu)
-    save result/runs/<ts>-<slug>.json   # històric append-only
-report(results/models/*.json)           # scoreboard ACUMULAT de tots els models
+    save result/models/<slug>.json      # updates the pool (overwrites)
+    save result/runs/<ts>-<slug>.json   # append-only history
+report(results/models/*.json)           # ACCUMULATED scoreboard of all models
 ```
 
 ## 4. Components
 
-### 4.1 server.py — gestor de llama-server
-- `start(model)`: arranca `llama-server` (subprocess) amb els flags de
-  `config.py` + `-c` (segons mode) + `--tensor-split` (segons VRAM).
-- `wait_ready()`: polling fins que un chat de prova retorna `"choices"`
-  (no només `/v1/models`, que respon abans d'estar llest per inferència).
-- `stop()`: SIGKILL + espera.
-- Un sol model alhora (port fixe, ex. 8999).
+### 4.1 server.py — llama-server manager
+- `start(model)`: launches `llama-server` (subprocess) with the flags from
+  `config.py` + `-c` (per mode) + `--tensor-split` (per VRAM).
+- `wait_ready()`: polls until a test chat returns `"choices"`
+  (not just `/v1/models`, which answers before being ready for inference).
+- `stop()`: SIGKILL + wait.
+- One model at a time (fixed port, e.g. 8999).
 
-### 4.2 client.py — client HTTP
+### 4.2 client.py — HTTP client
 - `chat(messages, tools=None, max_tokens=..., temperature=...)` → dict.
-- Captura `timings` (gen_tps, prompt_tps, predicted_ms) per a velocitat.
-- Timeout configurable (default 60s).
-- Llegible pel loop d'agent (suporta multi-turn).
+- Captures `timings` (gen_tps, prompt_tps, predicted_ms) for speed.
+- Configurable timeout (default 60s).
+- Readable by the agent loop (supports multi-turn).
 
-### 4.3 executors.py — execució multi-llenguatge + sandbox
-Un executor per idioma. Tots comparteixen la mateixa interfície:
+### 4.3 executors.py — multi-language execution + sandbox
+One executor per language. All share the same interface:
 `run(lang, solution_code, test_code) -> (passed: bool, output: str)`.
 
-| Lang | Solution | Test (grader) | Comanda |
+| Lang | Solution | Test (grader) | Command |
 |---|---|---|---|
 | python | `solution.py` | `test.py` (import + asserts) | `python3 test.py` |
-| bash | `solution.sh` (funcions) | `test.sh` (source + asserts) | `bash test.sh` |
-| java | `Solution.java` (classe+mètode) | `Test.java` (main + asserts) | `javac *.java && java Test` |
+| bash | `solution.sh` (functions) | `test.sh` (source + asserts) | `bash test.sh` |
+| java | `Solution.java` (class+method) | `Test.java` (main + asserts) | `javac *.java && java Test` |
 | typescript | `solution.ts` | `test.ts` (import + asserts) | `bun test.ts` |
 
-**Extracció de codi**: de la resposta del model, es pren el primer bloc
-` ```lang ... ``` ` corresponent al llenguatge de la tasca. Si no n'hi ha → exclosa
-(no compta al score; el motiu queda a la traça).
+**Code extraction**: from the model's response, take the first
+` ```lang ... ``` ` block matching the task language. If none → excluded
+(does not count toward the score; the reason stays in the trace).
 
-**Pressupost de code**: un sol intent amb `CODE_MAX_TOKENS = 32768`, igual per a tots
-els models (decisió del revisor: les tasques expert el necessiten). El rellotge és
-només anti-penjam (derivat del `gen_tps` mesurat, cap a 1000 s). Precondició: tot
-perfil ha de donar context per a prompt + 32768 (els perfils sense `-c` cauen a
+**Code budget**: a single attempt with `CODE_MAX_TOKENS = 32768`, same for all
+models (reviewer decision: expert tasks need it). The clock is
+only an anti-hang guard (derived from measured `gen_tps`, up to 1000 s). Precondition: every
+profile must allow context for prompt + 32768 (profiles without `-c` fall to
 `CONTEXT_FIXED = 16384`).
 
-**Sandbox** (per cada execució):
-- tempdir nou i exclusiu.
-- `timeout 30s` (matat el procés si excedeix).
-- xarxa bloquejada: `unshare -n` si disponible; sinó `env -i` + sense `PATH` de xarxa.
-- `ulimit` (CPU/memòria).
-- Mai s'executa fora del tempdir.
+**Sandbox** (per execution):
+- fresh, exclusive tempdir.
+- `timeout 30s` (kills the process if exceeded).
+- network blocked: `unshare -n` if available; otherwise `env -i` + no network PATH.
+- `ulimit` (CPU/memory).
+- Never runs outside the tempdir.
 
-Toolchains verificats al sistema: Python 3.12, Bash 5.2, Java 22 (jdk+javac),
-Bun 1.3.9 (per TS). Sense pytest → els tests Python fan servir `assert` nus.
+Toolchains verified on the system: Python 3.12, Bash 5.2, Java 22 (jdk+javac),
+Bun 1.3.9 (TS). No pytest → Python tests use bare `assert`.
 
-### 4.4 graders.py — classificació per dimensió
+### 4.4 graders.py — scoring per dimension
 
-**speed**: 1 tasca. Pren `timings.predicted_per_second` (o càlcul
-`predicted_n / (predicted_ms/1000)`). 3 mostres, mediana. Mètriques:
+**speed**: 1 task. Takes `timings.predicted_per_second` (or computes
+`predicted_n / (predicted_ms/1000)`). 3 samples, median. Metrics:
 `gen_tps`, `prompt_tps`, `ttft_ms`.
 
-**tools**: per cada tasca, `{prompt, tools, expected}`. Classificació:
-- `pass` si `message.tool_calls[0].function.name == expected.name` **i**
-  `arguments` (parsejat com JSON) == `expected.arguments`.
-- Cas "no-op": `pass` si **no** hi ha `tool_calls` (no ha d'inventar).
+**tools**: per task, `{prompt, tools, expected}`. Scoring:
+- `pass` if `message.tool_calls[0].function.name == expected.name` **and**
+  `arguments` (parsed as JSON) == `expected.arguments`.
+- "no-op" case: `pass` if there are **no** `tool_calls` (it must not invent one).
 
-**code**: per cada tasca `{lang, prompt, test_code}`. Extrou codi → executor →
-`pass` si exit 0.
+**code**: per task `{lang, prompt, test_code}`. Extract code → executor →
+`pass` if exit 0.
 
-**agent**: delega a `agent.py` (4.5).
+**agent**: delegates to `agent.py` (4.5).
 
-Puntuació per dimensió = `passats / total` (0..1). Velocitat = normalitzada
-respecte el millor tps del conjunt (el més ràpid → 1.0).
+Score per dimension = `passed / total` (0..1). Speed = normalized
+against the best tps in the set (fastest → 1.0).
 
-**Agregació per llenguatge**: les dimensions `code` i `agent` calculen, a més
-del score global de la dimensió, `by_lang` = score per cada idioma present
-(`python|bash|java|typescript`). Les dimensions `tools` i `speed` no són per
-llenguatge (són lang-agnostic). El `report.py` fa servir aquest `by_lang` per
-la Taula 2 i el perfil per llenguatge.
+**Per-language aggregation**: the `code` and `agent` dimensions compute, besides
+the global dimension score, `by_lang` = score per present language
+(`python|bash|java|typescript`). The `tools` and `speed` dimensions are not
+per-language (they are language-agnostic). `report.py` uses this `by_lang` for
+Table 2 and the per-language profile.
 
-### 4.5 agent.py — loop d'agent multi-pas
-Mini-entorn de codi en memòria. Una tasca agent defineix:
+### 4.5 agent.py — multi-step agent loop
+In-memory mini code environment. An agent task defines:
 `{lang, goal, initial_files, max_turns}`.
 
-Eines disponibles per al model: `read_file(path)`, `write_file(path, content)`,
-`run_tests()`. El loop:
+Tools available to the model: `read_file(path)`, `write_file(path, content)`,
+`run_tests()`. The loop:
 ```
 env = dict(initial_files)
 history = [user(goal)]
-per torn en 1..max_turns:
+for turn in 1..max_turns:
     resp = client.chat(history, tools=[read_file, write_file, run_tests])
-    si no hi ha tool_calls: break
-    per cada tool_call:
-        result = execute_tool(tool_call, env, lang)   # muta env / corre tests
+    if no tool_calls: break
+    for each tool_call:
+        result = execute_tool(tool_call, env, lang)   # mutates env / runs tests
         history.append(tool(result))
-success = check_goal(env, lang)   # run_tests final passa?
+success = check_goal(env, lang)   # final run_tests passes?
 ```
-`run_tests()` usa `executors.py` amb el llenguatge de la tasca: escriu els
-fitxers actualials de `env` al tempdir, corre el test, retorna pass/fail + output.
-`check_goal` = `run_tests()` final amb exit 0.
+`run_tests()` uses `executors.py` with the task language: writes the
+current files of `env` to the tempdir, runs the test, returns pass/fail + output.
+`check_goal` = final `run_tests()` with exit 0.
 
-### 4.6 report.py — marcador i detall
-El reporting té **3 nivells de granularitat**:
+### 4.6 report.py — scoreboard and detail
+Reporting has **3 granularity levels**:
 
-**Taula 1 — Global** (sempre, ordenada per puntuació global):
+**Table 1 — Global** (always, sorted by global score):
 ```
 MODEL                          gen_tps   tools   code   agent   GLOBAL
 qwen3-vl-8b                      97.7    88%     75%    67%     0.76
 qwen3-14b                        48.0    100%    88%    83%     0.91
 ```
 
-**Taula 2 — Per llenguatge** (sempre; code i agent desglossats):
+**Table 2 — Per language** (always; code and agent broken down):
 ```
 MODEL                          code:py bas java ts    agent:py bas java ts
 qwen3-14b                          100% 100%  50% 100%        100%  —  50% 100%
 qwen3-vl-8b                        100%  50%   0% 100%         50%  —   0% 100%
 ```
-Cel·la `—` = sense tasques d'aquell idioma per aquella dimensió.
+A `—` cell = no tasks in that language for that dimension.
 
-**Taula 3 — Detall de tasca** (amb `--task`):
+**Table 3 — Task detail** (with `--task`):
 ```
-MODEL            DIM     LANG   TASK              PASS   DETALL
+MODEL            DIM     LANG   TASK              PASS   DETAIL
 qwen3-14b        tools   —      multi-arg         ✓      get_weather(city=Paris)
 qwen3-14b        code    java   implementa-stack  ✗      AssertionError line 12
 qwen3-14b        agent   py     fix-bug-fib       ✓      tests pass (2/2)
@@ -225,32 +225,32 @@ qwen3-vl-8b      code    java   implementa-stack  ✗      no code block found
 ...
 ```
 
-**Nivells de granularitat** (`report.render(level=...)`, `run.py --info/--verbose/--task`):
-- **default**: Taula 1 (scores globals) + secció de tokens per segon.
-- **`--info`**: Taula 1 + Taula 3 (detall de tasca). Respon "en què cada model és bo/malament" mostrant ✓/✗ i el detall de cada tasca de tools/code/agent.
-- **`--verbose` (-v)**: Taula 1 + Taula 2 (per llenguatge). NO inclou el detall de tasca; és el nivell més fi sense per-tasca.
-- **`--task`**: afegix el detall de tasca (Taula 3) a qualsevol nivell. La granularitat es composa: es pot combinar `--verbose` (per-llenguatge) amb `--task` per tenir Taula 1 + Taula 2 + Taula 3.
+**Granularity levels** (`report.render(level=...)`, `run.py --info/--verbose/--task`):
+- **default**: Table 1 (global scores) + tokens-per-second section.
+- **`--info`**: Table 1 + Table 3 (task detail). Answers "what each model is good/bad at" showing ✓/✗ and the detail of every tools/code/agent task.
+- **`--verbose` (-v)**: Table 1 + Table 2 (per language). Does NOT include task detail; it is the finest level without per-task rows.
+- **`--task`**: adds task detail (Table 3) to any level. Granularity composes: you can combine `--verbose` (per-language) with `--task` for Table 1 + Table 2 + Table 3.
 
-El render és tolerant: un model sense una dimensió o sans trace (run parcial o models
-que encara no tenen aquesta granularitat) no falla; les cells bueres es mostren `—`.
+The render is tolerant: a model missing a dimension or trace (partial run or models
+without that granularity yet) does not fail; empty cells show `—`.
 
-**JSON + emmagatzematge incremental** — les taules creixen model a model sense
-re-executar els altres. Dues capes:
-- `results/models/<slug>.json` → **resultat més recent per model** (pool actual,
-  sobreescriu al re-executar aquell model). `<slug>` = nom del model sanejat.
-- `results/runs/<timestamp>-<slug>.json` → **històric** append-only (auditoria,
-  poder comparar runs posteriors).
+**JSON + incremental storage** — tables grow model by model without
+re-running the others. Two layers:
+- `results/models/<slug>.json` → **latest result per model** (current pool,
+  overwrites when re-running that model). `<slug>` = sanitized model name.
+- `results/runs/<timestamp>-<slug>.json` → **append-only history** (audit,
+  compare later runs).
 
-Cada resultat porta metadata de condicions per poder barregar runs de forma
-justa: `context_mode`, `tasks_version` (etiqueta de la suite: "v1" base, "v2" amb el
-nivell hard, "v3" amb el nivell expert), `thinking` (`on`/`off`: cadena de pensament,
-clau del pool junt amb el slug), `weights`, `ts`,
-`server_build` (versió de llama.cpp) i `model_config_flags` (flags extrets de
-`models/<model>.txt`, o null — recorda que des de 2026-10 cada model corre amb
-el seu perfil). El scoreboard avisa (o filtra) si es barregen resultats amb
-condicions diferents.
+Every result carries condition metadata to mix runs fairly:
+`context_mode`, `tasks_version` (suite label: "v1" base, "v2" with the
+hard level, "v3" with the expert level), `thinking` (`on`/`off`: thinking chain,
+pool key together with the slug), `weights`, `ts`,
+`server_build` (llama.cpp version) and `model_config_flags` (flags extracted from
+`models/<model>.txt`, or null — remember that since 2026-10 every model runs
+with its profile). The scoreboard warns (or filters) when results with
+different conditions are mixed.
 
-El JSON per model és:
+The per-model JSON is:
 ```json
 {
   "model": "qwen3-14b",
@@ -277,88 +277,88 @@ El JSON per model és:
   }
 }
 ```
-Runs anteriors es preserven (històric). Suport `--compare <ts1> <ts2>` (futur).
+Previous runs are preserved (history). Supports `--compare <ts1> <ts2>` (future).
 
-**Scoreboard acumulat**: la normalització de velocitat (millor tps → 1.0) i els
-% es recalculen en mostrar, sobre el pool de models carregat (no es guarda
-normalitzat) — així afegir un model més ràpid reescala la resta de forma justa.
+**Accumulated scoreboard**: speed normalization (best tps → 1.0) and the
+percentages are recomputed at display time, over the loaded model pool (not stored
+normalized) — so adding a faster model fairly rescales the rest.
 
-**Perfil per llenguatge** (resum ràpid): el report extreu, per cada model, els
-idiomes on supera el llindar (ex. ≥75%) i els que no — per respondre directament
-"en quins llenguatges m'és fiable aquest model".
+**Per-language profile** (quick summary): the report extracts, per model, the
+languages where it exceeds the threshold (e.g. ≥75%) and the ones it doesn't — to answer
+directly "in which languages is this model reliable for me".
 
-## 5. Puntuació global
+## 5. Global score
 
-Suma ponderada (a `config.py`, configurable):
+Weighted sum (in `config.py`, configurable):
 - Tools: **0.30**
-- Codi: **0.30**
+- Code: **0.30**
 - Agent: **0.25**
-- Velocitat: **0.15**
+- Speed: **0.15**
 
-Velocitat normalitzada (millor tps → 1.0) perquè el raw t/s no domini.
+Speed normalized (best tps → 1.0) so raw t/s doesn't dominate.
 
-## 6. Suite de tasques (~23)
+## 6. Task suite (~23)
 
-| Dimensió | # | Detall |
+| Dimension | # | Detail |
 |---|---:|---|
-| speed | 1 | prompt fix, lang-agnostic |
-| tools | 8 | 1-arg, multi-arg, tria-eina, no-op, args-erronis, encadenament, dependències, refactor |
-| code | 8 | 2 per idioma (bash, python, java, typescript): implementa-funció + arregla-bug |
+| speed | 1 | fixed prompt, language-agnostic |
+| tools | 8 | 1-arg, multi-arg, pick-tool, no-op, wrong-args, chaining, dependencies, refactor |
+| code | 8 | 2 per language (bash, python, java, typescript): implement-function + fix-bug |
 | agent | 6 | python×2, typescript×2, java×1, bash×1 |
 
-Format de cada tasca: fitxer Python amb constants descriptives
-(`PROMPT`, `LANG`, `TEST_CODE`, `EXPECTED`, etc.) — test code com a string.
-Una tasca = un fitxer, autònoma i descrivible.
+Format of each task: Python file with descriptive constants
+(`PROMPT`, `LANG`, `TEST_CODE`, `EXPECTED`, etc.) — test code as a string.
+One task = one file, self-contained and describable.
 
 ## 7. CLI
 
 ```
-benchmark/run.py [opcions]
-  --models all|<llista>        # default: all (models/*.gguf; amb --engine strata: strata-*.json)
-  --engine llama|strata         # motor que serveix el model (default: llama)
+benchmark/run.py [options]
+  --models all|<list>          # default: all (models/*.gguf; with --engine strata: strata-*.json)
+  --engine llama|strata        # engine serving the model (default: llama)
   --context fixed|adapted      # default: fixed (16384)
-  --dims speed,tools,code,agent  # subset; default: totes
-  --lang python,java,...       # filtra tasques de codi/agent per idioma
-  --level easy|hard|expert     # filtra NOMES les tasques de code per nivell (sufix _hard o
-                               # _expert; sense --level s'executen els tres i el score de code es plega)
-  --thinking on|off            # cadena de pensament (default off, via chat_template_kwargs);
-                               # es registra a cada resultat; el pool clava per (slug, thinking)
-  --quick                      # 1 tasca per dimensió (smoke test del harness)
-   -v, --verbose                # Taula 1 + per-llenguatge (Taula 2); NO inclou tasques
-   --task                       # Taula 3 (detall de tasca): mostra on acerta/falla cada model; es composa amb --verbose
-   --info                       # Taula 1 + Taula 3 (detall de tasca)
-  --scoreboard                 # NOMÉS mostra les taules acumulades (sense executar res)
-  --forget <model>             # esborra un model del pool
-  --json                       # només escup el JSON final (per scripts)
+  --dims speed,tools,code,agent  # subset; default: all
+  --lang python,java,...       # filters code/agent tasks by language
+  --level easy|hard|expert     # filters ONLY code tasks by level (suffix _hard or
+                               # _expert; without --level all three run and the code score is folded)
+  --thinking on|off            # thinking chain (default off, via chat_template_kwargs);
+                               # recorded in every result; the pool keys by (slug, thinking)
+  --quick                      # 1 task per dimension (harness smoke test)
+   -v, --verbose                # Table 1 + per-language (Table 2); NO tasks
+   --task                       # Table 3 (task detail): shows where each model succeeds/fails; composes with --verbose
+   --info                       # Table 1 + Table 3 (task detail)
+  --scoreboard                 # ONLY shows the accumulated tables (runs nothing)
+  --forget <model>             # removes a model from the pool
+  --json                       # only dumps the final JSON (for scripts)
   --port N                     # default 8999
   --weights tools=0.3,code=0.3,agent=0.25,speed=0.15
 ```
-**Workflow incremental**:
-- `run.py --models qwen3-vl` → executa i guarda; mostra scoreboard amb tots els
-  models del pool (inicialment només aquest).
-- `run.py --models qwen3-14b` → afegeix al pool; scoreboard amb tots dos.
-- `run.py --scoreboard` → re-imprimeix les taules sense re-executar res.
-- `run.py --models qwen3-vl` (un altre dia) → re-executa i **actualitza** aquell
-  model (sobreescriu); la resta es manté.
+**Incremental workflow**:
+- `run.py --models qwen3-vl` → runs and saves; shows scoreboard with all
+  models in the pool (initially only this one).
+- `run.py --models qwen3-14b` → adds to the pool; scoreboard with both.
+- `run.py --scoreboard` → re-prints the tables without re-running anything.
+- `run.py --models qwen3-vl` (another day) → re-runs and **updates** that
+  model (overwrites); the rest stays.
 
-## 8. Tractament d'errors
+## 8. Error handling
 
-- Model no carrega (OOM, crash) → es marca `serve_failed`, es salta, es continua.
-- Tasca amb error/timeout → es registra `error`, **no** tomba tota la run.
-- Server penjat → `stop()` fort + continua amb el següent.
+- Model fails to load (OOM, crash) → marked `serve_failed`, skipped, continue.
+- Task with error/timeout → recorded as `error`, **does not** kill the whole run.
+- Hung server → hard `stop()` + continue with the next one.
 
-## 9. Fora d'abast (v2+)
+## 9. Out of scope (v2+)
 
-- **Enfocament C** (mini-opencode real end-to-end amb un agent de veritat).
-- Integració directa amb opencode (CLI) per tests de mundo real.
-- Suport multimodal (imatges).
-- Comparació visual entre runs (`--compare` amb HTML).
-- Sandbox amb firejail/bwrap (ara: tempdir+timeout+unshare).
+- **Approach C** (real mini-opencode end-to-end with a true agent).
+- Direct opencode (CLI) integration for real-world tests.
+- Multimodal support (images).
+- Visual comparison between runs (`--compare` with HTML).
+- Sandbox with firejail/bwrap (now: tempdir+timeout+unshare).
 
-## 10. Decisions pendents
+## 10. Pending decisions
 
-Cap — totes les decisions clau estan resoltes:
-- Llenguatges: bash, python, java, typescript (confirmat).
-- Tasques: ~23, extens (confirmat).
-- Context: ambdós modes via flag (confirmat).
-- Orquestració: automàtica (confirmat).
+None — all key decisions are resolved:
+- Languages: bash, python, java, typescript (confirmed).
+- Tasks: ~23, extensible (confirmed).
+- Context: both modes via flag (confirmed).
+- Orchestration: automatic (confirmed).

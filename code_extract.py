@@ -14,18 +14,18 @@ def extract(text, lang):
     if not text:
         return None
     langs = _ALIASES.get(lang, [lang])
-    # 1) Bloc tancat amb l'etiqueta de l'idioma (cas normal).
+    # 1) Closed block with the language tag (normal case).
     for tag in langs:
         m = re.search(r"```" + re.escape(tag) + r"[^\n]*\n(.*?)```", text, re.DOTALL)
         if m:
             return m.group(1)
-    # 2) Bloc pla tancat (sense etiqueta).
+    # 2) Closed plain block (no tag).
     m = re.search(r"```\n(.*?)```", text, re.DOTALL)
     if m:
         return m.group(1)
-    # 3) Fallback: bloc obert sense tancar. Pot passar si la resposta es talla per
-    #    max_tokens a mig bloc de codi (model verbós). Últim recurs: prenem tot el que
-    #    hi ha després de l'obertura.
+    # 3) Fallback: open block, never closed. Can happen if the response is cut by
+    #    max_tokens mid-code-block (verbose model). Last resort: take everything
+    #    after the opening fence.
     for tag in langs:
         m = re.search(r"```" + re.escape(tag) + r"[^\n]*\n(.*)\Z", text, re.DOTALL)
         if m:

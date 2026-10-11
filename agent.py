@@ -2,7 +2,7 @@ import json
 
 from . import config, executors
 
-# Esquema de les tools que es passen al model.
+# Schema of the tools passed to the model.
 TOOLS = [
     {"type": "function", "function": {
         "name": "read_file", "description": "Read a file from the project.",
@@ -23,10 +23,10 @@ TOOLS = [
 
 
 def _get_file(files, name, default=""):
-    """Cerca 'name' a files; si no hi és exacte, prova sense distingir majúscules:
-    java anomena els seus fitxers Solution.java/Test.java (javac exigeix que el
-    fitxer es digui com la classe pública) i cercar-hi 'solution.java' exacte
-    deixava la solució buida: cap tasca d'agent java havia passat mai."""
+    """Searches 'name' in files; if not exact, tries case-insensitively:
+    java names its files Solution.java/Test.java (javac requires the file
+    to be named after the public class) and an exact 'solution.java' lookup
+    left the solution empty: no java agent task had ever passed."""
     if name in files:
         return files[name]
     low = name.lower()
@@ -52,10 +52,10 @@ class MockEnv:
         return f"wrote {len(content)} bytes to {path}"
 
     def run_tests(self):
-        # Conveni unificat per tots els llenguatges: solution.<ext> + test_solution.<ext>
-        # (amb fallback a self.test_file). Abans python estava especialitzat; ara tot
-        # passa pel mateix camí perquè la convenció és coherent. La cerca no distingeix
-        # majúscules (vegeu _get_file: les tasques de java usen Solution.java/Test.java).
+        # Unified convention across languages: solution.<ext> + test_solution.<ext>
+        # (with fallback to self.test_file). Python used to be special-cased; now
+        # everything goes through the same path because the convention is consistent.
+        # The lookup is case-insensitive (see _get_file: java tasks use Solution.java/Test.java).
         ext = config.Lang.exts()[self.lang]
         sol = _get_file(self.files, f"solution{ext}")
         tst = _get_file(self.files, f"test_solution{ext}",
