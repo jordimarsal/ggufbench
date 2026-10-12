@@ -1,5 +1,11 @@
+import shutil
 import unittest
 from ggufbench import executors
+
+# executors._typescript runs `bun` and _java runs `javac`; skip on machines
+# without the toolchain (CI installs bun; ubuntu-latest ships Temurin JDK).
+HAS_BUN = shutil.which("bun") is not None
+HAS_JAVAC = shutil.which("javac") is not None
 
 PY_TEST_PASS = "from solution import *\nassert add(2,3)==5\nprint('OK')\n"
 PY_TEST_FAIL = "from solution import *\nassert add(2,3)==6\n"
@@ -28,6 +34,7 @@ class TestPyExecutor(unittest.TestCase):
         tst = 'source solution.sh\n[ "$(add 2 3)" = "5" ] || exit 1\n'
         r = executors.run("bash", sol, tst)
         self.assertFalse(r["passed"])
+    @unittest.skipUnless(HAS_JAVAC, "javac not installed")
     def test_java_pass(self):
         sol = 'public class Solution { public static int add(int a,int b){ return a+b; } }\n'
         tst = ('public class Test { public static void main(String[] a){\n'
@@ -35,12 +42,14 @@ class TestPyExecutor(unittest.TestCase):
                ' System.out.println("OK"); } }\n')
         r = executors.run("java", sol, tst)
         self.assertTrue(r["passed"], r["output"])
+    @unittest.skipUnless(HAS_JAVAC, "javac not installed")
     def test_java_fail(self):
         sol = 'public class Solution { public static int add(int a,int b){ return a-b; } }\n'
         tst = ('public class Test { public static void main(String[] a){\n'
                ' if (Solution.add(2,3)!=5) throw new RuntimeException("FAIL"); } }\n')
         r = executors.run("java", sol, tst)
         self.assertFalse(r["passed"])
+    @unittest.skipUnless(HAS_BUN, "bun not installed")
     def test_typescript_pass(self):
         sol = 'export function add(a:number,b:number):number { return a+b; }\n'
         tst = 'import { add } from "./solution";\nif (add(2,3)!==5) throw new Error("FAIL");\nconsole.log("OK");\n'
@@ -63,6 +72,7 @@ class TestExtraFiles(unittest.TestCase):
         r = executors.run("bash", sol, tst, extra_files={"fixture.txt": "alpha\nbeta\n"})
         self.assertTrue(r["passed"], r["output"])
 
+    @unittest.skipUnless(HAS_JAVAC, "javac not installed")
     def test_java_helper_class_compiled(self):
         # R3: EXTRA_FILES pot ser una classe de suport compilada amb solution+test
         sol = ('public class Solution { public static int twice(int x){ return Helper.dbl(x); } }\n')
@@ -73,6 +83,7 @@ class TestExtraFiles(unittest.TestCase):
         r = executors.run("java", sol, tst, extra_files={"Helper.java": helper})
         self.assertTrue(r["passed"], r["output"])
 
+    @unittest.skipUnless(HAS_BUN, "bun not installed")
     def test_typescript_imports_extra_module(self):
         sol = ('import { twice } from "./helper";\n'
                'export function quad(x: number): number { return twice(twice(x)); }\n')

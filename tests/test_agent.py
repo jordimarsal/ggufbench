@@ -1,5 +1,9 @@
+import shutil
 import unittest
 from ggufbench import agent
+
+# run_tests for java shells out to javac; skip on machines without the toolchain.
+HAS_JAVAC = shutil.which("javac") is not None
 
 class TestMockEnv(unittest.TestCase):
     def test_read_write(self):
@@ -29,6 +33,7 @@ class TestRunTestsFileLookup(unittest.TestCase):
     Solution.java/Test.java (javac requires file == public class) and an exact
     'solution.java' lookup left the solution empty: they never passed."""
 
+    @unittest.skipUnless(HAS_JAVAC, "javac not installed")
     def test_java_capitalized_files(self):
         sol = 'public class Solution { public static int add(int a,int b){ return a+b; } }\n'
         tst = ('public class Test { public static void main(String[] a){\n'
@@ -39,6 +44,7 @@ class TestRunTestsFileLookup(unittest.TestCase):
         ok, out = e.run_tests()
         self.assertTrue(ok, out)
 
+    @unittest.skipUnless(HAS_JAVAC, "javac not installed")
     def test_java_broken_solution_still_fails(self):
         # the tolerance must not inflate the score: a broken solution fails
         sol = 'public class Solution { public static int add(int a,int b){ return a-b; } }\n'
