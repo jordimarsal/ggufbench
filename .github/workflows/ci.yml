@@ -18,3 +18,23 @@ jobs:
         # The package IS the repo root, so imports resolve from its parent dir —
         # same as the documented local workflow ("run from the workspace root").
         run: cd "$(dirname "$GITHUB_WORKSPACE")" && python3 -m unittest discover -s ggufbench/tests -t .
+
+  mypy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # Dev-only gate (D3): the package itself stays stdlib-only.
+      - name: Install mypy
+        run: pip install mypy
+      - name: Show mypy version
+        run: mypy --version
+      - name: Type-check the scoring core (client, report, config)
+        # Same parent-dir trick as the test job: ggufbench.* module names and its
+        # relative imports only resolve from there. Explicit module list = the
+        # typed contract (D3: the score can never mix types); mypy.ini (permissive)
+        # is passed explicitly because mypy only auto-finds it in the cwd.
+        run: cd "$(dirname "$GITHUB_WORKSPACE")" && mypy --config-file ggufbench/mypy.ini ggufbench/client.py ggufbench/report.py ggufbench/config.py
+

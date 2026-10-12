@@ -1,6 +1,7 @@
 import json
 import urllib.error
 import urllib.request
+from typing import Any
 
 from . import config
 
@@ -29,7 +30,7 @@ def chat(messages, tools=None, tool_choice=None, max_tokens=256,
         return json.loads(r.read().decode("utf-8"))
 
 
-def parse_timings(resp):
+def parse_timings(resp: dict[str, Any]) -> dict[str, float | None] | None:
     t = (resp or {}).get("timings") or {}
     if not t:
         return None
@@ -45,7 +46,7 @@ def parse_timings(resp):
             "prompt_ms": p_ms, "completion_ms": c_ms, "total_ms": p_ms + c_ms if p_ms and c_ms else None}
 
 
-def extract_tool_call(resp):
+def extract_tool_call(resp: dict[str, Any]) -> dict[str, Any] | None:
     try:
         m = resp["choices"][0]["message"]
     except (KeyError, IndexError, TypeError):

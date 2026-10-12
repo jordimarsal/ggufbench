@@ -1,6 +1,7 @@
 import json
 import datetime
 import os
+from typing import Any
 
 from . import config
 
@@ -87,7 +88,7 @@ def forget(model_name):
     return removed
 
 
-def _scores(r):
+def _scores(r: dict[str, Any]) -> dict[str, float]:
     """Score 0..1 per dimension of a model. A missing dimension (partial run) -> 0."""
     sp = r.get("speed") or {}
     return {
@@ -100,7 +101,8 @@ def _scores(r):
     }
 
 
-def _global_score(r, weights, min_speed):
+def _global_score(r: dict[str, Any], weights: dict[str, float],
+                  min_speed: float) -> float:
     """Weighted sum 0..1. Normalized speed: the fastest model (fewest ms) -> 1.0."""
     sc = _scores(r)
     speed_score = (min_speed / sc["speed_ms"]) if (sc["speed_ms"] and min_speed) else 0
@@ -111,7 +113,7 @@ def _global_score(r, weights, min_speed):
 
 
 def lang_profile(pool, lang):
-    prof = {"speed": {}, "tools": {}, "code": {}, "agent": {}}
+    prof: dict[str, dict[str, Any]] = {"speed": {}, "tools": {}, "code": {}, "agent": {}}
     for r in pool:
         for dim in ["code", "agent"]:
             bl = r.get(dim, {}).get("by_lang", {})
