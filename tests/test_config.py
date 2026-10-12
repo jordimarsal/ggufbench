@@ -24,6 +24,17 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(config.slug("qwen3-vl-8b-gguf-q5.k.m"),
                          "qwen3-vl-8b-gguf-q5_k_m")
 
+
+class TestOverride(unittest.TestCase):
+    """config.override: swap constants inside a with block, restore on exit.
+    The sanctioned way for tests to touch config (no hand-edited globals)."""
+
+    def test_sets_inside_and_restores_after(self):
+        original = config.PORT
+        with config.override(PORT=1234):
+            self.assertEqual(config.PORT, 1234)
+        self.assertEqual(config.PORT, original)
+
 if __name__ == "__main__":
     unittest.main()
 class TestTasksVersion(unittest.TestCase):

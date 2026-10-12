@@ -1,3 +1,4 @@
+import contextlib
 from enum import Enum
 from pathlib import Path
 
@@ -9,6 +10,7 @@ RESULTS_DIR = BENCH_DIR / "results"
 RESULTS_MODELS = RESULTS_DIR / "models"
 RESULTS_RUNS = RESULTS_DIR / "runs"
 TOKEN_BUDGETS = RESULTS_DIR / "token_budgets.json"
+POOL_FILE = RESULTS_MODELS / "pool.jsonl"
 
 PORT = 8999
 CONTEXT_FIXED = 16384
@@ -136,3 +138,15 @@ def resolve_context(context_mode, model_path=None) -> int:
     if context_mode == "fixed":
         return CONTEXT_FIXED
     return 8192
+
+
+@contextlib.contextmanager
+def override(**kw):
+    """Replaces config constants inside a with block and restores them on exit.
+    Tests must use this instead of touching globals by hand."""
+    saved = {k: globals()[k] for k in kw}
+    globals().update(kw)
+    try:
+        yield
+    finally:
+        globals().update(saved)

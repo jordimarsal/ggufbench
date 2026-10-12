@@ -6,10 +6,15 @@ from . import config
 
 
 def chat(messages, tools=None, tool_choice=None, max_tokens=256,
-         base_url="http://127.0.0.1:8999", timeout=60, extra=None):
-    """One chat call to /v1/chat/completions. `extra` overwrites/adds body fields
-    (see config.thinking_body: disable the thinking chain so tasks are
+         base_url=None, timeout=60, extra=None):
+    """One chat call to /v1/chat/completions. `base_url=None` resolves from
+    config.PORT (single source of truth: a bare call must not be pinned to a
+    hardcoded port — it already diverged once and talked to the wrong server);
+    the Strata path passes its own URL explicitly. `extra` overwrites/adds body
+    fields (see config.thinking_body: disable the thinking chain so tasks are
     measured under the same conditions)."""
+    if base_url is None:
+        base_url = f"http://127.0.0.1:{config.PORT}"
     body = {"messages": messages, "max_tokens": max_tokens,
             "temperature": config.TEMPERATURE, "seed": config.SEED}
     if tools:

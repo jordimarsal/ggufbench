@@ -36,39 +36,43 @@ class TestClient(unittest.TestCase):
         self.assertEqual(client.first_text(SAMPLE), "")
         self.assertEqual(client.first_text({"choices":[{"message":{"content":"x"}}]}), "x")
 
+def _capture(**kwargs):
+    """Runs client.chat with urlopen stubbed out and returns what the request
+    carried (body, timeout, url) — no network involved."""
+    import json as _json
+    captured = {}
+
+    class _Resp:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return b'{"choices": [{"message": {"content": "hi"}}]}'
+
+    def fake_urlopen(req, timeout=None):
+        captured["body"] = _json.loads(req.data.decode("utf-8"))
+        captured["timeout"] = timeout
+        captured["url"] = req.full_url
+        return _Resp()
+
+    orig = client.urllib.request.urlopen
+    client.urllib.request.urlopen = fake_urlopen
+    try:
+        client.chat([{"role": "user", "content": "hi"}], **kwargs)
+    finally:
+        client.urllib.request.urlopen = orig
+    return captured
+
+
 class TestChatExtra(unittest.TestCase):
     """`extra` adds/overwrites body fields (config.thinking_body)."""
 
-    def _capture(self, **kwargs):
-        import json as _json
-        captured = {}
-
-        class _Resp:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *a):
-                return False
-
-            def read(self):
-                return b'{"choices": [{"message": {"content": "hi"}}]}'
-
-        def fake_urlopen(req, timeout=None):
-            captured["body"] = _json.loads(req.data.decode("utf-8"))
-            captured["timeout"] = timeout
-            return _Resp()
-
-        orig = client.urllib.request.urlopen
-        client.urllib.request.urlopen = fake_urlopen
-        try:
-            client.chat([{"role": "user", "content": "hi"}], **kwargs)
-        finally:
-            client.urllib.request.urlopen = orig
-        return captured["body"]
-
     def test_defaults_without_extra(self):
         from ggufbench import config
-        body = self._capture()
+        body = _capture()["body"]
         self.assertEqual(body["temperature"], config.TEMPERATURE)
         self.assertEqual(body["seed"], config.SEED)
         self.assertNotIn("chat_template_kwargs", body)
@@ -76,13 +80,30 @@ class TestChatExtra(unittest.TestCase):
     def test_extra_merges_into_body(self):
         from ggufbench import config
         from ggufbench import config as cfg
-        body = self._capture(extra=cfg.thinking_body("strata", "off"))
+        body = _capture(extra=cfg.thinking_body("strata", "off"))["body"]
         # the new field is there...
         self.assertEqual(body["chat_template_kwargs"], {"enable_thinking": False})
         # ...and the base fields are kept (the body must still be complete)
         self.assertEqual(body["temperature"], config.TEMPERATURE)
         self.assertEqual(body["max_tokens"], 256)
         self.assertIn("messages", body)
+
+
+class TestChatBaseUrl(unittest.TestCase):
+    """The default base_url resolves from config.PORT (one source of truth):
+    a bare call used to be pinned to 8999 even against Strata (8080) and would
+    silently talk to the wrong server."""
+
+    def test_default_url_built_from_config_port(self):
+        from ggufbench import config
+        with config.override(PORT=8080):
+            url = _capture()["url"]
+        self.assertEqual(url, "http://127.0.0.1:8080/v1/chat/completions")
+
+    def test_explicit_base_url_wins(self):
+        # callers that pass base_url (Strata path) keep working untouched
+        url = _capture(base_url="http://127.0.0.1:1234")["url"]
+        self.assertEqual(url, "http://127.0.0.1:1234/v1/chat/completions")
 
 
 if __name__ == "__main__":

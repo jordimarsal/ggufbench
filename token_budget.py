@@ -11,7 +11,6 @@ import json
 
 from . import config
 
-BUDGET_FILE = config.TOKEN_BUDGETS
 _SCHEMA = 2
 _cache = None
 
@@ -19,7 +18,8 @@ _cache = None
 def _load() -> dict:
     global _cache
     if _cache is None:
-        raw = json.loads(BUDGET_FILE.read_text()) if BUDGET_FILE.exists() else {}
+        raw = (json.loads(config.TOKEN_BUDGETS.read_text())
+               if config.TOKEN_BUDGETS.exists() else {})
         _cache = raw if raw.get("_schema") == _SCHEMA else {}
     return _cache
 
@@ -38,7 +38,7 @@ def put(dim, model_slug, thinking, lang, task_id, value) -> None:
     data[_key(dim, model_slug, thinking, lang, task_id)] = value
     data["_schema"] = _SCHEMA
     config.RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    BUDGET_FILE.write_text(json.dumps(data, indent=2, sort_keys=True, ensure_ascii=False))
+    config.TOKEN_BUDGETS.write_text(json.dumps(data, indent=2, sort_keys=True, ensure_ascii=False))
 
 
 def reset_cache() -> None:

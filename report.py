@@ -4,8 +4,6 @@ import os
 
 from . import config
 
-POOL_FILE = config.RESULTS_MODELS / "pool.jsonl"
-
 
 def _slug_of(result):
     return config.slug(result["model"])
@@ -27,7 +25,7 @@ def save_result(result):
     # replaces it (it used to key on the slug alone, so the second batch would overlap the first).
     pool = [r for r in load_pool() if _key_of(r) != key]
     pool.append(result)
-    with open(POOL_FILE, "w") as f:
+    with open(config.POOL_FILE, "w") as f:
         for r in pool:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
     ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -36,12 +34,12 @@ def save_result(result):
 
 
 def load_pool():
-    if not POOL_FILE.exists():
+    if not config.POOL_FILE.exists():
         return []
     # Dedup by (slug, thinking) keeping the last occurrence (the most recent one:
     # the file is chronological). Isolates duplicates inherited from the append-only era.
     by_key = {}
-    with open(POOL_FILE) as f:
+    with open(config.POOL_FILE) as f:
         for line in f:
             line = line.strip()
             if not line:
@@ -77,13 +75,13 @@ def forget(model_name):
     Returns the number of deleted entries (0 when there is no match), so the caller can
     report it honestly to the user. It used to return ``None`` and stay silent when
     nothing was found, which made the CLI falsely say "deleted"."""
-    if not POOL_FILE.exists():
+    if not config.POOL_FILE.exists():
         return 0
     pool = load_pool()
     keep = [r for r in pool if not _forget_matches(r, model_name)]
     removed = len(pool) - len(keep)
     if removed:
-        with open(POOL_FILE, "w") as f:
+        with open(config.POOL_FILE, "w") as f:
             for r in keep:
                 f.write(json.dumps(r, ensure_ascii=False) + "\n")
     return removed

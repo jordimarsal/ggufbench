@@ -113,10 +113,8 @@ class TestStrata(unittest.TestCase):
 
     def test_strata_python_uses_strata_venv(self):
         import sys as _sys
-        old = config.STRATA_DIR
-        try:
-            with tempfile.TemporaryDirectory() as d:
-                config.STRATA_DIR = Path(d)
+        with tempfile.TemporaryDirectory() as d:
+            with config.override(STRATA_DIR=Path(d)):
                 # no .venv: fallback to the harness' python (the error stays in the log)
                 self.assertEqual(server.strata_python(), _sys.executable)
                 (Path(d) / ".venv" / "bin").mkdir(parents=True)
@@ -127,8 +125,6 @@ class TestStrata(unittest.TestCase):
                 # the command really uses it
                 a = server.strata_command("/c/strata-iq3_xxs.json", 8080)
                 self.assertEqual(a[0], server.strata_python())
-        finally:
-            config.STRATA_DIR = old
 
     def test_strata_server_output_is_logged(self):
         # the server output must not go to DEVNULL: a startup error

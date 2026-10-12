@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from ggufbench import run, report
+from ggufbench import config, run, report
 
 
 def _mk(model="m"):
@@ -21,12 +21,10 @@ class TestForgetCLI(unittest.TestCase):
 
     def setUp(self):
         self.tmpdir = Path(tempfile.mkdtemp())
-        self.old_pool = report.POOL_FILE
-        report.POOL_FILE = self.tmpdir / "pool.jsonl"
+        self.enterContext(config.override(POOL_FILE=self.tmpdir / "pool.jsonl"))
 
     def tearDown(self):
         shutil.rmtree(self.tmpdir)
-        report.POOL_FILE = self.old_pool
 
     def _run(self, argv):
         out, err = io.StringIO(), io.StringIO()
@@ -69,12 +67,10 @@ class TestResolveModelsResolution(unittest.TestCase):
 
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
-        self.old_dir = run.config.MODELS_DIR
-        run.config.MODELS_DIR = self.tmp
+        self.enterContext(config.override(MODELS_DIR=self.tmp))
 
     def tearDown(self):
         shutil.rmtree(self.tmp)
-        run.config.MODELS_DIR = self.old_dir
 
     def test_resolves_bare_name_without_extension(self):
         gguf = self.tmp / "Ornith-1.5-35B-A3B-APEX-MTP-Quality.gguf"
@@ -109,14 +105,12 @@ class TestResolveStrataModels(unittest.TestCase):
 
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
-        self.old_dir = run.config.STRATA_DIR
-        run.config.STRATA_DIR = self.tmp
+        self.enterContext(config.override(STRATA_DIR=self.tmp))
         for n in ("strata-iq3_xxs.json", "strata-iq3_s.json"):
             (self.tmp / n).write_text("{}")
 
     def tearDown(self):
         shutil.rmtree(self.tmp)
-        run.config.STRATA_DIR = self.old_dir
 
     def test_all_globs_strata_configs(self):
         ms = run.resolve_models("all", engine="strata")

@@ -3,7 +3,7 @@ import urllib.error
 import tempfile
 import shutil
 from pathlib import Path
-from ggufbench import graders, token_budget
+from ggufbench import config, graders, token_budget
 
 class FakeClient:
     """Client that can be scripted with a sequence of responses per task."""
@@ -128,12 +128,10 @@ class TestCodeBudget(unittest.TestCase):
     models. Output tokens are recorded in the trace (efficiency)."""
     def setUp(self):
         self.tmpdir = Path(tempfile.mkdtemp())
-        self.old_file = token_budget.BUDGET_FILE
-        token_budget.BUDGET_FILE = self.tmpdir / "tb.json"
+        self.enterContext(config.override(TOKEN_BUDGETS=self.tmpdir / "tb.json"))
         token_budget.reset_cache()
 
     def tearDown(self):
-        token_budget.BUDGET_FILE = self.old_file
         token_budget.reset_cache()
         shutil.rmtree(self.tmpdir)
 

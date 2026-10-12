@@ -2,8 +2,6 @@ import unittest, json, tempfile, shutil
 from pathlib import Path
 from ggufbench import report, config
 
-POOL_FILE = config.RESULTS_MODELS / "pool.jsonl"
-
 W = {"tools": 0.30, "code": 0.30, "agent": 0.25, "speed": 0.15}
 
 
@@ -27,12 +25,10 @@ def mk(model, speed_ms=None, gen_tps=None, prompt_tps=None,
 class TestReport(unittest.TestCase):
     def setUp(self):
         self.tmpdir = Path(tempfile.mkdtemp())
-        self.old_pool_file = report.POOL_FILE
-        report.POOL_FILE = self.tmpdir / "pool.jsonl"
+        self.enterContext(config.override(POOL_FILE=self.tmpdir / "pool.jsonl"))
 
     def tearDown(self):
         shutil.rmtree(self.tmpdir)
-        report.POOL_FILE = self.old_pool_file
 
     def test_save_and_load(self):
         r = mk("m", speed_ms=100)
@@ -50,7 +46,7 @@ class TestReport(unittest.TestCase):
 
     def test_load_pool_dedups_stale_duplicates(self):
         # Entries inherited from the append-only era: several lines with the same slug.
-        path = report.POOL_FILE
+        path = config.POOL_FILE
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w") as f:
             f.write(json.dumps(mk("m", speed_ms=10, tools=0.1)) + "\n")
@@ -143,17 +139,13 @@ class TestReport(unittest.TestCase):
 
     def test_runs_filenames_distinguish_mode(self):
         runs = self.tmpdir / "runs"
-        old_runs = config.RESULTS_RUNS
-        config.RESULTS_RUNS = runs
-        try:
+        with config.override(RESULTS_RUNS=runs):
             report.save_result(mk("m", thinking="off"))
             report.save_result(mk("m", thinking="on"))
             names = sorted(p.name for p in runs.glob("*.json"))
-            self.assertEqual(len(names), 2)
-            self.assertTrue(any(n.endswith("-m-off.json") for n in names), names)
-            self.assertTrue(any(n.endswith("-m-on.json") for n in names), names)
-        finally:
-            config.RESULTS_RUNS = old_runs
+        self.assertEqual(len(names), 2)
+        self.assertTrue(any(n.endswith("-m-off.json") for n in names), names)
+        self.assertTrue(any(n.endswith("-m-on.json") for n in names), names)
 
     def test_forget_removes_both_modes(self):
         report.save_result(mk("m", thinking="off"))

@@ -1,17 +1,16 @@
 import unittest, json, tempfile, shutil
 from pathlib import Path
-from ggufbench import token_budget
+from ggufbench import config, token_budget
 
 
 class TestTokenBudget(unittest.TestCase):
     def setUp(self):
         self.tmpdir = Path(tempfile.mkdtemp())
-        self.old_file = token_budget.BUDGET_FILE
-        token_budget.BUDGET_FILE = self.tmpdir / "token_budgets.json"
+        self.enterContext(config.override(
+            TOKEN_BUDGETS=self.tmpdir / "token_budgets.json"))
         token_budget.reset_cache()
 
     def tearDown(self):
-        token_budget.BUDGET_FILE = self.old_file
         token_budget.reset_cache()
         shutil.rmtree(self.tmpdir)
 
@@ -33,7 +32,7 @@ class TestTokenBudget(unittest.TestCase):
     def test_persists_to_disk(self):
         token_budget.put("code", "m", "off", "python", "fib", 4096)
         token_budget.reset_cache()
-        data = json.loads(token_budget.BUDGET_FILE.read_text())
+        data = json.loads(config.TOKEN_BUDGETS.read_text())
         self.assertIn("code/m/off/python/fib", data)
 
     def test_keys_differ_by_thinking(self):
@@ -46,18 +45,18 @@ class TestTokenBudget(unittest.TestCase):
 
     def test_old_schema_ignored(self):
         # R3: it used to be 16384 (no _schema) -> invisible; it regenerates on the next put
-        token_budget.BUDGET_FILE.write_text(json.dumps({"code/m/off/python/fib": 4096}))
+        config.TOKEN_BUDGETS.write_text(json.dumps({"code/m/off/python/fib": 4096}))
         token_budget.reset_cache()
         self.assertIsNone(token_budget.get("code", "m", "off", "python", "fib"))
         token_budget.put("code", "m", "off", "python", "fib", 8192)
         token_budget.reset_cache()
-        data = json.loads(token_budget.BUDGET_FILE.read_text())
+        data = json.loads(config.TOKEN_BUDGETS.read_text())
         self.assertEqual(data.get("_schema"), 2)
         self.assertEqual(token_budget.get("code", "m", "off", "python", "fib"), 8192)
 
     def test_put_writes_schema(self):
         token_budget.put("code", "m", "off", "python", "fib", 4096)
-        data = json.loads(token_budget.BUDGET_FILE.read_text())
+        data = json.loads(config.TOKEN_BUDGETS.read_text())
         self.assertEqual(data.get("_schema"), 2)
 
 

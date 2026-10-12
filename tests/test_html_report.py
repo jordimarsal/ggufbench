@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from ggufbench import config, html_report, report
+from ggufbench import config, html_report
 
 
 def _mk(name="models/foo.gguf", engine="llama", code_score=0.9, tools_score=0.75,
@@ -151,20 +151,17 @@ class TestMain(unittest.TestCase):
     def test_writes_report_html(self):
         import json
         tmp = Path(tempfile.mkdtemp())
-        old_results, old_pool = config.RESULTS_DIR, report.POOL_FILE
-        config.RESULTS_DIR = tmp / "results"
-        report.POOL_FILE = tmp / "pool.jsonl"
         try:
-            report.POOL_FILE.write_text(json.dumps(_mk()) + "\n")
-            rc = html_report.main()
-            self.assertEqual(rc, 0)
-            out = config.RESULTS_DIR / "report.html"
-            self.assertTrue(out.is_file())
-            self.assertTrue(out.read_text(encoding="utf-8").startswith("<!doctype html>"))
+            with config.override(RESULTS_DIR=tmp / "results",
+                                 POOL_FILE=tmp / "pool.jsonl"):
+                config.POOL_FILE.write_text(json.dumps(_mk()) + "\n")
+                rc = html_report.main()
+                self.assertEqual(rc, 0)
+                out = config.RESULTS_DIR / "report.html"
+                self.assertTrue(out.is_file())
+                self.assertTrue(out.read_text(encoding="utf-8").startswith("<!doctype html>"))
         finally:
             shutil.rmtree(tmp)
-            config.RESULTS_DIR = old_results
-            report.POOL_FILE = old_pool
 
 
 if __name__ == "__main__":
