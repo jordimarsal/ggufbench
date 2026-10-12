@@ -293,10 +293,65 @@ class TestCompare(unittest.TestCase):
         self.assertIn("rank #1 of 2", html)
         self.assertIn("rank #2 of 2", html)
         self.assertIn("RTX 5080 16GB × 2", html)
-        self.assertIn("driver 580.82.09", html)
+        self.assertNotIn("driver 580.82.09", html)            # driver dropped by sanitizer
         self.assertIn("60 GB RAM", html)
         self.assertIn("-c 16384 --flash-attn auto", html)     # model_config_flags
         self.assertIn("not recorded (pre-C5 row)", html)      # bbb predates the env field
+
+    def _fixture_home_path(self):
+        """Row with absolute path under home dir in flags."""
+        m = _mk(name="models/foo.gguf")
+        m["model_config_flags"] = "-c 16384 --mmproj /home/someone/x/mmproj-F16.gguf"
+        return m
+
+    def _fixture_other_abs_path(self):
+        """Row with absolute path outside home dir in flags."""
+        m = _mk(name="models/bar.gguf")
+        m["model_config_flags"] = "--config /opt/secret/thing -c 8192"
+        return m
+
+    def test_sanitize_home_path_in_render_and_compare(self):
+        """Absolute paths under home → ~/basename; other abs paths → [local] basename."""
+        a = self._fixture_home_path()
+        html = html_report.render([a])
+        self.assertIn("~/someone/x/mmproj-F16.gguf", html)
+        self.assertNotIn("/home/someone/", html)
+        a2, b2 = self._pair()
+        a2["model_config_flags"] = "-c 16384 --mmproj /home/someone/x/mmproj-F16.gguf"
+        html_c = html_report.render_compare(a2, b2, pool=[a2, b2])
+        self.assertIn("~/someone/x/mmproj-F16.gguf", html_c)
+        self.assertNotIn("/home/someone/", html_c)
+
+    def test_sanitize_other_abs_path(self):
+        """Paths not under home → [local] basename."""
+        a = self._fixture_other_abs_path()
+        html = html_report.render([a])
+        self.assertIn("[local] thing", html)
+        self.assertNotIn("/opt/secret/", html)
+
+    def test_picker_embedded_json_sanitized(self):
+        """cmp-data block carries sanitized flags/env, not raw ones."""
+        a = _mk("models/foo.gguf")
+        a["model_config_flags"] = "/home/user/a/b.gguf"
+        a["environment"] = {"gpu": ["RTX 5080"], "driver": "99.99", "os": "Linux-test", "ram_gb": 32}
+        html = html_report.render_compare(a, a, pool=[a])
+        # embedded JSON must have redacted path and no driver string
+        self.assertIn('"f":"~/user/a/b.gguf"', html)
+        self.assertNotIn('/home/user/', html)
+        self.assertNotIn('driver', html.split('<script id="cmp-data')[1].split('</script>')[0])
+
+    def test_environment_line_sanitized(self):
+        """Driver version dropped; OS family only (via platform.system()); GPU+RAM kept."""
+        import platform as _platform
+        a = _mk()
+        a["environment"] = {"gpu": ["RTX 5080 16GB", "RTX 5080 16GB"],
+                            "driver": "580.82.09", "os": "Linux-test", "ram_gb": 60}
+        b = _mk("models/bar.gguf")
+        html = html_report.render_compare(a, b, pool=[a, b])
+        self.assertNotIn("driver", html)
+        self.assertIn(_platform.system(), html)
+        self.assertIn("RTX 5080 16GB × 2", html)
+        self.assertIn("60 GB RAM", html)
 
     def test_n1_caveat_visible(self):
         self.assertIn("n=1", self._render())

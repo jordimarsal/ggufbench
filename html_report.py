@@ -19,6 +19,8 @@ Usage:  python3 -m ggufbench.html_report   (writes results/report.html and print
 import datetime
 import html as _html
 import json
+import os
+import re
 import subprocess
 
 from . import config, report as R
@@ -26,6 +28,51 @@ from . import config, report as R
 
 def _esc(s):
     return _html.escape(str(s), quote=True)
+
+
+# Sanitizer: strips sensitive local paths from user-derived text before HTML escaping.
+# Only applied at render time — raw pool/results JSON files are never touched.
+def _sanitize_public(text):
+    """Redact absolute paths that leak local filesystem layout."""
+    if not isinstance(text, str):
+        return text
+    # Token-level sanitizer: split on whitespace, redact paths that start with
+    # /home/<user>/ or /Users/<user>/ (→ ~/subdir/basename), then any other abs path
+    # (→ [local] basename).
+    parts = text.split()
+    out_parts = []
+    for p in parts:
+        if p.startswith('/home/'):
+            sub = p[len('/home/'):]  # strip user dir prefix → ~/rest
+            out_parts.append(f'~/{sub}')
+        elif p.startswith('/Users/'):
+            sub = p[len('/Users/'):]
+            out_parts.append(f'~/{sub}')
+        elif p.startswith('/') and '/' in p[1:]:
+            out_parts.append(f'[local] {os.path.basename(p)}')
+        else:
+            out_parts.append(p)
+    text = ' '.join(out_parts)
+    return text
+
+
+def _sanitize_env(env):
+    """Environment dict → one line WITHOUT driver version; OS family only."""
+    import platform as _platform  # lazy so the module imports without it
+    if not isinstance(env, dict):
+        return None
+    parts = []
+    seen = {}
+    for g in env.get("gpu") or []:
+        seen[g] = seen.get(g, 0) + 1
+    if seen:
+        parts.append(" + ".join(f"{g} × {n}" if n > 1 else g for g, n in seen.items()))
+    # Drop driver; keep GPU names (+VRAM if present) and RAM.
+    os_family = _platform.system()  # "Linux" / "macOS" / "Windows"
+    parts.append(os_family)
+    if env.get("ram_gb"):
+        parts.append(f"{env['ram_gb']} GB RAM")
+    return " · ".join(parts) or None
 
 
 def _gpu_chips():
@@ -297,7 +344,7 @@ def render(pool):
 
     details = []
     for r in rows:
-        flags = _esc(r["flags"]) if r["flags"] else "harness default flags"
+        flags = _esc(_sanitize_public(r["flags"])) if r["flags"] else "harness default flags"
         bl = r["code_by_level"]
         by_level_line = ""
         if bl:
@@ -498,9 +545,9 @@ def _pack(r, rank, total, min_speed):
         "e": r.get("engine", "llama"),
         "b": str(r.get("server_build") or "?"),
         "d": (r.get("ts") or "")[:10],
-        "f": r.get("model_config_flags") or "",
+        "f": _sanitize_public(r.get("model_config_flags") or ""),
         "v": str(r.get("tasks_version") or "?"),
-        "env": _fmt_env(r.get("environment")) or "",
+        "env": _sanitize_env(r.get("environment")) or "",
         "g": R._global_score(r, config.WEIGHTS, min_speed),
         "r": rank,
         "n": total,
