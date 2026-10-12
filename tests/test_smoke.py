@@ -17,14 +17,24 @@ class SmokeTest(unittest.TestCase):
         cls.models = sorted(candidates, key=lambda p: p.stat().st_size)
         cls.has_models = len(cls.models) > 0
         # If there is already a server on the harness port (benchmark running or the
-        # production server), the suite cannot compete for the VRAM: skip.
-        cls.port_busy = False
+        # production server), the suite cannot compete for the VRAM: skip. Strata
+        # (STRATA_PORT) holds the same GPUs, so a listener there skips for the same
+        # reason whichever engine owns them.
+        cls.port_busy = None
         try:
             s = socket.create_connection(("127.0.0.1", config.PORT), timeout=1)
             s.close()
-            cls.port_busy = True
+            cls.port_busy = f"a server is listening on port {config.PORT}: GPUs busy"
         except OSError:
             pass
+        if cls.port_busy is None:
+            try:
+                s = socket.create_connection(("127.0.0.1", config.STRATA_PORT), timeout=1)
+                s.close()
+                cls.port_busy = (f"a server is listening on port {config.STRATA_PORT} "
+                                 "(strata): GPUs busy")
+            except OSError:
+                pass
 
     def test_skip_if_no_models(self):
         if not self.has_models:
@@ -34,7 +44,7 @@ class SmokeTest(unittest.TestCase):
         if not self.has_models:
             self.skipTest("No models found in MODELS_DIR")
         if self.port_busy:
-            self.skipTest(f"a server is listening on port {self.config.PORT}: GPUs busy")
+            self.skipTest(self.port_busy)
 
         from ggufbench import server as S, client as C, graders as G, tasks_loader as T
         from ggufbench import config
