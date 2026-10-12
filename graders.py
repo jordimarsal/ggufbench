@@ -9,8 +9,9 @@ SPEED_MAX_TOKENS = 128
 # A single generous budget (ADR-0002; R3 thinking_batches: starts at 32768 by the
 # reviewer's decision — the expert tasks need it). With fixed seed/temp, max_tokens is a
 # ceiling, not a target: it does not penalize concise models (they stop at EOS anyway).
-# Environment precondition: every model in the pool must have context for prompt + 32768
-# (profiles without -c fall back to CONTEXT_FIXED=16384 and would not fit; see T4 in impl).
+# Environment precondition: every model in the pool must have context for prompt + 32768.
+# CONTEXT_FIXED is 32768 (the whole budget, no room for the prompt), so a profile without
+# -c does NOT meet this precondition: it needs its own -c or the context audit (SPEC §2).
 # Output tokens are recorded in the trace (out_tokens) as an efficiency
 # metric, not a penalty.
 CODE_MAX_TOKENS = 32768

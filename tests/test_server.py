@@ -75,9 +75,35 @@ class TestProfileFlagAllowList(unittest.TestCase):
             return server.build_args(str(Path(d) / name), "fixed", 8999)
 
     def test_allow_listed_flag_passes_through(self):
+        """Allow-listed flags pass through ('--flag value' and '--flag=value').
+        --jinja is NOT allow-listed on purpose: the baseline SERVER_FLAGS already
+        sets it, so the profile's --jinja is dropped + warned, never passed a
+        second time."""
+        f = io.StringIO()
+        with redirect_stderr(f):
+            valid, dropped = server._validate_model_flags(
+                ["--jinja", "--spec-type", "draft-mtp"])
+        self.assertEqual(valid, ["--spec-type", "draft-mtp"])
+        self.assertEqual(dropped, ["--jinja"])
+        self.assertIn("dropped: --jinja", f.getvalue())
+        # the same through the real command line
         a = self._args_with_txt("--jinja\n--spec-type draft-mtp\n")
-        self.assertIn("--jinja", a)
         i = a.index("--spec-type"); self.assertEqual(a[i + 1], "draft-mtp")
+        self.assertEqual(a.count("--jinja"), 1)  # only the baseline one
+
+    def test_dropping_a_flag_does_not_shift_the_following_pairs(self):
+        """Regression: an unknown flag must not swallow the token after it. Each
+        flag is judged on its own, so the allow-listed pair that follows a
+        dropped one still passes through."""
+        f = io.StringIO()
+        with redirect_stderr(f):
+            valid, dropped = server._validate_model_flags(
+                ["--jinja", "--frobnicate", "3", "--ctx-size", "65536",
+                 "--spec-type=draft-mtp"])
+        self.assertEqual(valid, ["--ctx-size", "65536", "--spec-type=draft-mtp"])
+        self.assertEqual(dropped, ["--jinja", "--frobnicate"])
+        self.assertIn("dropped: --jinja", f.getvalue())
+        self.assertIn("dropped: --frobnicate", f.getvalue())
 
     def test_unknown_flag_dropped_with_warning(self):
         f = io.StringIO()
@@ -92,7 +118,8 @@ class TestProfileFlagAllowList(unittest.TestCase):
         with redirect_stderr(f):
             valid, dropped = server._validate_model_flags(["--unknown-flag", "-v"])
         self.assertEqual(valid, [])
-        # both the unknown flag and its value-like token are dropped
+        # a value that starts with "-" is flag-shaped: it is judged as a flag, so
+        # both tokens end up dropped + warned (and neither one swallows the other)
         self.assertIn("--unknown-flag", dropped)
         self.assertIn("-v", dropped)
         self.assertIn("dropped: --unknown-flag", f.getvalue())
@@ -111,10 +138,11 @@ class TestProfileFlagAllowList(unittest.TestCase):
             (Path(d) / "m.txt").write_text(
                 "--jinja\n--frobnicate 3\n--ctx-size 65536\n")
             desc = server.describe_config(Path(d) / "m.gguf")
-        self.assertIn("--jinja", desc)
-        self.assertIn("--ctx-size 65536", desc)
-        self.assertIn("dropped:", desc)
-        self.assertIn("--frobnicate", desc)
+        kept, dropped = desc.split(" | dropped: ")
+        self.assertIn("--ctx-size 65536", kept)  # allow-listed: kept, with its value
+        self.assertIn("--jinja", dropped)         # not allow-listed: dropped + warned
+        self.assertIn("--frobnicate", dropped)
+        self.assertNotIn("--ctx-size", dropped)  # a dropped flag must not shift this pair
 
 
 class TestStrata(unittest.TestCase):

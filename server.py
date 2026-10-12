@@ -107,39 +107,36 @@ def _has_flag(args, *names):
 def _validate_model_flags(raw_args):
     """Filter raw model-profile flags through ALLOWED_MODEL_FLAGS.
 
-    Unknown flag names are dropped with one stderr warning each.
-    Values that look like flags (start with "-") are also dropped as
-    mis-pairings.  Returns (valid_args, [dropped_names]).
+    One pass, no index arithmetic and no mutation of the iterated list: a token
+    starting with "-" is a flag name, and any other token is the value of the
+    flag that precedes it.  Unknown flag names are dropped with one stderr
+    warning each, and their value goes with them (a value is never kept without
+    the flag that carries it).  A value that starts with "-" is a flag-shaped
+    token: it is judged as a flag of its own — dropped and warned when it is
+    not allow-listed — instead of being swallowed as the value of the flag
+    before it, which is what used to shift every pair after a dropped flag.
+    Returns (valid_args, [dropped_names]).
     """
     from . import config
     valid, dropped = [], []
-    i = 0
-    while i < len(raw_args):
-        name = raw_args[i].split("=", 1)[0]
-        if name not in config.ALLOWED_MODEL_FLAGS:
-            # unknown flag → drop it and its value (if present)
-            dropped.append(name)
-            i += 1
-            # consume the following token so we don't re-process it
-            if i < len(raw_args):
-                next_token = raw_args[i]
-                if "=" not in name:  # --flag=value has no separate value
-                    if next_token[0] == "-":
-                        # mis-pairing: both tokens look like flags
-                        dropped.append(next_token)
-                        i += 1
-                    else:
-                        # legitimate value for this unknown flag — skip it
-                        i += 1
+    # the flag kept on the previous step takes its value as a separate token
+    # ('--flag value'); '--flag=value' already carries its value inline
+    keeps_next_token = False
+    for token in raw_args:
+        if not token.startswith("-"):
+            if keeps_next_token:
+                valid.append(token)  # value of a flag that passed the allow-list
+            keeps_next_token = False
             continue
-        # known flag → keep it; skip its value if present
-        valid.append(raw_args[i])
-        i += 1
-        if i < len(raw_args) and raw_args[i][0] != "-" and "=" not in raw_args[i - 1]:
-            valid.append(raw_args[i])
-            i += 1
-    for d in dropped:
-        print(f"\u26a0\ufe0f profile flag not in allow-list, dropped: {d}", file=sys.stderr, flush=True)
+        name = token.split("=", 1)[0]
+        if name in config.ALLOWED_MODEL_FLAGS:
+            valid.append(token)
+            keeps_next_token = "=" not in token
+        else:
+            dropped.append(name)
+            keeps_next_token = False  # its value is dropped together with it
+    for name in dropped:
+        print(f"\u26a0\ufe0f profile flag not in allow-list, dropped: {name}", file=sys.stderr, flush=True)
     return valid, dropped
 
 

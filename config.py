@@ -93,6 +93,9 @@ ALLOWED_MODEL_FLAGS = {
     "--flash-attn", "--no-mmap",
     "--cache-bias", "--cache-type-k", "--cache-type-v",
     "--no-prompt-cache",
+    # template: per-model override of the baseline --jinja (some GGUF
+    # templates break under the jinja path — e.g. qwen36 empty content)
+    "--no-jinja",
     # sampling
     "--temp", "--top-p", "--repeat-penalty",
     "--repeat-last-n", "--presence-penalty", "--frequency-penalty",
@@ -103,7 +106,7 @@ ALLOWED_MODEL_FLAGS = {
     "--spec-type", "--spec-draft-n-max",
     "--draft-min-p",
     # misc
-    "--jinja", "--parallel",
+    "--parallel",
     "--mlock", "--mmap",
     "--log-disable", "--log-prefix",
 }
