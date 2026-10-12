@@ -93,6 +93,10 @@ def grade_tools(client_mod, tasks, max_turns=6, on_task=None, runs=1):
     """
     section_runs = []
     for _run_idx in range(runs):
+        if runs > 1:
+            client_mod.run_index = _run_idx  # per-run seed injection; N==1 keeps it None
+        else:
+            client_mod.run_index = None
         results = []
         for t in tasks:
             try:
@@ -221,6 +225,10 @@ def grade_code(client_mod, tasks, max_turns=8, on_task=None, model_slug=None, ge
     """
     section_runs = []
     for _run_idx in range(runs):
+        if runs > 1:
+            client_mod.run_index = _run_idx  # per-run seed injection; N==1 keeps it None
+        else:
+            client_mod.run_index = None
         results, by_lang = [], {}
         for t in tasks:
             stored = token_budget.get("code", model_slug, thinking, t["lang"], t["id"])
@@ -343,6 +351,10 @@ def grade_agent(client_mod, tasks, max_turns=8, on_task=None, runs=1):
     """
     section_runs = []
     for _run_idx in range(runs):
+        if runs > 1:
+            client_mod.run_index = _run_idx  # per-run seed injection; N==1 keeps it None
+        else:
+            client_mod.run_index = None
         results, by_lang = [], {}
         for t in tasks:
             try:

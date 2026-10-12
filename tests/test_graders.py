@@ -354,6 +354,80 @@ class TestGradersMultiRun(unittest.TestCase):
         self.assertEqual(r["trace"][0]["runs"], [1, 1, 1])
         self.assertEqual(r["runs"], 3)
 
+    def test_tools_seeds_per_run(self):
+        """C1 stage 3: each run uses a different seed (SEED + run_index)."""
+        from ggufbench.run import ClientWrapper
+        captured = []
+        class SeedCap(ClientWrapper):
+            def __init__(self, base_url, extra=None):
+                super().__init__(base_url, extra)
+            def chat(self, *a, **k):
+                # Capture the seed that will be injected by super().chat()
+                seed_val = config.SEED + self.run_index if self.run_index is not None else None
+                captured.append(seed_val)
+                return super().chat(*a, **k)
+        tasks = [{"id": "t", "prompt": "p", "tools": [], "expected": None}]
+        resp = {"choices": [{"finish_reason": "stop", "message": {"content": "ok"}}]}
+        c = SeedCap("http://x", extra=None)
+        graders.grade_tools(c, tasks, runs=3)
+        self.assertEqual(captured, [42, 43, 44])
+
+    def test_code_seeds_per_run(self):
+        """Same seed progression for code dimension."""
+        from ggufbench.run import ClientWrapper
+        captured = []
+        class SeedCap(ClientWrapper):
+            def __init__(self, base_url, extra=None):
+                super().__init__(base_url, extra)
+            def chat(self, *a, **k):
+                seed_val = config.SEED + self.run_index if self.run_index is not None else None
+                captured.append(seed_val)
+                return super().chat(*a, **k)
+        tasks = [{"id": "c", "lang": "python", "prompt": "p",
+                  "test_code": "from solution import *\nassert f()==1\n"}]
+        resp = {"choices": [{"message": {
+            "content": "```python\ndef f():\n    return 1\n```"}}]}
+        c = SeedCap("http://x", extra=None)
+        graders.grade_code(c, tasks, runs=3)
+        self.assertEqual(captured, [42, 43, 44])
+
+    def test_agent_seeds_per_run(self):
+        """Same seed progression for agent dimension."""
+        from ggufbench.run import ClientWrapper
+        captured = []
+        class SeedCap(ClientWrapper):
+            def __init__(self, base_url, extra=None):
+                super().__init__(base_url, extra)
+            def chat(self, *a, **k):
+                seed_val = config.SEED + self.run_index if self.run_index is not None else None
+                captured.append(seed_val)
+                return super().chat(*a, **k)
+        tasks = [{"id": "a", "lang": "python", "goal": "g", "max_turns": 2,
+                  "initial_files": {"solution.py": ""}, "test_file": "test_solution.py"}]
+        # run_agent breaks after turn 1 (no tool_calls in response), so 1 chat/run × 3 runs.
+        c = SeedCap("http://x", extra=None)
+        graders.grade_agent(c, tasks, runs=3)
+        self.assertEqual(len(captured), 3)
+        self.assertEqual(captured, [42, 43, 44])
+
+    def test_n1_no_seed_injected(self):
+        """N==1 compat: seed key must NOT appear when runs==1."""
+        from ggufbench.run import ClientWrapper
+        captured = []
+        class NoSeed(ClientWrapper):
+            def __init__(self, base_url, extra=None):
+                super().__init__(base_url, extra)
+            def chat(self, *a, **k):
+                seed_val = config.SEED + self.run_index if self.run_index is not None else None
+                captured.append(seed_val)
+                return super().chat(*a, **k)
+        tasks = [{"id": "t", "prompt": "p", "tools": [], "expected": None}]
+        resp = {"choices": [{"finish_reason": "stop", "message": {"content": "ok"}}]}
+        c = NoSeed("http://x", extra=None)
+        graders.grade_tools(c, tasks, runs=1)
+        # run_index stays None → no seed injected
+        self.assertIsNone(captured[-1])
+
 
 if __name__ == "__main__":
     unittest.main()

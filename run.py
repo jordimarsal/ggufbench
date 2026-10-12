@@ -120,6 +120,27 @@ def _print_task(dim, info):
           file=sys.stderr, flush=True)
 
 
+class ClientWrapper:
+    """Wraps client.chat and injects per-run seeds for --runs > 1.
+
+    When run_index is set (≥ 0), the request body gets ``{"seed": SEED + run_index}``.
+    For engine=strata this field is harmless — strata simply ignores unknown body keys.
+    When run_index is unset (the default, runs==1), extra passes through unchanged."""
+    def __init__(self, base_url, extra=None):
+        self.base_url, self.extra = base_url, extra
+        self.run_index = None  # None = no seed injection (N==1 compat)
+
+    def chat(self, *a, **k):
+        if self.extra:
+            k.setdefault("extra", dict(self.extra))
+        elif self.run_index is not None:
+            # No thinking body but we need extra for the seed (N==1 compat: never reaches here).
+            k["extra"] = {}
+        if self.run_index is not None:
+            k["extra"]["seed"] = config.SEED + self.run_index
+        return C.chat(*a, base_url=self.base_url, **k)
+
+
 def _level_for_code(dims, level):
     """--level only affects the code dimension; if code is absent, warn and drop it."""
     if not level:
@@ -158,14 +179,6 @@ def _bench_one(model_path, pool, dims, lang_filter, port, quick=False, engine="l
         # both engines); `on` leaves it free. The protocol (dims, tasks, prompts) is untouched.
         extra = config.thinking_body(engine, thinking)
 
-        class ClientWrapper:
-            def __init__(self, base_url, extra=None):
-                self.base_url, self.extra = base_url, extra
-
-            def chat(self, *a, **k):
-                if self.extra:
-                    k.setdefault("extra", self.extra)
-                return C.chat(*a, base_url=self.base_url, **k)
         c = ClientWrapper(model_url, extra)
         times = warmup(c, model_url, n=3, extra=extra)
         result = {"model": mid, "engine": engine, "thinking": thinking,
