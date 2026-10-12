@@ -88,7 +88,7 @@ Public benchmarks are trained on. These tasks are written for this harness, the
 reference solutions never leave the machine, and the models under test are
 consumer-GPU quants of the models people actually run locally. Scores answer
 "*which model should I run?*", not "*how smart is it?*". Full reasoning in
-[`docs/SPEC.md`](docs/SPEC.md) and [`docs/MILLORA.md`](docs/MILLORA.md).
+[`docs/SPEC.md`](docs/SPEC.md).
 
 ## Requirements
 
@@ -102,8 +102,7 @@ consumer-GPU quants of the models people actually run locally. Scores answer
 | feature | state |
 |---|---|
 | offer/question modes, dual-think runs, expert tier, VoiceStudio TTS *(sibling project)* | see `harness/feature_list.json` |
-| full design doc (ca) | [`docs/SPEC.md`](docs/SPEC.md) |
-| improvement roadmap w/ receipts | [`docs/MILLORA.md`](docs/MILLORA.md) |
+| full design doc | [`docs/SPEC.md`](docs/SPEC.md) |
 
 Agent-facing map: [`AGENTS.md`](AGENTS.md) · License: [MIT](LICENSE)
 
