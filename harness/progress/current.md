@@ -50,7 +50,7 @@ checkpoint; multi-file agent C4; P0 README/CI from MILLORA)._
 - **Ad-hoc (direct human order, outside gates):** out_tokens ON vs OFF analysis
   (659 paired instances) + `fix(html_report)`: readable text in the matrix
   (solid background by luminance, no alpha) + think badge in the 8 per-model sections.
-  Suite 189 passed. Commit `089eeb5`. report.html regenerated (22 badges/mode).
+  Suite 189 passed. Commit `d486a5d`. report.html regenerated (22 badges/mode).
 
 ## Next step
 

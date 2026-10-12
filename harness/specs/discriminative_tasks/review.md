@@ -88,7 +88,7 @@ Reviewer: same agent in review mode (hybrid). Commands re-run, not chat claims:
    it), which is the designed honesty — but it flatters the folded score (1.00 over 5
    scorable). Observation for the re-measure, not a defect of this feature (R6
    forbids touching the fold).
-3. **ID remaps in `done` features (§4):** my commit `aabff88` had renamed 2
+3. **ID remaps in `done` features (§4):** my commit `c982cb9` had renamed 2
    tests (`test_easy_and_hard_are_disjoint_and_complete` →
    `test_levels_are_disjoint_and_complete`, verifying a superset;
    `test_v2_marks_hard_tier` → `test_v3_marks_expert_tier`, same mechanism with v3⊃v2)

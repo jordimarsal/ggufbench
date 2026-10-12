@@ -11,7 +11,7 @@ Gate checklist (docs/verification.md):
 - [x] Gates run first-hand: suite (187 tests OK, 1 pre-existing skip) +
   `harness/init.sh` green ×4.
 - [x] Own review (`review.md`): APPROVED verdict + basic security checklist.
-- [x] Commits: `6e732df` (spec) + `5092aa4` (feat) + `541a719` (harness).
+- [x] Commits: `c3402b5` (spec) + `7254e04` (feat) + `ef61d53` (harness).
 - [x] Human approval recorded in `APPROVAL`.
 
 Flow closure: summary moved to `harness/progress/history.md`; next: unlock

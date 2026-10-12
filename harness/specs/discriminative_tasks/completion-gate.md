@@ -18,7 +18,7 @@ Gate checklist (docs/verification.md):
   `tests/test_smoke_evidence.py`).
 - [x] Self review (`review.md`): verdict APPROVED + basic safety checklist
   confirmed + 4 observations (D6, token/think ceiling, ID remaps, restored pool).
-- [x] Commits: `aabff88` (expert tier) + `19305d9` (docs) + `4dc88ec` (harness).
+- [x] Commits: `c982cb9` (expert tier) + `3fc5004` (docs) + `ef116f4` (harness).
 - [x] Human approval recorded in `APPROVAL` (with change Q1: code budget
   starts at 32768, to be implemented in the next feature).
 

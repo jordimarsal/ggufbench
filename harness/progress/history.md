@@ -18,7 +18,7 @@ Feature 1 completed following SDD hybrid: Spec Gate approved (spec-gate.md),
 6 batches with evidence in harness/logs/hard_code_tier/, traceability 8/8 PASS
 (traceability-check.txt), Completion Gate approves (APPROVAL). 16 hard tasks
 (4 per language), --level easy|hard, by_level in the code result,
-tasks_version v2. 137 tests OK. Commit 6054036.
+tasks_version v2. 137 tests OK. Commit b80df2b.
 
 Next feature: 2 remeasure_pool (pending) — re-measure of all models
 with the hard level and the fixed harness (~1 h GPU, never both engines at once).
@@ -50,7 +50,7 @@ untouched. R5 smoke with 2 real models: `log_filter_debug_expert` and `proc_regi
 separate ✓/✗ with gap 100 (smoke-r5.md + mechanical test). Findings: D6 (without `speed` the
 code timeout falls to fixed 90 s) and a 16384 ceiling with empty text on the 27B (think
 hypothesis). Traceability 7/7 + --all PASS (3 obsolete IDs remapped). 165 tests OK.
-Commits aabff88 + 19305d9 + 4dc88ec. Completion Gate approved with a change: code
+Commits c982cb9 + 3fc5004 + ef116f4. Completion Gate approved with a change: code
 budget starts at 32768 (in the next feature).
 
 Next feature: 6 thinking_batches (pending) — dual think/no-think batch +
@@ -66,8 +66,8 @@ mode with `_schema = 2` (16384 era ignored); `CODE_MAX_TOKENS = 32768` + clock c
 1000 (same formula); THINK column + `(N excl.)` in Tables 1/2/3; badge +
 `excluded code` in the HTML; banner intact; docs (SPEC/AGENTS/MILLORA: D6 closed, C2
 updated). Precondition found and solved: 3 profiles without `-c` → `-c 65536`
-(environment, outside git). Traceability 7/7 + --all PASS. 187 tests OK. Commits 6e732df
-+ 5092aa4 + 541a719. Completion Gate approved without changes.
+(environment, outside git). Traceability 7/7 + --all PASS. 187 tests OK. Commits c3402b5
++ 7254e04 + ef61d53. Completion Gate approved without changes.
 
 ## 2026-10-10 — remeasure_pool (done)
 
