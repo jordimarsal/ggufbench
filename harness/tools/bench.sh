@@ -41,7 +41,7 @@ case "$STACK" in
   python)
     if python3 -c "import pytest_benchmark" >/dev/null 2>&1; then
       [ "$JSON" -eq 1 ] || echo "## Runner: pytest-benchmark"
-      if python3 -m pytest -q tests --benchmark-only --benchmark-json=harness/.bench-last.json > "$OUT" 2>&1; then
+      if python3 -m pytest -q tests benchmarks --benchmark-only --benchmark-json=harness/.bench-last.json > "$OUT" 2>&1; then
         [ "$JSON" -eq 1 ] || tail -n 15 "$OUT"
         MEASURED=1
         RESULTS_JSON="$(python3 - <<'PYEOF' 2>/dev/null || echo "[]"
@@ -94,7 +94,11 @@ if [ "$MEASURED" -eq 1 ] \
    && [ -f "harness/.bench-last.json" ]; then
   [ "$JSON" -eq 1 ] || echo ""
   [ "$JSON" -eq 1 ] || echo "## Baseline comparison"
-  if ! python3 - "$BASELINES" "harness/.bench-last.json" "$OUT.regres" <<'PYEOF'; then
+  # local fix vs harness-standard template: the upstream `!` inverted the gate
+  # correct behavior: REJECT=1 when compare script exits non-zero (regressions found),
+  # COMPARED=1 when it exits 0. The old `if ! python3 ...; then` entered on SUCCESS,
+  # setting REJECT=1 — which is useless for a gate that rejects clean runs.
+  if python3 - "$BASELINES" "harness/.bench-last.json" "$OUT.regres" <<'PYEOF'; then
 import json, sys
 base = json.load(open(sys.argv[1]))
 data = json.load(open(sys.argv[2]))
@@ -125,13 +129,15 @@ for name, entry in base.items():
 regres.close()
 sys.exit(1 if reject else 0)
 PYEOF
-COMPARED=1
-    REJECT=1
-  fi
-  if [ -f "$OUT.regres" ]; then
-    REGRESSIONS="$(python3 -c "import json,sys; print(json.dumps([l.strip() for l in open(sys.argv[1]) if l.strip()]))" "$OUT.regres" 2>/dev/null || echo "[]")"
-    rm -f "$OUT.regres"
-  fi
+     COMPARED=1
+   else
+     # regressions found — read the regression list and set REJECT
+     if [ -f "$OUT.regres" ]; then
+       REGRESSIONS="$(python3 -c "import json,sys; print(json.dumps([l.strip() for l in open(sys.argv[1]) if l.strip()]))" "$OUT.regres" 2>/dev/null || echo "[]")"
+       rm -f "$OUT.regres"
+     fi
+     REJECT=1
+   fi
 elif [ "$MEASURED" -eq 1 ]; then
   [ "$JSON" -eq 1 ] || echo ""
   [ "$JSON" -eq 1 ] || echo "No usable baseline in $BASELINES — values recorded only (add entries after review)."

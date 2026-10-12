@@ -1,1 +1,74 @@
-{}
+{
+  "test_extract_closed_blocks": {
+    "mean_ms": 0.01,
+    "thresholds": {
+      "mean_ms": {
+        "warning": 1.5,
+        "critical": 2.0
+      }
+    }
+  },
+  "test_extract_unclosed_fallback": {
+    "mean_ms": 0.009,
+    "thresholds": {
+      "mean_ms": {
+        "warning": 1.5,
+        "critical": 2.0
+      }
+    }
+  },
+  "test_render_pool_24": {
+    "mean_ms": 19.211,
+    "thresholds": {
+      "mean_ms": {
+        "warning": 1.5,
+        "critical": 2.0
+      }
+    }
+  },
+  "test_global_score_loop_1k": {
+    "mean_ms": 0.007,
+    "thresholds": {
+      "mean_ms": {
+        "warning": 1.5,
+        "critical": 2.0
+      }
+    }
+  },
+  "test_load_tools": {
+    "mean_ms": 0.145,
+    "thresholds": {
+      "mean_ms": {
+        "warning": 1.5,
+        "critical": 2.0
+      }
+    }
+  },
+  "test_load_speed": {
+    "mean_ms": 0.032,
+    "thresholds": {
+      "mean_ms": {
+        "warning": 1.5,
+        "critical": 2.0
+      }
+    }
+  },
+  "test_load_code_all_levels": {
+    "mean_ms": 0.939,
+    "thresholds": {
+      "mean_ms": {
+        "warning": 1.5,
+        "critical": 2.0
+      }
+    }
+  },
+  "test_load_agent": {
+    "mean_ms": 0.407,
+    "thresholds": {
+      "mean_ms": {
+        "warning": 1.5,
+        "critical": 2.0
+      }
+    }
+  }
+}
