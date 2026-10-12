@@ -94,10 +94,10 @@ if [ "$MEASURED" -eq 1 ] \
    && [ -f "harness/.bench-last.json" ]; then
   [ "$JSON" -eq 1 ] || echo ""
   [ "$JSON" -eq 1 ] || echo "## Baseline comparison"
-  # local fix vs harness-standard template: the upstream `!` inverted the gate
-  # correct behavior: REJECT=1 when compare script exits non-zero (regressions found),
+  # Fixed upstream in harness-standard (commit 3a0d794): removed the inverted `!`.
+  # Correct behavior: REJECT=1 when compare script exits non-zero (regressions found),
   # COMPARED=1 when it exits 0. The old `if ! python3 ...; then` entered on SUCCESS,
-  # setting REJECT=1 — which is useless for a gate that rejects clean runs.
+  # setting REJECT=1 — which rejected clean runs and accepted regressed ones.
   if python3 - "$BASELINES" "harness/.bench-last.json" "$OUT.regres" <<'PYEOF'; then
 import json, sys
 base = json.load(open(sys.argv[1]))
