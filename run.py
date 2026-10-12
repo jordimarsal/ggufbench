@@ -1,6 +1,7 @@
 import argparse
 import datetime
 import json
+import platform
 import subprocess
 import sys
 from pathlib import Path
@@ -132,6 +133,8 @@ def _bench_one(model_path, pool, dims, lang_filter, port, quick=False, engine="l
                level=None, thinking=None):
     if thinking is None:
         thinking = config.THINKING_DEFAULT
+    # C5: hardware/OS snapshot captured once per model run, before anything else.
+    env = _probe_environment()
     sm = S.ServerManager(model_path, context_mode="fixed", port=port, engine=engine,
                          thinking=thinking)
     mid = model_id(engine, model_path)
@@ -160,7 +163,8 @@ def _bench_one(model_path, pool, dims, lang_filter, port, quick=False, engine="l
                   "ts": datetime.datetime.now().isoformat(timespec="seconds"),
                   "context_mode": "fixed", "tasks_version": config.TASKS_VERSION,
                   "server_build": _server_build(engine), "warmup_times": times,
-                  "model_config_flags": S.describe_config(model_path, engine=engine)}
+                  "model_config_flags": S.describe_config(model_path, engine=engine),
+                  "environment": env}
         lf = set(lang_filter) if lang_filter else None
         if "speed" in dims:
             result["speed"] = G.grade_speed(c, _limit(T.load("speed"), quick), on_task=_print_task)
@@ -204,6 +208,61 @@ def _server_build(engine="llama"):
     except (OSError, subprocess.TimeoutExpired):
         pass
     return "unknown"
+
+
+def _compact_gpu_name(name):
+    """'NVIDIA GeForce RTX 5080' -> 'RTX 5080': strips the vendor prefix but keeps
+    the rest of the name faithful ('NVIDIA A100-SXM4-40GB' keeps its suffixes)."""
+    for prefix in ("NVIDIA GeForce ", "NVIDIA "):
+        if name.startswith(prefix):
+            return name[len(prefix):]
+    return name
+
+
+def _meminfo_ram_gb():
+    """MemTotal from /proc/meminfo as integer GiB (None off-Linux or unreadable)."""
+    try:
+        for line in Path("/proc/meminfo").read_text(encoding="utf-8").splitlines():
+            if line.startswith("MemTotal:"):
+                return round(int(line.split()[1]) / 1024 / 1024)  # kB -> GiB
+    except (OSError, ValueError, IndexError):
+        pass
+    return None
+
+
+def _probe_environment():
+    """Hardware/OS snapshot stored with every result (C5): an old result must be
+    interpretable months later. Best-effort by design — with no nvidia-smi
+    (CPU-only machine, CI) or on any failure it degrades to an empty GPU list
+    while os/ram_gb stay filled, and it never crashes nor stalls a run
+    (subprocess timeout)."""
+    env = {"gpu": [], "driver": None, "os": platform.platform(),
+           "ram_gb": _meminfo_ram_gb()}
+    try:
+        out = subprocess.run(["nvidia-smi", "--query-gpu=name,memory.total,driver_version",
+                              "--format=csv,noheader"],
+                             capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.TimeoutExpired):
+        return env
+    if out.returncode != 0:
+        return env
+    gpus, drivers = [], set()
+    for line in out.stdout.splitlines():
+        parts = [p.strip() for p in line.split(",")]
+        if len(parts) != 3:
+            continue
+        name, mib, driver = parts
+        try:
+            vram = f"{round(int(mib.split()[0]) / 1024)}GB"  # '16311 MiB' -> '16GB'
+        except (ValueError, IndexError):
+            vram = ""  # e.g. '[N/A]': keep the bare name rather than invent a figure
+        gpus.append((_compact_gpu_name(name) + " " + vram).strip())
+        drivers.add(driver)
+    if gpus:
+        env["gpu"] = gpus
+        env["driver"] = ", ".join(sorted(drivers))  # one driver per machine; joined just in case
+    return env
+
 
 def _parse_args(argv=None):
     """Pure CLI parsing (testable without a GPU): every option, including

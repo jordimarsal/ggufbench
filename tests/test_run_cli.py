@@ -1,9 +1,12 @@
 import contextlib
 import io
+import platform
 import shutil
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from ggufbench import config, run, report
 
@@ -200,6 +203,102 @@ class TestServerBuild(unittest.TestCase):
             self.assertEqual(run._server_build("llama"), "1.2.3")
         finally:
             _sp.run = orig
+
+
+KNOWN_ENV = {"gpu": ["RTX 5080 16GB", "RTX 5080 16GB"], "driver": "580.82.09",
+             "os": "Linux-test", "ram_gb": 60}
+
+
+class TestEnvironmentProbe(unittest.TestCase):
+    """C5: every result carries a hardware/OS snapshot. The probe is best-effort:
+    without nvidia-smi (CPU-only, CI) it degrades to an empty GPU list but never
+    raises, and os/ram_gb are always filled."""
+
+    KNOWN = KNOWN_ENV
+
+    def _fake_nvidia_smi(self, stdout, returncode=0):
+        return subprocess.CompletedProcess(args=[], returncode=returncode,
+                                           stdout=stdout, stderr="")
+
+    def test_nvidia_smi_output_is_shaped(self):
+        # One line per GPU: name compacted (vendor prefix out, VRAM in), driver hoisted.
+        out = ("NVIDIA GeForce RTX 5080, 16311 MiB, 580.82.09\n"
+               "NVIDIA GeForce RTX 5080, 16311 MiB, 580.82.09\n")
+        with mock.patch.object(run.subprocess, "run",
+                               return_value=self._fake_nvidia_smi(out)):
+            env = run._probe_environment()
+        self.assertEqual(env["gpu"], ["RTX 5080 16GB", "RTX 5080 16GB"])
+        self.assertEqual(env["driver"], "580.82.09")
+        # os/ram_gb keep their real values even when the GPU side is faked.
+        self.assertEqual(env["os"], platform.platform())
+        self.assertTrue(env["ram_gb"] is None or isinstance(env["ram_gb"], int))
+
+    def test_probe_degrades_without_nvidia_smi(self):
+        # Missing binary (OSError), hung probe (TimeoutExpired) and a failing call
+        # (nonzero exit): gpu empty, driver None, os/ram_gb intact, no exception.
+        cases = [OSError("no such file"),
+                 subprocess.TimeoutExpired(cmd="nvidia-smi", timeout=5),
+                 self._fake_nvidia_smi("", returncode=1)]
+        for exc in cases:
+            with self.subTest(exc=type(exc).__name__):
+                kwargs = {"side_effect": exc} if isinstance(exc, Exception) \
+                    else {"return_value": exc}
+                with mock.patch.object(run.subprocess, "run", **kwargs):
+                    env = run._probe_environment()
+                self.assertEqual(env["gpu"], [])
+                self.assertIsNone(env["driver"])
+                self.assertEqual(env["os"], platform.platform())
+                self.assertTrue(env["ram_gb"] is None or isinstance(env["ram_gb"], int))
+
+    def test_real_probe_never_raises(self):
+        # No-GPU CI safe: gpu may be [], but the snapshot must always be usable.
+        env = run._probe_environment()
+        self.assertIsInstance(env["gpu"], list)
+        self.assertTrue(env["os"])
+        self.assertTrue(env["ram_gb"] is None or env["ram_gb"] > 0)
+        self.assertEqual(sorted(env), ["driver", "gpu", "os", "ram_gb"])
+
+    def test_bench_one_records_environment(self):
+        # The row produced by _bench_one carries the probe dict (helper patched,
+        # not config globals; server/warmup mocked, dims empty -> no grader calls).
+        sm = mock.MagicMock()
+        sm.wait_ready.return_value = True
+        with mock.patch.object(run, "_probe_environment", return_value=self.KNOWN), \
+             mock.patch.object(run.S, "ServerManager", return_value=sm), \
+             mock.patch.object(run, "warmup", return_value=[0.1, 0.1, 0.1]), \
+             contextlib.redirect_stderr(io.StringIO()):
+            res = run._bench_one("fake-model.gguf", [], [], None, 8999)
+        self.assertEqual(res["environment"], self.KNOWN)
+        # Additive only: the pre-existing metadata keys are untouched.
+        self.assertIn("model_config_flags", res)
+        self.assertIn("server_build", res)
+
+
+class TestEnvironmentInSavedRow(unittest.TestCase):
+    """End-to-end through the CLI (mocked server): the row persisted in the pool
+    keeps the environment snapshot. Uses config.override for the tmp results dir."""
+
+    def setUp(self):
+        self.tmpdir = Path(tempfile.mkdtemp())
+        self.enterContext(config.override(POOL_FILE=self.tmpdir / "pool.jsonl",
+                                          RESULTS_MODELS=self.tmpdir / "models",
+                                          RESULTS_RUNS=self.tmpdir / "runs"))
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir)
+
+    def test_main_persists_environment(self):
+        sm = mock.MagicMock()
+        sm.wait_ready.return_value = True
+        with mock.patch.object(run, "_probe_environment", return_value=KNOWN_ENV), \
+             mock.patch.object(run.S, "ServerManager", return_value=sm), \
+             mock.patch.object(run, "warmup", return_value=[0.1, 0.1, 0.1]):
+            out, err = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                run.main(["--models", "fake-model.gguf", "--dims", ""])
+        pool = report.load_pool()
+        self.assertEqual(len(pool), 1)
+        self.assertEqual(pool[0]["environment"], KNOWN_ENV)
 
 
 class TestLevelForCode(unittest.TestCase):
