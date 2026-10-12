@@ -53,6 +53,7 @@ class TestToolsGrader(unittest.TestCase):
         r = graders.grade_tools(FakeClient([resp]), tasks)
         self.assertEqual(r["score"], 0.0)
 
+@unittest.skipUnless(HAS_SANDBOX, "host cannot create isolated namespaces (unshare -Urn); code-execution coverage runs on sandboxed hosts")
 class TestCodeGrader(unittest.TestCase):
     def test_extract_and_run(self):
         tasks = [{"id":"add","lang":"python","prompt":"implement add",
@@ -242,6 +243,7 @@ class TestSpeedGrader(unittest.TestCase):
         self.assertAlmostEqual(r["prompt_tps"], 1000.0)
 
 
+@unittest.skipUnless(HAS_SANDBOX, "host cannot create isolated namespaces (unshare -Urn); code-execution coverage runs on sandboxed hosts")
 class TestTransientErrors(unittest.TestCase):
     """A 500/timeout from the server must only fail the affected task, not abort the run."""
     def _flaky(self, fail_on):

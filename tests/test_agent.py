@@ -65,6 +65,7 @@ class TestRunTestsFileLookup(unittest.TestCase):
         ok, out = e.run_tests()
         self.assertTrue(ok, out)
 
+@unittest.skipUnless(HAS_SANDBOX, "host cannot create isolated namespaces (unshare -Urn); code-execution coverage runs on sandboxed hosts")
 class TestRunAgentScripted(unittest.TestCase):
     def test_scripted_success(self):
         # fake client: first calls write_file with the correct solution, then stops
