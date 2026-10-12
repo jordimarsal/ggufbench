@@ -286,6 +286,7 @@ if __name__ == "__main__":
     unittest.main()
 
 
+@unittest.skipUnless(HAS_SANDBOX, "host cannot create isolated namespaces (unshare -Urn); code-execution coverage runs on sandboxed hosts")
 class TestGradersMultiRun(unittest.TestCase):
     """C1 stage 2 core: --runs N aggregation semantics."""
 
