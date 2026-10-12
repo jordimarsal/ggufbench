@@ -132,16 +132,23 @@ def _level_for_code(dims, level):
 
 
 def _bench_one(model_path, pool, dims, lang_filter, port, quick=False, engine="llama",
-               level=None, thinking=None, runs=1):
+               level=None, thinking=None, runs=1, context_mode="fixed"):
     if thinking is None:
         thinking = config.THINKING_DEFAULT
     # C5: hardware/OS snapshot captured once per model run, before anything else.
     env = _probe_environment()
-    sm = S.ServerManager(model_path, context_mode="fixed", port=port, engine=engine,
+    # D1: the context is resolved once, before the server starts (an `adapted` run
+    # without its audit stops here instead of booting a server for nothing), and the
+    # same values are what build_args puts on the command line and what the receipt
+    # records: the row says which number it was measured with.
+    ctx, ctx_source = S.resolve_context_and_source(model_path, context_mode, engine=engine)
+    sm = S.ServerManager(model_path, context_mode=context_mode, port=port, engine=engine,
                          thinking=thinking)
     mid = model_id(engine, model_path)
     slug = config.slug(mid)
     print(f"→ {slug}: starting server ({engine})...", file=sys.stderr, flush=True)
+    print(f"  context: {ctx if ctx is not None else 'engine default'} ({ctx_source})",
+          file=sys.stderr, flush=True)
     sm.start()
     if not sm.wait_ready():
         sm.stop(); return {"model": mid, "engine": engine, "serve_failed": True}
@@ -163,7 +170,9 @@ def _bench_one(model_path, pool, dims, lang_filter, port, quick=False, engine="l
         times = warmup(c, model_url, n=3, extra=extra)
         result = {"model": mid, "engine": engine, "thinking": thinking,
                   "ts": datetime.datetime.now().isoformat(timespec="seconds"),
-                  "context_mode": "fixed", "tasks_version": config.TASKS_VERSION,
+                  "context_mode": context_mode,
+                  "ctx_resolved": ctx, "ctx_source": ctx_source,
+                  "tasks_version": config.TASKS_VERSION,
                   "server_build": _server_build(engine), "warmup_times": times,
                   "model_config_flags": S.describe_config(model_path, engine=engine),
                   "environment": env}
@@ -291,7 +300,14 @@ def _parse_args(argv=None):
     ap.add_argument("--engine", choices=list(S.ENGINES), default="llama",
                     help="engine that serves the model: llama = llama-server (default); "
                          "strata = serve/server.py with a strata-<model>.json config")
-    ap.add_argument("--context", default="fixed", choices=["fixed", "adapted"])
+    ap.add_argument("--context", default="fixed", choices=["fixed", "adapted"],
+                    help=f"server context, only when the model profile does not pin -c "
+                         f"(a pinned -c always wins): fixed = {config.CONTEXT_FIXED} for "
+                         f"everyone (default, same KV -> comparable speeds); adapted = the "
+                         f"audited ctx_max in {config.AUDIT_FILE} — without the audit the "
+                         f"run raises (run harness/tools/context-audit.py first). "
+                         f"Whatever is used is recorded in every row (ctx_resolved, "
+                         f"ctx_source).")
     ap.add_argument("--dims", default="speed,tools,code,agent")
     ap.add_argument("--lang", default=None)
     ap.add_argument("--level", choices=["easy", "hard", "expert"], default=None,
@@ -438,7 +454,7 @@ def main(argv=None):
         try:
             res = _bench_one(mp, [], dims, lang_filter, port, quick=args.quick,
                              engine=args.engine, level=level, thinking=args.thinking,
-                             runs=args.runs)
+                             runs=args.runs, context_mode=args.context)
             if res.get("serve_failed"):
                 print(f"✗ {mp}: failed to load", file=sys.stderr, flush=True); continue
             R.save_result(res)

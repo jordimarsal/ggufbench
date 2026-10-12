@@ -39,8 +39,17 @@ The end goal is picking the best model for **opencode** (coding agent).
   (`model_config_flags`) to know how each model was measured.
 - **Context (`-c`)**: two modes via the `--context` flag (only if the `.txt`
   does not define it):
-  - `fixed` (default): `16384` for everyone → same KV → comparable speeds.
-  - `adapted`: each model's viable context (the `start-dev-ai.sh` logic).
+  - `fixed` (default): `32768` for everyone → same KV → comparable speeds.
+  - `adapted`: each model's audited viable context — `results/models/context.json`
+    (`{"<slug>": {"ctx_max": int, ...}}`, written by `harness/tools/context-audit.py`).
+    Without the audit the run raises: the estimator this mode described never existed,
+    and a guessed number measures a context nobody verified.
+  The decision lives in one place (`server.resolve_context_and_source`) and every result
+  records it: `context_mode` (what was asked), `ctx_resolved` (the number the server
+  actually got) and `ctx_source` (`profile` = the `.txt`/Strata config pinned it,
+  `baseline` = the harness' `CONTEXT_FIXED`, `audit` = the audited value). Rows from
+  before these fields exist lack them; a row measured at 16384 and one measured at
+  32768 are different conditions — the field is what tells them apart.
 - `--tensor-split` does adapt (multi-GPU, free-VRAM proportion).
 - **Second engine (2026-10): `--engine strata`** — same conditions, different
   runner. The non-identical points:
@@ -144,7 +153,8 @@ One executor per language. All share the same interface:
 models (reviewer decision: expert tasks need it). The clock is
 only an anti-hang guard (derived from measured `gen_tps`, up to 1000 s). Precondition: every
 profile must allow context for prompt + 32768 (profiles without `-c` fall to
-`CONTEXT_FIXED = 16384`).
+`CONTEXT_FIXED = 32768` — the whole budget with no room for the prompt, so they do not
+meet it: they need their own `-c` or the context audit).
 
 **Sandbox** (per execution):
 - fresh, exclusive tempdir.
@@ -247,7 +257,8 @@ re-running the others. Two layers:
   compare later runs).
 
 Every result carries condition metadata to mix runs fairly:
-`context_mode`, `tasks_version` (suite label: "v1" base, "v2" with the
+`context_mode`, `ctx_resolved` + `ctx_source` (the context the server really got and
+where it came from: `profile` / `baseline` / `audit` — §2), `tasks_version` (suite label: "v1" base, "v2" with the
 hard level, "v3" with the expert level), `thinking` (`on`/`off`: thinking chain,
 pool key together with the slug), `weights`, `ts`,
 `server_build` (llama.cpp version) and `model_config_flags` (flags extracted from
@@ -261,6 +272,8 @@ The per-model JSON is:
   "model": "qwen3-14b",
   "ts": "2026-08-03T20:30:00",
   "context_mode": "fixed",
+  "ctx_resolved": 32768,
+  "ctx_source": "baseline",
   "thinking": "off",
   "tasks_version": "v3",
   "server_build": "10250",
@@ -321,7 +334,11 @@ One task = one file, self-contained and describable.
 ggufbench/run.py [options]
   --models all|<list>          # default: all (models/*.gguf; with --engine strata: strata-*.json)
   --engine llama|strata        # engine serving the model (default: llama)
-  --context fixed|adapted      # default: fixed (16384)
+  --context fixed|adapted      # default: fixed (32768). adapted reads the context audit
+                               # (results/models/context.json) and raises without it. A
+                               # profile that pins -c always wins; the resolved value and
+                               # its source are recorded in every row (ctx_resolved,
+                               # ctx_source).
   --dims speed,tools,code,agent  # subset; default: all
   --lang python,java,...       # filters code/agent tasks by language
   --level easy|hard|expert     # filters ONLY code tasks by level (suffix _hard or

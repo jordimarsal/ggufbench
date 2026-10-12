@@ -1,4 +1,8 @@
+import json
+import tempfile
 import unittest
+from pathlib import Path
+
 from ggufbench import config
 
 class TestConfig(unittest.TestCase):
@@ -72,3 +76,78 @@ class TestThinkingBody(unittest.TestCase):
     def test_only_touches_extra_channel(self):
         # R6: the mode must not contaminate prompts/dims: the dict only carries the kwarg
         self.assertEqual(set(config.thinking_body("llama", "off")), {"chat_template_kwargs"})
+
+
+class TestContextFixed(unittest.TestCase):
+    """D3: the baseline context is 32768 (the code budget). Pool rows measured at 16384
+    are a different condition — the row's ctx_resolved is what tells them apart."""
+
+    def test_baseline_matches_the_code_budget(self):
+        self.assertEqual(config.CONTEXT_FIXED, 32768)
+
+    def test_audit_file_lives_with_the_pool(self):
+        # results/models/: the same directory the audit tool writes and the pool reads
+        self.assertEqual(config.AUDIT_FILE, config.RESULTS_MODELS / "context.json")
+
+
+class TestResolveContext(unittest.TestCase):
+    """D1: `adapted` reads the context-audit artifact. There is no silent fallback:
+    the estimator it described never existed, so without the audit it raises."""
+
+    def _audit(self, d, body):
+        p = Path(d) / "context.json"
+        p.write_text(body if isinstance(body, str) else json.dumps(body), encoding="utf-8")
+        return p
+
+    def test_fixed_is_the_baseline_constant(self):
+        self.assertEqual(config.resolve_context("fixed"), config.CONTEXT_FIXED)
+
+    def test_int_passes_through(self):
+        self.assertEqual(config.resolve_context(4096), 4096)
+
+    def test_adapted_reads_the_audited_value(self):
+        with tempfile.TemporaryDirectory() as d:
+            audit = self._audit(d, {"models_foo": {"ctx_max": 120000, "note": "measured"}})
+            with config.override(AUDIT_FILE=audit):
+                self.assertEqual(config.resolve_context("adapted", "models/Foo.gguf"), 120000)
+
+    def test_adapted_without_the_artifact_raises(self):
+        with tempfile.TemporaryDirectory() as d:
+            with config.override(AUDIT_FILE=Path(d) / "no-existeix.json"):
+                with self.assertRaises(ValueError) as cm:
+                    config.resolve_context("adapted", "models/Foo.gguf")
+        self.assertIn("no context audit for models_foo", str(cm.exception))
+        self.assertIn("context-audit.py", str(cm.exception))
+
+    def test_adapted_without_the_slug_raises(self):
+        with tempfile.TemporaryDirectory() as d:
+            audit = self._audit(d, {"altre-model": {"ctx_max": 8000}})
+            with config.override(AUDIT_FILE=audit):
+                with self.assertRaises(ValueError) as cm:
+                    config.resolve_context("adapted", "models/Foo.gguf")
+        self.assertIn("no context audit for models_foo", str(cm.exception))
+
+    def test_adapted_rejects_a_malformed_audit(self):
+        # not JSON, or ctx_max not an int: the same honest error, never a guessed number
+        for body in ("no és json {", '{"models_foo": {"ctx_max": "120000"}}',
+                     '{"models_foo": 120000}'):
+            with self.subTest(body=body):
+                with tempfile.TemporaryDirectory() as d:
+                    audit = self._audit(d, body)
+                    with config.override(AUDIT_FILE=audit):
+                        with self.assertRaises(ValueError):
+                            config.resolve_context("adapted", "models/Foo.gguf")
+
+    def test_adapted_needs_a_model_path(self):
+        with self.assertRaises(ValueError):
+            config.resolve_context("adapted")
+
+    def test_unknown_mode_raises(self):
+        with self.assertRaises(ValueError):
+            config.resolve_context("potser", "models/Foo.gguf")
+
+    def test_audit_key_is_the_identity_the_pool_uses(self):
+        # .gguf path -> config.slug of the path (what the pool stores as `model`);
+        # a Strata config -> its name without extension ('strata-iq3_xxs').
+        self.assertEqual(config.audit_key("models/Foo.gguf"), config.slug("models/Foo.gguf"))
+        self.assertEqual(config.audit_key("/x/Strata/strata-iq3_xxs.json"), "strata-iq3_xxs")

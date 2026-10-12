@@ -186,5 +186,86 @@ class TestStrata(unittest.TestCase):
         self.assertIn("strata-server-8123.log", str(sm.log_path))
 
 
+class TestContextResolution(unittest.TestCase):
+    """D1: one code path decides the context — the same (value, source) build_args puts
+    on the command line and the receipt records. The profile's pin wins over the mode."""
+
+    def _model(self, d, txt_body=None, name="m.gguf"):
+        p = Path(d) / name
+        p.write_bytes(b"x")
+        if txt_body is not None:
+            p.with_suffix(".txt").write_text(txt_body)
+        return str(p)
+
+    def test_txt_pin_is_the_profile_source(self):
+        with tempfile.TemporaryDirectory() as d:
+            mp = self._model(d, "-c 32000\n")
+            self.assertEqual(server.resolve_context_and_source(mp, "fixed"),
+                             (32000, "profile"))
+
+    def test_equals_form_pin_is_detected(self):
+        with tempfile.TemporaryDirectory() as d:
+            mp = self._model(d, "--ctx-size=65536\n")
+            self.assertEqual(server.resolve_context_and_source(mp, "fixed"),
+                             (65536, "profile"))
+
+    def test_without_pin_is_the_baseline(self):
+        with tempfile.TemporaryDirectory() as d:
+            mp = self._model(d)
+            self.assertEqual(server.resolve_context_and_source(mp, "fixed"),
+                             (config.CONTEXT_FIXED, "baseline"))
+
+    def test_build_args_appends_exactly_what_it_resolved(self):
+        # no drift between the decision and the args: one -c, and it is the resolved one
+        with tempfile.TemporaryDirectory() as d:
+            for body in (None, "-c 32000\n"):
+                with self.subTest(txt=body):
+                    mp = self._model(d, body)
+                    ctx, _src = server.resolve_context_and_source(mp, "fixed")
+                    a = server.build_args(mp, "fixed", 8999)
+                    self.assertEqual(a.count("-c"), 1)
+                    self.assertEqual(a[a.index("-c") + 1], str(ctx))
+
+    def test_adapted_without_the_audit_raises(self):
+        with tempfile.TemporaryDirectory() as d:
+            mp = self._model(d)
+            with config.override(AUDIT_FILE=Path(d) / "no-existeix.json"):
+                with self.assertRaises(ValueError) as cm:
+                    server.resolve_context_and_source(mp, "adapted")
+                self.assertIn("no context audit for", str(cm.exception))
+                # the same error before booting a server nobody configured
+                with self.assertRaises(ValueError):
+                    server.build_args(mp, "adapted", 8999)
+
+    def test_adapted_with_the_audit_is_the_audit_source(self):
+        with tempfile.TemporaryDirectory() as d:
+            mp = self._model(d)
+            audit = Path(d) / "context.json"
+            audit.write_text(json.dumps({config.audit_key(mp): {"ctx_max": 120000}}),
+                             encoding="utf-8")
+            with config.override(AUDIT_FILE=audit):
+                self.assertEqual(server.resolve_context_and_source(mp, "adapted"),
+                                 (120000, "audit"))
+
+    def test_non_numeric_pin_is_an_error_not_a_silent_default(self):
+        with tempfile.TemporaryDirectory() as d:
+            mp = self._model(d, "-c molt\n")
+            with self.assertRaises(ValueError) as cm:
+                server.resolve_context_and_source(mp, "fixed")
+            self.assertIn("no numeric value", str(cm.exception))
+
+    def test_strata_config_pin_is_the_profile_source(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "strata-iq3_xxs.json"
+            p.write_text(json.dumps({"args": ["--max-context", "131072"]}), encoding="utf-8")
+            self.assertEqual(server.resolve_context_and_source(str(p), "fixed", engine="strata"),
+                             (131072, "profile"))
+            # a config that pins nothing: the engine chooses, the harness does not invent
+            q = Path(d) / "strata-x.json"
+            q.write_text(json.dumps({"args": ["--pack", "/p"]}), encoding="utf-8")
+            self.assertEqual(server.resolve_context_and_source(str(q), "fixed", engine="strata"),
+                             (None, "engine-default"))
+
+
 if __name__ == "__main__":
     unittest.main()

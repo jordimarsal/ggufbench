@@ -159,7 +159,10 @@ python3 -m ggufbench.html_report                        # writes ggufbench/resul
    by `(slug, thinking)` — both modes coexist; the scoreboard splits them into rows
    with a `THINK` column and exclusions are counted (`100% (7 excl.)`). Code budget:
    a single attempt of **32768** tokens; every profile must allow context for prompt +
-   32768 (without `-c` it falls to `CONTEXT_FIXED = 16384`).
+   32768 (without `-c` it falls to `CONTEXT_FIXED = 32768` — the whole budget with no
+   room for the prompt, so a profile needs its own `-c` or the context audit). Every
+   row records the context it was measured with: `ctx_resolved` + `ctx_source`
+   (`profile` / `baseline` / `audit`); rows without them predate the fields.
 4. **Per-model profile:** `models/<model>.txt` (free flags except infra). Strata: one
    config per model in `Strata/strata-<name>.json`, python from ITS `.venv`.
 5. Strata results identify the model by the config root

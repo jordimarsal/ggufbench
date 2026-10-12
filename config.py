@@ -1,4 +1,5 @@
 import contextlib
+import json
 from enum import Enum
 from pathlib import Path
 
@@ -11,9 +12,16 @@ RESULTS_MODELS = RESULTS_DIR / "models"
 RESULTS_RUNS = RESULTS_DIR / "runs"
 TOKEN_BUDGETS = RESULTS_DIR / "token_budgets.json"
 POOL_FILE = RESULTS_MODELS / "pool.jsonl"
+# Context audit artifact (written by harness/tools/context-audit.py): what `--context
+# adapted` reads. Shape: {"<slug>": {"ctx_max": int, ...}} keyed by audit_key().
+AUDIT_FILE = RESULTS_MODELS / "context.json"
 
 PORT = 8999
-CONTEXT_FIXED = 16384
+# Baseline context for profiles without `-c` (SPEC §2). Raised 16384 -> 32768 with the
+# 32768 code budget (ADR-0002 + R3 thinking_batches): the old value could not even hold
+# prompt + budget. It is a CONDITION: pool rows measured at 16384 are not comparable with
+# rows measured at 32768 — the row's `ctx_resolved`/`ctx_source` is what tells them apart.
+CONTEXT_FIXED = 32768
 
 # --- Second engine: Strata (Qwen3.8-Flash-Next) ----------------------------------------
 # Strata is not llama-server: its own engine (engine/strata) served by serve/server.py,
@@ -164,12 +172,48 @@ def slug(name: str) -> str:
     return s
 
 
+def audit_key(model_path) -> str:
+    """Key of a model in the context-audit artifact: the same identity the pool uses
+    (run.model_id -> config.slug): a .gguf path as is; a Strata config, its name
+    without extension ('strata-iq3_xxs')."""
+    p = Path(model_path)
+    return slug(p.stem if p.suffix == ".json" else str(model_path))
+
+
+def _load_context_audit() -> dict:
+    """The audit artifact as a dict; {} when it does not exist yet (or is not valid
+    JSON) — the caller decides what a missing audit means."""
+    try:
+        data = json.loads(AUDIT_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
 def resolve_context(context_mode, model_path=None) -> int:
+    """Context a run asks the server for.
+
+      int      -> the number itself (a harness pin, no CLI form)
+      "fixed"  -> CONTEXT_FIXED: the same KV for everyone (comparable speeds)
+      "adapted"-> the model's audited viable context: AUDIT_FILE
+                 ({"slug": {"ctx_max": int, ...}}), looked up by audit_key(model_path)
+
+    There is no silent fallback: the estimator `adapted` described never existed, and a
+    guessed number measured a context nobody had verified. Without the audit it raises."""
     if isinstance(context_mode, int):
         return context_mode
     if context_mode == "fixed":
         return CONTEXT_FIXED
-    return 8192
+    if context_mode == "adapted":
+        if model_path is None:
+            raise ValueError("adapted context needs a model path to look up its audit entry")
+        key = audit_key(model_path)
+        entry = _load_context_audit().get(key)
+        if not isinstance(entry, dict) or not isinstance(entry.get("ctx_max"), int):
+            raise ValueError(f"no context audit for {key} — "
+                             f"run harness/tools/context-audit.py first")
+        return entry["ctx_max"]
+    raise ValueError(f"unknown context mode: {context_mode!r} (expected 'fixed' or 'adapted')")
 
 
 @contextlib.contextmanager

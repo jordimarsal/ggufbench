@@ -20,14 +20,61 @@ ENGINES = ("llama", "strata")
 READY_TIMEOUT = {"llama": 240, "strata": config.STRATA_READY_TIMEOUT}
 
 
-def resolve_context(context_mode, model_path=None):
-    """fixed -> CONTEXT_FIXED; int -> int; adapted -> estimate viable (fallback 8192)."""
-    if isinstance(context_mode, int):
-        return context_mode
-    if context_mode == "fixed":
-        return config.CONTEXT_FIXED
-    # adapted: delegate to an external estimator when available; safe fallback
-    return 8192
+# Context flags. The model profile pins it (models/<model>.txt for llama,
+# --max-context in the Strata json); otherwise the harness decides with the mode.
+_CTX_FLAGS = ("-c", "--ctx-size")
+_STRATA_CTX_FLAGS = ("--max-context",)
+
+
+def _pinned_flag_value(raw_args, *names):
+    """Value a profile pins as `-c 32000` or `--ctx-size=65536`; None if it does not
+    pin it.  Only used for flags that are in the allow-list (-c/--ctx-size are), so it
+    does not need the validated list — and must not re-run it: the drop warnings would
+    be printed twice."""
+    for i, a in enumerate(raw_args):
+        name, sep, val = a.partition("=")
+        if name in names:
+            raw = val if sep else (raw_args[i + 1] if i + 1 < len(raw_args) else "")
+            try:
+                return int(raw)
+            except ValueError:
+                raise ValueError(f"profile context pin {name} has no numeric value ({raw!r})")
+    return None
+
+
+def _strata_pinned_context(config_path):
+    """Context a strata-<model>.json pins in its engine args (--max-context)."""
+    try:
+        cfg = json.loads(Path(config_path).read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError):
+        return None
+    args = [str(a) for a in cfg.get("args", [])] if isinstance(cfg, dict) else []
+    return _pinned_flag_value(args, *_STRATA_CTX_FLAGS)
+
+
+def resolve_context_and_source(model_path, context_mode, engine="llama"):
+    """Returns (ctx_resolved: int | None, ctx_source: str): the ONE place that decides
+    the context.  build_args appends exactly what this returns and the receipt records
+    it, so the command line and the row cannot drift.
+
+      "profile"       the model's profile pins it (.txt -c/--ctx-size, or the Strata
+                      config's --max-context) — the profile always wins (SPEC §2)
+      "baseline"      fixed mode (or an explicit int): config.CONTEXT_FIXED
+      "audit"         adapted mode: the audited ctx_max (config.resolve_context)
+      "engine-default" a Strata config that pins no context: the engine chooses its own
+                      number and the harness cannot know it — ctx_resolved is None, and
+                      the row says so instead of inventing a figure.
+
+    adapted without the audit artifact raises (config.resolve_context): there is no
+    silent fallback."""
+    if engine == "strata":
+        pinned = _strata_pinned_context(model_path)
+        return (pinned, "profile") if pinned is not None else (None, "engine-default")
+    pinned = _pinned_flag_value(config.load_model_config_args(model_path), *_CTX_FLAGS)
+    if pinned is not None:
+        return pinned, "profile"
+    return (config.resolve_context(context_mode, model_path),
+            "audit" if context_mode == "adapted" else "baseline")
 
 
 # Harness infrastructure flags: run.py/client.py wire them and the model's
@@ -108,9 +155,11 @@ def build_args(model_path, context_mode, port):
       - the rest (--spec-type, -md, --mmproj, ...) are simply appended."""
     raw = config.load_model_config_args(model_path)
     extra, _dropped = _validate_model_flags(_strip_infra(raw))
+    # Same call the receipt uses: the decision and the args come from one place.
+    ctx, ctx_source = resolve_context_and_source(model_path, context_mode)
     args = [str(config.SERVER_BIN), "-m", str(model_path)]
-    if not _has_flag(extra, "-c", "--ctx-size"):
-        args += ["-c", str(resolve_context(context_mode, model_path))]
+    if ctx_source != "profile":
+        args += ["-c", str(ctx)]
     args += ["--port", str(port), *config.SERVER_FLAGS]
     if not _has_flag(extra, "--cache-type-k"):
         args += [config.CACHE_FLAGS[0], config.CACHE_FLAGS[1]]

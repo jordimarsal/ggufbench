@@ -502,6 +502,69 @@ class TestCompareCli(unittest.TestCase):
         self.assertFalse((config.RESULTS_DIR / "compare.html").exists())
 
 
+class TestContextInSavedRow(unittest.TestCase):
+    """D1: the row records the REAL context — the mode asked, the number the server got
+    and where it came from. Same pattern as TestEnvironmentInSavedRow (mocked server,
+    tmp pool). Rows written before these fields simply lack them."""
+
+    def setUp(self):
+        self.tmpdir = Path(tempfile.mkdtemp())
+        self.enterContext(config.override(POOL_FILE=self.tmpdir / "pool.jsonl",
+                                          RESULTS_MODELS=self.tmpdir / "models",
+                                          RESULTS_RUNS=self.tmpdir / "runs"))
+        self.model = self.tmpdir / "m.gguf"
+        self.model.write_bytes(b"x")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir)
+
+    def _run(self, argv):
+        sm = mock.MagicMock()
+        sm.wait_ready.return_value = True
+        with mock.patch.object(run, "_probe_environment", return_value=KNOWN_ENV), \
+             mock.patch.object(run.S, "ServerManager", return_value=sm), \
+             mock.patch.object(run, "warmup", return_value=[0.1, 0.1, 0.1]):
+            out, err = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                run.main(argv)
+        return out.getvalue(), err.getvalue()
+
+    def test_baseline_row_records_the_constant(self):
+        self._run(["--models", str(self.model), "--dims", ""])
+        row = report.load_pool()[0]
+        self.assertEqual(row["context_mode"], "fixed")
+        self.assertEqual(row["ctx_resolved"], config.CONTEXT_FIXED)
+        self.assertEqual(row["ctx_source"], "baseline")
+
+    def test_profile_pin_is_what_was_used(self):
+        # the mode says what was asked; the row says what actually ran (the pin wins)
+        self.model.with_suffix(".txt").write_text("-c 65536\n", encoding="utf-8")
+        self._run(["--models", str(self.model), "--dims", ""])
+        row = report.load_pool()[0]
+        self.assertEqual(row["context_mode"], "fixed")
+        self.assertEqual(row["ctx_resolved"], 65536)
+        self.assertEqual(row["ctx_source"], "profile")
+
+    def test_adapted_with_the_audit_records_the_audited_value(self):
+        audit = self.tmpdir / "context.json"
+        audit.write_text(json.dumps({config.audit_key(str(self.model)): {"ctx_max": 120000}}),
+                         encoding="utf-8")
+        with config.override(AUDIT_FILE=audit):
+            self._run(["--models", str(self.model), "--dims", "", "--context", "adapted"])
+        row = report.load_pool()[0]
+        self.assertEqual((row["context_mode"], row["ctx_resolved"], row["ctx_source"]),
+                         ("adapted", 120000, "audit"))
+
+    def test_adapted_without_the_audit_saves_nothing(self):
+        # honest failure: no server booted, no row pretending it was measured
+        with config.override(AUDIT_FILE=self.tmpdir / "context.json"):
+            out, err = self._run(["--models", str(self.model), "--dims", "",
+                                  "--context", "adapted"])
+        self.assertIn("no context audit for", err)
+        self.assertIn("context-audit.py", err)
+        self.assertEqual(report.load_pool(), [])
+
+
 if __name__ == "__main__":
     unittest.main()
 
