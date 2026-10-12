@@ -14,10 +14,10 @@ No cloud, no APIs, no puzzles. The scoreboard answers one question:
 
 ## Scoreboard
 
-12 models × 2 thinking modes (off / on), harness v3, measured 2026-10-10/11
+12 models × 2 thinking modes (off / on), harness v3, measured 2026-10-10/12
 on 2× RTX 5080. `excl.` = tasks excluded with a recorded reason (never silent).
 Scores are single-sample (n=1 per task, fixed seed): the table **orders**
-models on this harness — it does not certify close ranks.
+models on this harness — it does not certify close ranks. Strata rows re-measured today with engine 0.1.43.
 
 Live rendered report: <https://jordimarsal.github.io/ggufbench/> ·
 regenerate locally with `harness/tools/publish-report.sh` after a re-measure.
@@ -33,12 +33,12 @@ regenerate locally with `harness/tools/publish-report.sh` after a re-measure.
 | `huihui-ornith-1_5-35b-a3b-abliterated_i1-iq3_s` | off | 100% | 82% | 92% | 32ms | 0.85 |
 | `qwen3_8-27b-ud-q5_k_m` | off | 100% | 82% | 96% | 40ms | 0.84 |
 | `qwen3_8-27b-coder390-efficientthink-q4lynnstyle-mtp` | on | 100% | 95% | 100% | 681ms | 0.84 |
-| `strata-iq3_xxs` | off | 88% | 90% | 100% | 43ms | 0.84 |
+| `strata-iq3_xxs` | off | 100% | 92% | 100% | 46ms | 0.88 |
 | `qwen3_8-27b-heretic-q4_k_m` | off | 100% | 87% | 100% | 92ms | 0.84 |
 | `qwen3_8-27b-ud-q5_k_m` | on | 100% | 96% (4 excl.) | 96% | 665ms | 0.83 |
 | `qwen3_8-27b-ud-q3_k_xl` | on | 100% | 95% (2 excl.) | 96% | 629ms | 0.83 |
 | `qwen3_8-27b-turbofcfusion-735-882-here-uncen-neo-coder-max-mtp-q4_k_s` | on | 100% | 92% (1 excl.) | 100% | 1707ms | 0.83 |
-| `strata-iq3_xxs` | on | 100% | 93% | 96% | 465ms | 0.82 |
+| `strata-iq3_xxs` | on | 100% | 93% | 96% | 578ms | 0.82 |
 | `ornith-1_5-35b-a3b-apex-mtp-quality` | on | 100% | 92% (1 excl.) | 92% | 388ms | 0.81 |
 | `huihui-ornith-1_5-35b-a3b-abliterated_i1-iq3_s` | on | 100% | 90% | 92% | 403ms | 0.81 |
 | `qwen3-vl-8b-instruct-1m-q6_k` | off | 100% | 73% | 88% | 37ms | 0.80 |

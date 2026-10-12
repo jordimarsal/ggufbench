@@ -1,3 +1,5 @@
+from typing import Any
+
 import statistics
 import urllib.error
 
@@ -61,7 +63,15 @@ def grade_speed(client_mod, tasks, on_task=None):
             "prompt_tps": _mean_field("prompt_tps")}
 
 
-def _args_equal(got, expected):
+def _args_equal(got: Any, expected: Any) -> bool:
+    """Compare two JSON-parsed arguments for equality.
+
+    Both ``got`` and ``expected`` are values extracted from parsed JSON
+    (strings, numbers, lists, dicts, booleans, or ``None``). The function
+    returns ``True`` when they match via Python's ``==``, handling the
+    common case where one side is ``None`` (no argument present) and the
+    other is not.
+    """
     if expected is None:
         return got is None
     if got is None:
