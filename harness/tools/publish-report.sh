@@ -10,6 +10,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 REPORT="$REPO_ROOT/results/report.html"
+COMPARE="$REPO_ROOT/results/compare.html"
 
 # 1. fresh render from the local pool (package import needs the parent dir,
 #    same rule as every other command: see AGENTS.md §Commands)
@@ -17,15 +18,22 @@ cd "$REPO_ROOT/.."
 python3 -m ggufbench.html_report
 [ -f "$REPORT" ] || { echo "no report at $REPORT (empty pool?)"; exit 1; }
 
+# 1b. head-to-head compare page (MILLORA §4.4): default pair = top of the
+#     scoreboard vs the same model in the other thinking mode. Best effort:
+#     it is only pushed when it gets written (pool with 2+ rows).
+python3 -c "from ggufbench import html_report as h; p = h.write_default_compare(); print('compare page:', p if p else 'skipped (needs 2+ pool rows)')"
+
 # 2. ship it as the gh-pages root: temp repo, orphan branch, one file
 SLUG="$(git -C "$REPO_ROOT" remote get-url origin | sed -E 's#.*github\.com[:/]##; s#\.git$##')"
 MAIN_SHA="$(git -C "$REPO_ROOT" rev-parse --short HEAD)"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 cp "$REPORT" "$TMP/index.html"
+if [ -f "$COMPARE" ]; then cp "$COMPARE" "$TMP/compare.html"; fi
 git -C "$TMP" init -q
 git -C "$TMP" checkout -q -b gh-pages
 git -C "$TMP" add index.html
+if [ -f "$TMP/compare.html" ]; then git -C "$TMP" add compare.html; fi
 git -C "$TMP" commit -q -m "publish: scoreboard report $(date -u '+%Y-%m-%d %H:%M UTC') (main $MAIN_SHA)"
 git -C "$TMP" remote add origin "$(git -C "$REPO_ROOT" remote get-url origin)"
 git -C "$TMP" push -q --force origin gh-pages

@@ -164,5 +164,182 @@ class TestMain(unittest.TestCase):
             shutil.rmtree(tmp)
 
 
+class TestCompare(unittest.TestCase):
+    """MILLORA §4.5: the compare view — winner coloring per metric, delta math,
+    tie handling (neutral, no color), mixed-conditions banner, exclusions visible,
+    header cards and the self-contained + picker contract."""
+
+    def _pair(self):
+        """aaa wins code (+80%) and throughput (+25%); bbb wins latency (+20%);
+        tools/agent/prompt-tps are exact ties; code levels missing on both sides."""
+        a = _mk("models/aaa.gguf", code_score=0.9, thinking="off")
+        b = _mk("models/bbb.gguf", code_score=0.5, thinking="off")
+        a["speed"].update(speed_ms=100, gen_tps=125.0, prompt_tps=300.0)
+        b["speed"].update(speed_ms=80, gen_tps=100.0, prompt_tps=300.0)
+        return a, b
+
+    def _render(self, **kw):
+        a, b = self._pair()
+        return html_report.render_compare(a, b, pool=[a, b], **kw)
+
+    def _static(self, html):
+        """Server-rendered body only: the inline JS source builds the same markup,
+        so literal counting must skip the script blocks."""
+        return html.split('<div id="cmp-body">', 1)[1].split("</main>", 1)[0]
+
+    def test_winner_coloring_and_verdict(self):
+        # better green, worse red, and the winner's delta % in the verdict line
+        html = self._render()
+        self.assertIn('<div class="mval good">90%</div>', html)      # aaa code wins
+        self.assertIn('<div class="mval bad">50%</div>', html)       # bbb code loses
+        self.assertIn('<div class="verdict good">Better code overall. +80%</div>', html)
+        self.assertIn('<div class="mval good">80 ms</div>', html)    # bbb latency wins (lower)
+        self.assertIn('<div class="mval bad">100 ms</div>', html)
+        self.assertIn('<div class="verdict good">Faster prompt + reply latency. +20%</div>', html)
+        self.assertIn('<div class="verdict good">Faster generation. +25%</div>', html)
+        self.assertIn('<div class="verdict good">Higher weighted global. +14%</div>', html)
+        self.assertIn('<div class="verdict good">Higher pool rank. +50%</div>', html)
+
+    def test_judge_delta_math(self):
+        # exact winner/delta pairs; delta is the winner's improvement over the loser
+        self.assertEqual(html_report._judge(125.0, 100.0, False), (0, 25.0))
+        self.assertEqual(html_report._judge(100.0, 125.0, False), (1, 25.0))
+        self.assertEqual(html_report._judge(80, 100, True)[0], 0)
+        self.assertAlmostEqual(html_report._judge(80, 100, True)[1], 20.0)
+        self.assertEqual(html_report._judge(5.0, 5.0, False), (None, None))   # tie
+        self.assertEqual(html_report._judge(None, 5.0, False), (None, None))  # missing
+        self.assertEqual(html_report._judge(3.0, 0.0, False), (0, None))      # no baseline
+
+    def test_fmt_delta(self):
+        self.assertEqual(html_report._fmt_delta(24.0), "+24%")
+        self.assertEqual(html_report._fmt_delta(9.46), "+9.5%")   # small wins stay visible
+        self.assertEqual(html_report._fmt_delta(None), "")
+
+    def test_tie_neutral_no_verdict(self):
+        # equal values -> neutral class, no color, no % verdict
+        static = self._static(self._render())
+        self.assertIn('<div class="mval tie">75%</div>', static)        # tools 0.75 both
+        self.assertIn('<div class="mval tie">300 t/s</div>', static)    # prompt tps both
+        self.assertEqual(static.count('<span class="tie">tie</span>'), 3)
+        self.assertNotIn("Better tool-calling.", static)
+
+    def test_split_section_gets_no_badge(self):
+        # Speed splits 1-1 (aaa: gen t/s; bbb: latency) -> no summary badge there
+        static = self._static(self._render())
+        self.assertIn("<h2>Speed</h2>", static)
+        self.assertIn("<h2>Tools</h2>", static)      # all ties -> no badge
+        self.assertIn("<h2>Agent</h2>", static)
+        # Global and Code are won outright: badge = mean of the won deltas
+        self.assertIn('<h2>Global <span class="secbadge good"', static)
+        self.assertIn("+32%</span></h2>", static)    # mean(+14%, +50%)
+        self.assertIn('<h2>Code <span class="secbadge good"', static)
+        self.assertIn("+80%</span></h2>", static)
+
+    def test_missing_metric_is_neutral_dash(self):
+        static = self._static(self._render())
+        self.assertEqual(static.count('<div class="mval miss">—</div>'), 6)  # 3 levels x 2 sides
+        self.assertEqual(static.count('<div class="verdict"><span class="miss">—</span></div>'), 3)
+
+    def test_exclusions_visible_per_metric(self):
+        a, b = self._pair()
+        a["code"]["excluded"] = 4
+        a["code"]["by_level"] = {"hard": 0.25}
+        a["code"]["trace"] = [{"id": "x", "level": "hard", "excluded": True},
+                              {"id": "y", "level": "hard", "excluded": True}]
+        html = html_report.render_compare(a, b, pool=[a, b])
+        # 90% with 4 exclusions must not read as a clean win
+        self.assertIn('<div class="mval good">90% <small>(4 excl.)</small></div>', html)
+        # single-sided tier (bbb has no by_level): neutral, no winner coloring
+        self.assertIn('<div class="mval">25% <small>(2 excl.)</small></div>', html)
+
+    def test_mixed_conditions_banner(self):
+        self.assertNotIn("Mixed conditions", self._static(self._render()))  # same ts + version
+        a, b = self._pair()
+        b["ts"] = "2026-09-01T10:00:00"
+        static = self._static(html_report.render_compare(a, b, pool=[a, b]))
+        self.assertIn("Mixed conditions", static)
+        self.assertIn("2026-10-09 · tasks v1 vs 2026-09-01", static)
+        a2, b2 = self._pair()
+        b2["tasks_version"] = "v2"                    # same day, older tasks -> also mixed
+        self.assertIn("Mixed conditions",
+                      self._static(html_report.render_compare(a2, b2, pool=[a2, b2])))
+
+    def test_header_cards_content(self):
+        a, b = self._pair()
+        a["environment"] = {"gpu": ["RTX 5080 16GB", "RTX 5080 16GB"],
+                            "driver": "580.82.09", "os": "Linux-test", "ram_gb": 60}
+        html = html_report.render_compare(a, b, pool=[a, b])
+        self.assertIn("rank #1 of 2", html)
+        self.assertIn("rank #2 of 2", html)
+        self.assertIn("RTX 5080 16GB × 2", html)
+        self.assertIn("driver 580.82.09", html)
+        self.assertIn("60 GB RAM", html)
+        self.assertIn("-c 16384 --flash-attn auto", html)     # model_config_flags
+        self.assertIn("not recorded (pre-C5 row)", html)      # bbb predates the env field
+
+    def test_n1_caveat_visible(self):
+        self.assertIn("n=1", self._render())
+
+    def test_self_contained_with_picker(self):
+        html = self._render()
+        self.assertTrue(html.startswith("<!doctype html>"))
+        self.assertNotIn("http://", html)
+        self.assertNotIn("https://", html)
+        # inline picker: two selects + swap + embedded compact pool JSON
+        self.assertIn('<select id="sel-a"', html)
+        self.assertIn('<select id="sel-b"', html)
+        self.assertIn('id="swap"', html)
+        self.assertIn('id="cmp-data"', html)
+        self.assertIn('"s":"aaa"', html)
+        self.assertIn('"s":"bbb"', html)
+
+    def test_escaped_flags(self):
+        a, b = self._pair()
+        a["model_config_flags"] = "-c 16384 <script>alert(1)</script>"
+        html = html_report.render_compare(a, b, pool=[a, b])
+        self.assertNotIn("<script>alert", html)
+        self.assertIn("&lt;script&gt;", html)
+
+
+class TestCompareWrite(unittest.TestCase):
+    """write_default_compare: same render+path ownership as write_default_report."""
+
+    def test_writes_compare_html_with_default_pair(self):
+        import json
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            with config.override(RESULTS_DIR=tmp / "results",
+                                 POOL_FILE=tmp / "pool.jsonl"):
+                off = _mk("models/top.gguf", thinking="off")
+                on = _mk("models/top.gguf", thinking="on")
+                on["code"]["score"] = 0.7
+                config.POOL_FILE.write_text(
+                    json.dumps(off) + "\n" + json.dumps(on) + "\n", encoding="utf-8")
+                out = html_report.write_default_compare()
+                self.assertTrue(out.is_file())
+                self.assertEqual(out.name, "compare.html")
+                self.assertTrue(out.read_text(encoding="utf-8").startswith("<!doctype html>"))
+        finally:
+            shutil.rmtree(tmp)
+
+    def test_default_pair_prefers_same_model_other_mode(self):
+        top_off = _mk("models/top.gguf", thinking="off")
+        top_on = _mk("models/top.gguf", thinking="on")
+        other = _mk("models/other.gguf", thinking="off")
+        top_off["code"]["score"] = 0.99                     # clearly the top row
+        a, b = html_report._default_pair([other, top_on, top_off])
+        self.assertEqual(config.slug(a["model"]), config.slug(b["model"]))
+        self.assertEqual({a.get("thinking"), b.get("thinking")}, {"off", "on"})
+
+    def test_no_pair_no_write(self):
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            with config.override(RESULTS_DIR=tmp):
+                self.assertIsNone(html_report.write_default_compare(pool=[]))
+                self.assertIsNone(html_report.write_default_compare(pool=[_mk()]))
+        finally:
+            shutil.rmtree(tmp)
+
+
 if __name__ == "__main__":
     unittest.main()

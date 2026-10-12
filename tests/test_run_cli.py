@@ -396,5 +396,96 @@ class TestHtmlFlag(unittest.TestCase):
         self.assertIn("pool is empty", err)
 
 
+class TestCompareCli(unittest.TestCase):
+    """--compare: head-to-head page from the accumulated pool (read-only, same
+    source as --scoreboard). Missing rows must be a clear error listing the
+    available slug,think keys and the closest slugs; success writes
+    results/compare.html and prints the path (same voice as --html)."""
+
+    def setUp(self):
+        self.tmpdir = Path(tempfile.mkdtemp())
+        self.enterContext(config.override(POOL_FILE=self.tmpdir / "pool.jsonl",
+                                          RESULTS_DIR=self.tmpdir / "results",
+                                          RESULTS_MODELS=self.tmpdir / "models",
+                                          RESULTS_RUNS=self.tmpdir / "runs"))
+        rows = []
+        # 'models/' path shape, like the real pool: the user passes the display
+        # slug (seed-a) or the raw one (models_seed-a) — both must resolve.
+        for name, think, ms, code in (("models/seed-a.gguf", "off", 100, 0.8),
+                                      ("models/seed-a.gguf", "on", 665, 0.96),
+                                      ("models/seed-b.gguf", "off", 33, 0.88)):
+            row = _mk(name)
+            row["thinking"] = think
+            row["ts"] = "2026-10-10T10:00:00"
+            row["speed"].update(speed_ms=ms, gen_tps=100.0, prompt_tps=300.0)
+            row["code"]["score"] = code
+            rows.append(row)
+        config.POOL_FILE.write_text(
+            "".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir)
+
+    def _run(self, argv):
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            run.main(argv)
+        return out.getvalue(), err.getvalue()
+
+    def test_flag_parses(self):
+        self.assertIsNone(run._parse_args([]).compare)
+        self.assertEqual(run._parse_args(["--compare", "a", "b"]).compare, ["a", "b"])
+
+    def test_parse_compare_arg(self):
+        # think optional, defaults to off; case-insensitive; bogus rejected
+        self.assertEqual(run._parse_compare_arg("slug"), ("slug", "off"))
+        self.assertEqual(run._parse_compare_arg("slug,off"), ("slug", "off"))
+        self.assertEqual(run._parse_compare_arg("slug,on"), ("slug", "on"))
+        self.assertEqual(run._parse_compare_arg(" slug,ON "), ("slug", "on"))
+        with self.assertRaises(ValueError):
+            run._parse_compare_arg("slug,maybe")
+
+    def test_compare_writes_file_and_prints_path(self):
+        out, err = self._run(["--compare", "seed-a,off", "seed-a,on"])
+        compare_html = config.RESULTS_DIR / "compare.html"
+        self.assertTrue(compare_html.is_file())
+        self.assertTrue(compare_html.read_text(encoding="utf-8").startswith("<!doctype html>"))
+        self.assertIn("→ compare:", err)
+        self.assertIn(str(compare_html), err)
+
+    def test_think_defaults_to_off(self):
+        # 'seed-b' without ,think must resolve the (seed-b, off) row
+        out, err = self._run(["--compare", "seed-b", "seed-a,on"])
+        self.assertTrue((config.RESULTS_DIR / "compare.html").is_file())
+        html = (config.RESULTS_DIR / "compare.html").read_text(encoding="utf-8")
+        self.assertIn("think:off", html)
+        self.assertIn("think:on", html)
+
+    def test_raw_slug_form_also_resolves(self):
+        # the raw config.slug ('models_seed-a') works alongside the display form
+        out, err = self._run(["--compare", "models_seed-a,off", "seed-b,off"])
+        self.assertTrue((config.RESULTS_DIR / "compare.html").is_file())
+        self.assertIn("→ compare:", err)
+
+    def test_missing_row_error_message(self):
+        out, err = self._run(["--compare", "zzz,off", "seed-a,off"])
+        self.assertIn("no pool row for 'zzz,off'", err)
+        self.assertIn("available:", err)
+        self.assertIn("seed-a,off", err)
+        self.assertIn("closest:", err)
+        self.assertFalse((config.RESULTS_DIR / "compare.html").exists())
+
+    def test_closest_suggestions(self):
+        # 'seed' is not a row but is close to both seeded slugs
+        out, err = self._run(["--compare", "seed,off", "seed-a,off"])
+        self.assertIn("closest:", err)
+        self.assertIn("seed-a", err)
+
+    def test_bogus_think_rejected_without_write(self):
+        out, err = self._run(["--compare", "seed-a,maybe", "seed-b,off"])
+        self.assertIn("--compare: thinking must be on|off", err)
+        self.assertFalse((config.RESULTS_DIR / "compare.html").exists())
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,5 +1,6 @@
 import argparse
 import datetime
+import difflib
 import json
 import platform
 import subprocess
@@ -296,6 +297,9 @@ def _parse_args(argv=None):
     ap.add_argument("--html", action="store_true",
                     help="after the run (or together with --scoreboard), regenerate "
                          "the HTML report from the accumulated pool")
+    ap.add_argument("--compare", nargs=2, metavar="SLUG,THINK",
+                    help="head-to-head page of two pool rows ('slug[,think]', think "
+                         "defaults to off): writes results/compare.html")
     ap.add_argument("--forget")
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--port", type=int, default=None,
@@ -315,6 +319,62 @@ def _write_html_report(pool=None):
         print(f"→ report: {out}", file=sys.stderr, flush=True)
 
 
+def _parse_compare_arg(spec):
+    """--compare item: 'slug[,think]' — think optional, defaults to off. The slug
+    never contains a comma (config.slug strips them), so rpartition is safe."""
+    slug, sep, think = spec.rpartition(",")
+    if not sep:
+        return spec.strip(), config.THINKING_DEFAULT
+    slug, think = slug.strip(), think.strip().lower()
+    if think not in ("on", "off"):
+        raise ValueError(f"thinking must be on|off, got '{think}' in '{spec}'")
+    return slug, think
+
+
+def _compare_row(pool, slug, think):
+    """The (slug, thinking) pool row. Matches the raw slug (config.slug of the
+    model field) or the display form the scoreboard shows (models_/model_ prefix
+    stripped) — the user should not need to know which one the pool stores."""
+    for r in pool:
+        raw = config.slug(r["model"])
+        if think == (r.get("thinking") or "—") and slug in (raw, html_report._display_slug(raw)):
+            return r
+    return None
+
+
+def _write_compare(specs):
+    """--compare: head-to-head page of two pool rows, rendered read-only from the
+    accumulated pool (the same source --scoreboard reads). One line of feedback on
+    stderr either way (same voice as --html); a missing row is a clear error that
+    lists the available slug,think keys and the closest slugs."""
+    pool = R.load_pool()
+    rows = []
+    for spec in specs:
+        try:
+            slug, think = _parse_compare_arg(spec)
+        except ValueError as e:
+            print(f"✗ --compare: {e}", file=sys.stderr, flush=True)
+            return
+        row = _compare_row(pool, slug, think)
+        if row is None:
+            available = "  ".join(
+                f'{html_report._display_slug(config.slug(r["model"]))},{r.get("thinking") or "—"}'
+                for r in sorted(pool, key=lambda r: (config.slug(r["model"]),
+                                                     r.get("thinking") or "")))
+            names = sorted({html_report._display_slug(config.slug(r["model"])) for r in pool})
+            closest = ", ".join(difflib.get_close_matches(slug, names, n=3, cutoff=0.3)) or "none"
+            print(f"✗ --compare: no pool row for '{slug},{think}'", file=sys.stderr, flush=True)
+            print(f"  available: {available}", file=sys.stderr, flush=True)
+            print(f"  closest: {closest}", file=sys.stderr, flush=True)
+            return
+        rows.append(row)
+    out = html_report.write_default_compare(rows[0], rows[1], pool=pool)
+    if out is None:
+        print("pool is empty: no compare page written", file=sys.stderr, flush=True)
+        return
+    print(f"→ compare: {out}", file=sys.stderr, flush=True)
+
+
 def main(argv=None):
     args = _parse_args(argv)
     weights = parse_weights(args.weights)
@@ -331,6 +391,9 @@ def main(argv=None):
         else:
             print(f"no model matching '{args.forget}' found",
                   file=sys.stderr, flush=True)
+        return
+    if args.compare:
+        _write_compare(args.compare)
         return
     if args.scoreboard:
         pool = R.load_pool()

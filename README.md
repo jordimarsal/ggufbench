@@ -63,6 +63,9 @@ python3 -m ggufbench.run --models ../models/Qwen3.8-27B-UD-Q5_K_M.gguf
 
 # accumulated scoreboard + HTML report
 python3 -m ggufbench.run --scoreboard --html   # → scoreboard + ggufbench/results/report.html
+
+# head-to-head compare of two pool rows (slug,think — think defaults to off)
+python3 -m ggufbench.run --compare "qwen3_8-27b-ud-q5_k_m,off" "qwen3_8-27b-ud-q5_k_m,on"   # → ggufbench/results/compare.html
 ```
 
 ## The four dimensions
