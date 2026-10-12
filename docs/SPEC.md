@@ -22,6 +22,11 @@ The end goal is picking the best model for **opencode** (coding agent).
   `temp 0.2`, `top-p 0.95`, `seed 42`, `repeat-penalty 1.1`, `-ngl 999`,
   `--flash-attn auto`, `--no-mmap`, `--jinja`, KV cache `q4_0/q4_0`
   (`config.CACHE_FLAGS`), `--parallel 1`.
+- **Sampling (n=1)**: one graded attempt per task (`temp 0.2`, `seed 42`).
+  Single-sample noise is real: the scoreboard is a *ranking on this
+  harness*, not a certification — close rows (±0.01 global) are ties in
+  practice. Aggregating repeated runs (`--runs N`, mean ± spread) is the
+  planned fix.
 - **Per-model profile**: `models/<model>.txt` is applied LAST and can
   override the baseline (same convention as `start-dev-ai.sh`; `#` comments
   are skipped). Automatic dedup: if the `.txt` defines

@@ -16,6 +16,11 @@ No cloud, no APIs, no puzzles. The scoreboard answers one question:
 
 12 models × 2 thinking modes (off / on), harness v3, measured 2026-10-10/11
 on 2× RTX 5080. `excl.` = tasks excluded with a recorded reason (never silent).
+Scores are single-sample (n=1 per task, fixed seed): the table **orders**
+models on this harness — it does not certify close ranks.
+
+Live rendered report: <https://jordimarsal.github.io/ggufbench/> ·
+regenerate locally with `harness/tools/publish-report.sh` after a re-measure.
 
 | model | think | tools | code | agent | speed | global |
 |---|---|---|---|---|---|---|
