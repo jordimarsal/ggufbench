@@ -96,6 +96,13 @@ def _display_slug(slug):
     return slug
 
 
+def _spread_html(spread):
+    """' <small>±26</small>' — '' when the row is a single-run measurement (every row
+    of a pool measured without --runs): the page renders exactly as before. Same math
+    as the CLI (report.run_spread)."""
+    return "" if spread is None else f' <small>±{spread * 100:.0f}</small>'
+
+
 def _rows(pool):
     """One row per model, sorted by global desc. Same math as the CLI."""
     speed_values = [int((r.get("speed") or {}).get("speed_ms") or 0) for r in pool]
@@ -107,6 +114,7 @@ def _rows(pool):
             "slug": config.slug(r["model"]),
             "sc": R._scores(r),
             "global": R._global_score(r, config.WEIGHTS, min_speed),
+            "spread": R.run_spread(r, config.WEIGHTS, min_speed),
             "engine": r.get("engine", "llama"),
             "thinking": r.get("thinking") or "—",  # R4: legacy rows without key
             "code_excluded": int((r.get("code") or {}).get("excluded") or 0),  # R5
@@ -246,6 +254,7 @@ tr:hover td{background:rgba(59,130,246,.07)}
 .badge.strata{color:#0b1220;background:var(--accent);border-color:var(--accent);font-weight:700}
 .gval{font:600 15px var(--mono);text-align:right;color:var(--primary2)}
 .gval.top{color:var(--accent)}
+.gval small,.kpi .v small{color:var(--muted);font-weight:400;font-size:11px}
 .heat{font:600 12px var(--mono);text-align:center;border-radius:6px;padding:4px 6px}
 .miss{color:var(--muted);font-family:var(--mono)}
 details{border:1px solid var(--border);border-radius:9px;background:var(--card2);
@@ -310,7 +319,8 @@ def render(pool):
             f'<div class="trow"><div class="pos{cls}">{i + 1}</div>'
             f'<div class="name" title="{_esc(r["name"])}">{_esc(r["name"])}<small>{_esc(r["ts"])} · {r["tasks"]["tools"]}+'
             f'{r["tasks"]["code"]}+{r["tasks"]["agent"]} tasks · excluded code: {r["code_excluded"]}</small></div>'
-            f'<div class="gval{cls}">{r["global"]:.2f} <span class="badge{" strata" if r["engine"] == "strata" else ""}">'
+            f'<div class="gval{cls}">{r["global"]:.2f}{_spread_html((r["spread"] or {}).get("global"))} '
+            f'<span class="badge{" strata" if r["engine"] == "strata" else ""}">'
             f'{_esc(r["engine"])} {_esc(r["build"])}</span>{think}</div></div>')
 
     def dim_bars(key, fmt):
@@ -539,7 +549,8 @@ def _pack(r, rank, total, min_speed):
     code = r.get("code") or {}
     bl = code.get("by_level") or {}
     lex = _level_excluded(r)
-    return {
+    gspread = (R.run_spread(r, config.WEIGHTS, min_speed) or {}).get("global")
+    pack = {
         "s": _display_slug(config.slug(r["model"])),
         "t": r.get("thinking") or "—",
         "e": r.get("engine", "llama"),
@@ -561,6 +572,9 @@ def _pack(r, rank, total, min_speed):
         "lv": {k: [bl.get(k), lex.get(k, 0)] for k in ("easy", "hard", "expert")},
         "agent": sc["agent"],
     }
+    if gspread is not None:  # only a multi-run row carries a spread (kept out of the JSON)
+        pack["gs"] = gspread
+    return pack
 
 
 def _pack_get(p, key):
@@ -699,7 +713,7 @@ def _cmp_card(p):
     env = _esc(p["env"]) if p["env"] else '<span class="miss">not recorded (pre-C5 row)</span>'
     flags = _esc(p["f"]) if p["f"] else "harness default flags"
     return (f'<section class="card"><h2>{_esc(p["s"])}{think}{eng}</h2>'
-            f'<div class="kpi"><div class="v">{p["g"]:.2f}</div>'
+            f'<div class="kpi"><div class="v">{p["g"]:.2f}{_spread_html(p.get("gs"))}</div>'
             f'<div class="l">global · {rank} · measured {_esc(p["d"])}</div></div>'
             f'<div class="meta"><div class="l">model_config_flags</div>'
             f'<div class="mv">{flags}</div></div>'
@@ -815,7 +829,8 @@ _PICKER_JS = """
     var env = p.env ? esc(p.env) : '<span class="miss">not recorded (pre-C5 row)</span>';
     var flags = p.f ? esc(p.f) : "harness default flags";
     return '<section class="card"><h2>' + esc(p.s) + think + eng + "</h2>"
-      + '<div class="kpi"><div class="v">' + p.g.toFixed(2) + "</div>"
+      + '<div class="kpi"><div class="v">' + p.g.toFixed(2)
+      + (p.gs == null ? "" : " <small>±" + Math.round(p.gs * 100) + "</small>") + "</div>"
       + '<div class="l">global · ' + rank + " · measured " + esc(p.d) + "</div></div>"
       + '<div class="meta"><div class="l">model_config_flags</div><div class="mv">' + flags + "</div></div>"
       + '<div class="meta"><div class="l">environment</div><div class="mv">' + env + "</div></div></section>";

@@ -441,5 +441,48 @@ class TestOptimalBadge(unittest.TestCase):
         self.assertNotIn("★ optimal", html)
 
 
+class TestRunSpreadCells(unittest.TestCase):
+    """--runs N: the ranking row and the model card carry the spread of the global
+    ('0.84 <small>±26</small>'). Single-run rows — every row of today's pool — do not."""
+
+    @staticmethod
+    def _multi(name="models/foo.gguf"):
+        """Same row measured 3 times: traces carry the per-run outcomes and the section
+        scores are what graders aggregate (mean over tasks of passes/attempts)."""
+        r = _mk(name=name, tools_score=5 / 6, code_score=7 / 9)
+        r["agent"]["score"] = 5 / 6
+        r["tools"]["runs"] = 3
+        r["tools"]["trace"] = [{"id": "t1", "passed": True, "runs": [1, 1, 1]},
+                               {"id": "t2", "passed": False, "runs": [1, 1, 0]}]
+        r["code"]["runs"] = 3
+        r["code"]["trace"] = [{"id": "c1", "lang": "python", "passed": True, "runs": [1, 1, 1]},
+                              {"id": "c2", "lang": "python", "passed": True, "runs": [1, 1, 1]},
+                              {"id": "c3", "lang": "python", "passed": False, "runs": [1, 0, 0]}]
+        r["agent"]["runs"] = 3
+        r["agent"]["trace"] = [{"id": "a1", "lang": "python", "passed": True, "runs": [1, 1, "x"]},
+                               {"id": "a2", "lang": "python", "passed": False, "runs": [1, 1, 0]}]
+        return r
+
+    def test_ranking_row_shows_the_spread(self):
+        html = html_report.render([self._multi()])
+        self.assertIn('class="gval top">0.84 <small>±26</small>', html)
+
+    def test_model_card_shows_the_spread(self):
+        a = self._multi("models/aaa.gguf")
+        b = self._multi("models/bbb.gguf")
+        html = html_report.render_compare(a, b, pool=[a, b])
+        self.assertEqual(html.count('<div class="v">0.84 <small>±26</small>'), 2)  # both cards
+        self.assertIn('"gs":0.264575131106459', html)   # the picker JSON mirrors the pack
+
+    def test_single_run_rows_show_no_spread(self):
+        html = html_report.render([_mk()])
+        self.assertNotIn("±", html)
+        self.assertNotIn('"gs"', html)
+        a, b = _mk("models/aaa.gguf"), _mk("models/bbb.gguf")
+        html = html_report.render_compare(a, b, pool=[a, b])
+        self.assertNotIn('<div class="v">0.77 <small>', html)   # both cards stay bare
+        self.assertNotIn('"gs"', html)
+
+
 if __name__ == "__main__":
     unittest.main()

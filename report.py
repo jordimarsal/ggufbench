@@ -1,6 +1,7 @@
 import json
 import datetime
 import os
+import statistics
 from typing import Any
 
 from . import config
@@ -88,6 +89,11 @@ def forget(model_name):
     return removed
 
 
+_QUALITY_DIMS = ("tools", "code", "agent")
+# Base column widths of Table 1 (the widths today; a ± only widens them by its own).
+_CELLS = {"tools": 5, "code": 13, "agent": 5, "global": 7}
+
+
 def _scores(r: dict[str, Any]) -> dict[str, float]:
     """Score 0..1 per dimension of a model. A missing dimension (partial run) -> 0."""
     sp = r.get("speed") or {}
@@ -105,11 +111,85 @@ def _global_score(r: dict[str, Any], weights: dict[str, float],
                   min_speed: float) -> float:
     """Weighted sum 0..1. Normalized speed: the fastest model (fewest ms) -> 1.0."""
     sc = _scores(r)
-    speed_score = (min_speed / sc["speed_ms"]) if (sc["speed_ms"] and min_speed) else 0
-    parts = {"tools": sc["tools"], "code": sc["code"],
-             "agent": sc["agent"], "speed": speed_score}
+    return _weighted_global(_score_parts(sc["tools"], sc["code"], sc["agent"],
+                                         sc["speed_ms"], min_speed), weights)
+
+
+def _score_parts(tools, code, agent, speed_ms, min_speed) -> dict[str, float]:
+    """The four weighted inputs of a global. Speed is measured once per row, so a
+    per-run index reuses the row's own normalized speed (same min_speed)."""
+    return {"tools": tools, "code": code, "agent": agent,
+            "speed": (min_speed / speed_ms) if (speed_ms and min_speed) else 0}
+
+
+def _weighted_global(parts: dict[str, float], weights: dict[str, float]) -> float:
     total_w = sum(weights.values()) or 1.0
     return sum(parts.get(k, 0) * w for k, w in weights.items()) / total_w
+
+
+def _row_runs(r) -> int:
+    """Measurement runs recorded for a row: 1 when it predates --runs. Sections carry
+    ``runs``: N (graders); a top-level key is accepted too."""
+    vals = [1] + [int(r.get("runs") or 0)]
+    for dim in _QUALITY_DIMS:
+        vals.append(int((r.get(dim) or {}).get("runs") or 0))
+    return max(vals)
+
+
+def _run_scores(r):
+    """{dim: [score per run index]} rebuilt from the trace ``runs`` lists ([1, 0, 'x']):
+    per index, the mean over the tasks that were not excluded in that run. None where a
+    run has no valid attempt. None when the row is not a multi-run measurement or no
+    trace carries the per-run outcomes."""
+    n = _row_runs(r)
+    if n < 2:
+        return None
+    out: dict[str, list] = {}
+    for dim in _QUALITY_DIMS:
+        lists = [t["runs"] for t in (r.get(dim) or {}).get("trace") or []
+                 if isinstance(t.get("runs"), list)]
+        if not lists:
+            continue
+        per_run = []
+        for i in range(n):
+            attempts = [1 if t[i] == 1 else 0 for t in lists if len(t) > i and t[i] != "x"]
+            per_run.append(statistics.mean(attempts) if attempts else None)
+        out[dim] = per_run
+    return out or None
+
+
+def run_spread(r, weights: dict[str, float], min_speed: float):
+    """Run-to-run spread (sample stddev) per dimension and for the weighted global —
+    the ± of a mean ± spread cell (SPEC: aggregating repeated runs).
+
+    None for single-run rows, which is every row of today's pool: they render exactly
+    as before. A dimension needs at least two comparable run indexes to get its own
+    spread; the global uses the per-index globals (same weights, same min_speed) and
+    skips an index that is incomplete (a run with every task excluded)."""
+    runs = _run_scores(r)
+    if not runs:
+        return None
+    out: dict[str, float] = {}
+    for dim, per_run in runs.items():
+        vals = [v for v in per_run if v is not None]
+        if len(vals) >= 2:
+            out[dim] = statistics.stdev(vals)
+
+    sc = _scores(r)
+    base = _score_parts(sc["tools"], sc["code"], sc["agent"], sc["speed_ms"], min_speed)
+    n = max((len(v) for v in runs.values()), default=0)
+    globals_ = []
+    for i in range(n):
+        if any(len(v) > i and v[i] is None for v in runs.values()):
+            continue
+        parts = dict(base)
+        for dim, per_run in runs.items():
+            if len(per_run) > i:
+                parts[dim] = per_run[i]
+        globals_.append(_weighted_global(parts, weights))
+    if len(globals_) >= 2:
+        out["global"] = statistics.stdev(globals_)
+    return out or None
 
 
 def lang_profile(pool, lang):
@@ -125,6 +205,12 @@ def lang_profile(pool, lang):
 def _fmt_pct(x):
     """Formats a percentage (0..1 -> %) or '—' when there is no data."""
     return f"{x:.0%}" if x is not None else "—"
+
+
+def _spread_suffix(spread):
+    """' ±9' — '' when the cell is a single-run measurement (the whole table renders
+    as it did before). Spread is a 0..1 stddev; the cell shows it in points."""
+    return "" if spread is None else f" ±{spread * 100:.0f}"
 
 
 def _think_mark(result):
@@ -186,7 +272,11 @@ def optimal_by_slug(pool):
 
 def _render_global_rows(pool, weights, title):
     """Table 1 + tokens section (SPEC 4.6). One row per model with the score of each
-    dimension and a weighted global, sorted from best to worst."""
+    dimension and a weighted global, sorted from best to worst.
+
+    A multi-run row (--runs N, traces carrying the per-run outcomes) shows its spread
+    next to the mean: '83% ±29' and '0.84 ±26' (see run_spread). Single-run rows —
+    every row of a pool measured without --runs — render exactly as before."""
     # Coerce None -> 0 so a model without speed (partial run) does not break the render.
     speed_values = [int((r.get("speed") or {}).get("speed_ms") or 0) for r in pool]
     min_speed = min((v for v in speed_values if v > 0), default=0)
@@ -194,26 +284,41 @@ def _render_global_rows(pool, weights, title):
     for r in pool:
         sc = _scores(r)
         excl = int((r.get("code") or {}).get("excluded") or 0)
-        rows.append((config.slug(r["model"]), _think_mark(r), excl, sc,
-                     _global_score(r, weights, min_speed)))
+        spread = run_spread(r, weights, min_speed) or {}
+        g = _global_score(r, weights, min_speed)
+        # Base text exactly as before; the ± only rides on multi-run rows, and the
+        # columns widen by the width of the ± so a mixed pool stays aligned.
+        suffixes = {k: _spread_suffix(spread.get(k)) for k in _CELLS}
+        cells = {"tools": f"{sc['tools']:>5.0%}" + suffixes["tools"],
+                 "code": f"{sc['code']:>5.0%}" + suffixes["code"]
+                         + (f" ({excl} excl.)" if excl else ""),
+                 "agent": f"{sc['agent']:>5.0%}" + suffixes["agent"],
+                 "global": f"{g:.2f}" + suffixes["global"]}
+        rows.append((config.slug(r["model"]), _think_mark(r), excl, sc, g, cells, suffixes))
     rows.sort(key=lambda x: x[4], reverse=True)
     nw = max((len(r[0]) for r in rows), default=5)
+    widths = dict(_CELLS)
+    for _name, _mode, _excl, _sc, _g, _cells, suffixes in rows:
+        for k, sfx in suffixes.items():
+            widths[k] = max(widths[k], _CELLS[k] + len(sfx))
     optimal = optimal_by_slug(pool)
-    header = f"{'MODEL':{nw}} {'THINK':>5} {'tools':>6} {'code':>13} {'agent':>6} {'speed':>9} {'GLOBAL':>7}"
+    header = (f"{'MODEL':{nw}} {'THINK':>5} {'tools':>{widths['tools'] + 1}} "
+              f"{'code':>{widths['code']}} {'agent':>{widths['agent'] + 1}} "
+              f"{'speed':>9} {'GLOBAL':>{widths['global']}}")
     out = [f"=== {title} ===", header, "-" * len(header)]
-    for name, mode, excl, sc, g in rows:
+    for name, mode, _excl, sc, _g, cells, _sfx in rows:
         sp = f"{sc['speed_ms']}ms" if sc["speed_ms"] else "—"
-        code = f"{sc['code']:>5.0%}" + (f" ({excl} excl.)" if excl else "")
         think = f"{mode:>4} ★" if optimal.get(name) == mode else f"{mode:>5}"
-        out.append(f"{name:{nw}} {think:>5} {sc['tools']:>5.0%} {code:>13} "
-                   f"{sc['agent']:>5.0%} {sp:>9} {g:>7.2f}")
+        out.append(f"{name:{nw}} {think:>5} {cells['tools']:>{widths['tools']}} "
+                   f"{cells['code']:>{widths['code']}} {cells['agent']:>{widths['agent']}} "
+                   f"{sp:>9} {cells['global']:>{widths['global']}}")
     # Tokens-per-second heading (output and input).
     out.append("")
     out.append("=== Tokens per second (t/s) ===")
     theader = f"{'MODEL':{nw}} {'gen (out)':>10} {'prompt (in)':>12}"
     out.append(theader)
     out.append("-" * len(theader))
-    for name, _mode, _excl, sc, _g in rows:
+    for name, _mode, _excl, sc, _g, _cells, _sfx in rows:
         gen = f"{sc['gen_tps']:.1f}" if sc["gen_tps"] else "—"
         prom = f"{sc['prompt_tps']:.1f}" if sc["prompt_tps"] else "—"
         out.append(f"{name:40.40} {gen:>10} {prom:>12}")

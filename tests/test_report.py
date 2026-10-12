@@ -285,6 +285,103 @@ class TestReport(unittest.TestCase):
             self.assertIn("MODEL", out)
 
 
+class TestRunSpread(unittest.TestCase):
+    """--runs N (graders): a row whose trace carries the per-run outcomes ([1, 0, 'x'])
+    renders the spread of the mean next to it. Single-run rows — every row of a pool
+    measured without --runs — render exactly as before."""
+
+    def setUp(self):
+        self.tmpdir = Path(tempfile.mkdtemp())
+        self.enterContext(config.override(POOL_FILE=self.tmpdir / "pool.jsonl"))
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir)
+
+    @staticmethod
+    def multi_row(model="multi"):
+        """3 runs per dimension. Section scores = what graders aggregate: mean over
+        tasks of (non-excluded passes / non-excluded attempts)."""
+        r = mk(model, speed_ms=100, gen_tps=10.0, prompt_tps=100.0,
+               tools=5 / 6, code=7 / 9, agent=5 / 6)
+        r["tools"]["runs"] = 3
+        r["tools"]["trace"] = [{"id": "t1", "passed": True, "runs": [1, 1, 1]},
+                               {"id": "t2", "passed": False, "runs": [1, 1, 0]}]
+        r["code"]["runs"] = 3
+        r["code"]["trace"] = [{"id": "c1", "lang": "python", "passed": True, "runs": [1, 1, 1]},
+                              {"id": "c2", "lang": "python", "passed": True, "runs": [1, 1, 1]},
+                              {"id": "c3", "lang": "python", "passed": False, "runs": [1, 0, 0]}]
+        r["agent"]["runs"] = 3
+        r["agent"]["trace"] = [{"id": "a1", "lang": "python", "passed": True, "runs": [1, 1, "x"]},
+                               {"id": "a2", "lang": "python", "passed": False, "runs": [1, 1, 0]}]
+        return r
+
+    def test_run_spread_per_dimension_and_global(self):
+        """Per run index: mean over the tasks not excluded in that run; spread = sample
+        stddev of those index scores. Hand-computed for this fixture:
+        tools [1, 1, .5] -> .2887 · code [1, 2/3, 2/3] -> .1925 · agent [1, 1, 0] -> .5774
+        (the 'x' of a1 leaves run 3 measured by a2 alone) · globals [1, .9, .5] -> .2646."""
+        sp = report.run_spread(self.multi_row(), W, 100)
+        self.assertAlmostEqual(sp["tools"], 0.2886751345948129, places=10)
+        self.assertAlmostEqual(sp["code"], 0.1924500897298753, places=10)
+        self.assertAlmostEqual(sp["agent"], 0.5773502691896257, places=10)
+        self.assertAlmostEqual(sp["global"], 0.2645751311064590, places=10)
+
+    def test_render_shows_mean_plus_spread(self):
+        report.save_result(self.multi_row())
+        out = report.render(report.load_pool(), W)
+        row = [l for l in out.splitlines() if l.startswith("multi")][0]
+        self.assertIn("83% ±29", row)    # tools: mean 5/6
+        self.assertIn("78% ±19", row)    # code: mean 7/9
+        self.assertIn("83% ±58", row)    # agent: mean 5/6
+        self.assertIn("0.84 ±26", row)   # weighted global, per-index globals
+        self.assertEqual(row, "multi     —   83% ±29           78% ±19   83% ±58     100ms    0.84 ±26")
+
+    def test_single_run_row_has_no_spread(self):
+        # Today's pool: no section carries 'runs' -> run_spread is None and no cell changes.
+        r = mk("solo", speed_ms=100, gen_tps=10.0, prompt_tps=100.0, tools=0.5, code=0.5, agent=0.5)
+        self.assertIsNone(report.run_spread(r, W, 100))
+        report.save_result(r)
+        out = report.render(report.load_pool(), W)
+        self.assertNotIn("±", out)
+        self.assertEqual([l for l in out.splitlines() if l.startswith("solo")][0],
+                         "solo     —   50%           50%   50%     100ms    0.57")
+
+    def test_mixed_pool_keeps_the_columns_aligned(self):
+        # A single-run row in the same table keeps its own text; only the columns widen.
+        report.save_result(self.multi_row())
+        report.save_result(mk("solo", speed_ms=100, tools=0.5, code=0.5, agent=0.5))
+        out = report.render(report.load_pool(), W)
+        lines = out.splitlines()
+        self.assertIn("83% ±29", out)
+        self.assertIn("50%", out)
+        self.assertNotIn("50% ±", out)
+        multi = next(l for l in lines if l.startswith("multi"))
+        row = next(l for l in lines if l.startswith("solo"))
+        self.assertEqual(len(multi), len(row))   # both rows share the widened columns
+
+    def test_partial_multi_run_row_gets_no_invented_spread(self):
+        # Only one run index has valid attempts -> no stddev, no ± anywhere.
+        r = self.multi_row()
+        r["tools"]["trace"] = [{"id": "t1", "passed": True, "runs": [1, "x", "x"]}]
+        r["code"]["trace"] = [{"id": "c1", "lang": "python", "passed": True, "runs": ["x", "x", "x"]}]
+        r["agent"]["trace"] = [{"id": "a1", "lang": "python", "passed": True, "runs": ["x", "x", 1]}]
+        self.assertIsNone(report.run_spread(r, W, 100))
+
+    def test_stable_multi_run_row_shows_a_zero_spread(self):
+        # Measured three times and identical every time: the honest answer is ±0.
+        r = self.multi_row()
+        for d in ("tools", "code", "agent"):
+            for t in r[d]["trace"]:
+                t["runs"] = [1, 1, 1]
+        sp = report.run_spread(r, W, 100)
+        self.assertEqual({k: round(v) for k, v in sp.items()},
+                         {"tools": 0, "code": 0, "agent": 0, "global": 0})
+        report.save_result(r)
+        out = report.render(report.load_pool(), W)
+        self.assertIn("83% ±0", out)
+        self.assertIn("0.84 ±0", out)
+
+
 class TestOptimalMode(unittest.TestCase):
     """C8: one thinking mode dominates when it is not quality-worse (tools/
     code/agent, speed excluded) AND finishes in no more wall time. Both rows
