@@ -173,10 +173,10 @@ def optimal_mode(model_rows):
 
 def optimal_by_slug(pool):
     """{slug: 'off'|'on'} per model with a dominant thinking mode (see optimal_mode)."""
-    by_model = {}
+    by_model: dict[str, list[dict[str, Any]]] = {}
     for r in pool:
         by_model.setdefault(r.get("model"), []).append(r)
-    out = {}
+    out: dict[str, str] = {}
     for model, rs in by_model.items():
         mode = optimal_mode(rs)
         if mode:
