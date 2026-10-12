@@ -58,3 +58,12 @@ VERDICT: no HIGH severity findings reported by automated tools.
 ### B. EXTRA_FILES path-traversal check (`tasks_loader.py:15–28`)
 
 The loader rejects any name containing `/`, `\`, `.`, `..`, or starting with `solution`/`test`. Verified against four expert tasks that declare `EXTRA_FILES` (e.g., `events.jsonl`, `access.log`, `sales.csv`, `readings.csv`). **No traversal possible.**
+
+## Remediation (2026-10-12)
+
+All four findings are resolved on `main`:
+
+- **[MEDIUM] Sandbox loses network isolation** — FIXED. Probe and prefix now use `unshare -Urn`; unprivileged user namespace grants CAP_SYS_ADMIN for the net namespace, verified loopback-only inside (payload gets Errno 101). Default is fail-closed; `GGUFBENCH_ALLOW_NO_SANDBOX=1` is the explicit degraded opt-out. Every result records `sandbox: "unshare" | "none"`. Code-execution tests skip on hosts that cannot isolate (GitHub runners) and run for real on capable hosts.
+- **[LOW] Published artifacts leak absolute filesystem paths** — FIXED. Renderer-side sanitizer in HTML reports: `/home/<user>/...` → `~/...`, other absolute paths → `[local] basename`. Environment line drops driver and uses OS family only. Raw JSON receipts keep full detail.
+- **[LOW] Model `.txt` flags pass through without validation** — FIXED. `ALLOWED_MODEL_FLAGS` (38 names) defined in config; unknown flags dropped + warned + recorded in `describe_config` (`dropped: --xyz`). Values starting with `-` treated as mis-pairings.
+- **[INFO] Tempdir race window on cleanup** — HARDENED. Symlink validation before cleanup raises on sandbox-escape attempts.
