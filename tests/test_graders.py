@@ -1,8 +1,12 @@
+import contextlib
+import io
 import unittest
 import urllib.error
 import tempfile
 import shutil
 from pathlib import Path
+from unittest import mock
+
 from ggufbench import config, executors, graders, token_budget
 
 HAS_SANDBOX = executors._probe_sandbox()
@@ -277,6 +281,78 @@ class TestTransientErrors(unittest.TestCase):
         r = graders.grade_agent(self._flaky(1), tasks)
         self.assertEqual(len(r["trace"]), 2)
         self.assertFalse(r["trace"][0]["passed"])
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+class TestGradersMultiRun(unittest.TestCase):
+    """C1 stage 2 core: --runs N aggregation semantics."""
+
+    def test_tools_3_of_3_passes(self):
+        tasks = [{"id": "t", "prompt": "p", "tools": [], "expected": {"name": "f"}}]
+        resp = {"choices": [{"finish_reason": "tool_calls", "message": {
+            "tool_calls": [{"function": {"name": "f", "arguments": "{}"}}]}}]}
+        r = graders.grade_tools(FakeClient([resp]), tasks, runs=3)
+        self.assertEqual(r["score"], 1.0)
+        self.assertEqual(r["trace"][0]["runs"], [1, 1, 1])
+        self.assertEqual(r["runs"], 3)
+        # N==1 omits "runs" key; N>1 includes it
+        self.assertIn("runs", r)
+
+    def test_tools_2_of_3_fails(self):
+        tasks = [{"id": "t", "prompt": "p", "tools": [], "expected": {"name": "f"}}]
+        resp_ok = {"choices": [{"finish_reason": "tool_calls", "message": {
+            "tool_calls": [{"function": {"name": "f", "arguments": "{}"}}]}}]}
+        resp_fail = {"choices": [{"finish_reason": "tool_calls", "message": {
+            "tool_calls": [{"function": {"name": "g", "arguments": "{}"}}]}}], "timings": {}}
+        r = graders.grade_tools(FakeClient([resp_ok, resp_fail]), tasks, runs=3)
+        self.assertAlmostEqual(r["score"], 0.667, places=2)
+        self.assertFalse(r["passed"])
+        self.assertEqual(r["trace"][0]["runs"], [1, 0, 1])
+
+    def test_tools_excluded_run_not_counted_as_attempt(self):
+        """A server error run is marked 'x' and excluded from attempt counts."""
+        tasks = [{"id": "t", "prompt": "p", "tools": [], "expected": {"name": "f"}}]
+        resp_ok = {"choices": [{"finish_reason": "tool_calls", "message": {
+            "tool_calls": [{"function": {"name": "f", "arguments": "{}"}}]}}]}
+
+        class Flaky:
+            def __init__(self): self.n = 0
+            def chat(self, *a, **k):
+                self.n += 1
+                if self.n == 2:
+                    raise urllib.error.HTTPError("http://x", 500, "error", {}, None)
+                return resp_ok
+        r = graders.grade_tools(Flaky(), tasks, runs=3)
+        # pass, excluded, pass -> score = 2/2 = 1.0 (excluded doesn't count as attempt)
+        self.assertEqual(r["score"], 1.0)
+        self.assertTrue(r["passed"])
+        self.assertEqual(r["trace"][0]["runs"], [1, "x", 1])
+
+    def test_tools_all_runs_excluded(self):
+        """When all runs are server errors for a task, it is fully excluded from the mean."""
+        tasks = [{"id": "t", "prompt": "p", "tools": [], "expected": {"name": "f"}}]
+
+        class AlwaysFail:
+            def chat(self, *a, **k):
+                raise urllib.error.HTTPError("http://x", 500, "error", {}, None)
+        r = graders.grade_tools(AlwaysFail(), tasks, runs=3)
+        self.assertEqual(r["score"], 0.0)
+        self.assertFalse(r["passed"])
+        self.assertIn("excluded", r)
+        self.assertEqual(r["excluded"], 1)
+
+    def test_code_3_of_3_passes(self):
+        tasks = [{"id": "c", "lang": "python", "prompt": "p",
+                  "test_code": "from solution import *\nassert f()==1\n"}]
+        resp = {"choices": [{"message": {
+            "content": "```python\ndef f():\n    return 1\n```"}}]}
+        r = graders.grade_code(FakeClient([resp]), tasks, runs=3)
+        self.assertEqual(r["score"], 1.0)
+        self.assertEqual(r["trace"][0]["runs"], [1, 1, 1])
+        self.assertEqual(r["runs"], 3)
+
 
 if __name__ == "__main__":
     unittest.main()

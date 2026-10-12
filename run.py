@@ -132,7 +132,7 @@ def _level_for_code(dims, level):
 
 
 def _bench_one(model_path, pool, dims, lang_filter, port, quick=False, engine="llama",
-               level=None, thinking=None):
+               level=None, thinking=None, runs=1):
     if thinking is None:
         thinking = config.THINKING_DEFAULT
     # C5: hardware/OS snapshot captured once per model run, before anything else.
@@ -178,7 +178,8 @@ def _bench_one(model_path, pool, dims, lang_filter, port, quick=False, engine="l
             result["speed"]["wall_time_s"] = round(time.monotonic() - t, 1)
         if "tools" in dims:
             t = time.monotonic()
-            result["tools"] = G.grade_tools(c, _limit(T.load("tools"), quick), on_task=_print_task)
+            result["tools"] = G.grade_tools(c, _limit(T.load("tools"), quick), on_task=_print_task,
+                                            runs=runs)
             result["tools"]["wall_time_s"] = round(time.monotonic() - t, 1)
         if "code" in dims:
             code_tasks = _limit(T.load("code", lang_filter=lf, level=level), quick)
@@ -188,11 +189,12 @@ def _bench_one(model_path, pool, dims, lang_filter, port, quick=False, engine="l
             result["code"] = G.grade_code(c, code_tasks,
                                           on_task=_print_task, model_slug=slug,
                                           gen_tps=result["speed"]["gen_tps"] if "speed" in result else None,
-                                          thinking=thinking)
+                                          thinking=thinking, runs=runs)
             result["code"]["wall_time_s"] = round(time.monotonic() - t, 1)
         if "agent" in dims:
             t = time.monotonic()
-            result["agent"] = G.grade_agent(c, _limit(T.load("agent", lang_filter=lf), quick), on_task=_print_task)
+            result["agent"] = G.grade_agent(c, _limit(T.load("agent", lang_filter=lf), quick), on_task=_print_task,
+                                            runs=runs)
             result["agent"]["wall_time_s"] = round(time.monotonic() - t, 1)
         result["wall_time_s"] = round(time.monotonic() - t0, 1)
         return result
@@ -301,6 +303,13 @@ def _parse_args(argv=None):
                          "It is recorded in every result.")
     ap.add_argument("--quick", action="store_true",
                     help="1 task per dimension (harness smoke test)")
+    def _valid_runs(v):
+        n = int(v)
+        if n < 1:
+            raise argparse.ArgumentTypeError(f"runs must be >= 1, got {n}")
+        return n
+    ap.add_argument("--runs", type=_valid_runs, default=1, metavar="N",
+                    help="repeat each task N times and aggregate results (default: 1)")
     ap.add_argument("-v", "--verbose", action="store_true",
                    help="granularity: Table 1 + per-language (Table 2); does NOT include tasks")
     ap.add_argument("--task", action="store_true",
@@ -428,7 +437,8 @@ def main(argv=None):
     for mp in models:
         try:
             res = _bench_one(mp, [], dims, lang_filter, port, quick=args.quick,
-                             engine=args.engine, level=level, thinking=args.thinking)
+                             engine=args.engine, level=level, thinking=args.thinking,
+                             runs=args.runs)
             if res.get("serve_failed"):
                 print(f"✗ {mp}: failed to load", file=sys.stderr, flush=True); continue
             R.save_result(res)

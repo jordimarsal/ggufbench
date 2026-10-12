@@ -504,3 +504,64 @@ class TestCompareCli(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestRunsCLI(unittest.TestCase):
+    """--runs CLI flag: parsing and plumbing."""
+
+    def setUp(self):
+        self.tmpdir = Path(tempfile.mkdtemp())
+        self.enterContext(config.override(POOL_FILE=self.tmpdir / "pool.jsonl",
+                                          RESULTS_MODELS=self.tmpdir / "models",
+                                          RESULTS_RUNS=self.tmpdir / "runs"))
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir)
+
+    def _run(self, argv):
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            run.main(argv)
+        return out.getvalue(), err.getvalue()
+
+    def test_runs_defaults_to_one(self):
+        args = run._parse_args([])
+        self.assertEqual(args.runs, 1)
+
+    def test_runs_accepts_positive_integers(self):
+        for n in (2, 3, 5, 10):
+            args = run._parse_args(["--runs", str(n)])
+            self.assertEqual(args.runs, n)
+
+    def test_runs_zero_rejected(self):
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                run._parse_args(["--runs", "0"])
+
+    def test_runs_negative_rejected(self):
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                run._parse_args(["--runs", "-1"])
+
+    def test_runs_in_bench_one_propagates(self):
+        sm = mock.MagicMock()
+        sm.wait_ready.return_value = True
+        captured_runs = []
+
+        class CaptureTools:
+            def grade_tools(self, *a, **k):
+                captured_runs.append(k.get("runs"))
+                return {"passed": True, "turns": 0, "trace": [], "score": 1.0}
+
+        import ggufbench.graders as G_mod
+        with mock.patch.object(run, "_probe_environment", return_value=KNOWN_ENV), \
+             mock.patch.object(run.S, "ServerManager", return_value=sm), \
+             mock.patch.object(run, "warmup", return_value=[0.1, 0.1, 0.1]), \
+             mock.patch.object(G_mod, "grade_tools", CaptureTools().grade_tools), \
+             contextlib.redirect_stderr(io.StringIO()):
+            run._bench_one("fake-model.gguf", [], ["tools"], None, 8999, runs=3)
+        self.assertEqual(captured_runs, [3])
+
+
+if __name__ == "__main__":
+    unittest.main()

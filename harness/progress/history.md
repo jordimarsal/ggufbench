@@ -80,3 +80,15 @@ banner, badges 11+11, exclusions visible (`96% (4 excl.)`). Results: OFF leads
 GLOBAL; in code the 27Bs rise thinking (0.82→0.96) and the small MoE burns itself (5 exclusions);
 expert bites (OFF 0.73–0.88). Traceability 5/5 + --all PASS. 187 tests OK.
 Completion Gate approved with declared deviations (v3+expert, two rows per model).
+
+## 2026-10-12 — c1_stage2_core (done)
+
+Feature C1 stage 2 core (`--runs N` multi-run aggregation on tools/code/agent graders):
+added `--runs N` CLI flag (int ≥ 1, default 1), plumbing into `_bench_one` → graders.
+Each of grade_tools/grade_code/grade_agent loops N times with fresh model calls and grading;
+per-task trace entries gain `"runs": [passed_or_x,...]`; excluded runs marked "x" don't count
+as attempts. Section score = mean over tasks of non-excluded pass-rates; fully excluded tasks
+dropped from mean. N=1 byte-compatible (omits `"runs"` key); N>1 adds back `"excluded"` boolean
+for API compat. Fixed: `by_lang` in grade_code to aggregate across runs, turns accumulation
+in grade_agent across all N runs, exclusion key handling. Test suite: new TestGradersMultiRun
+(3 cases), new TestRunsCLI (--runs parsing/validation/propagation). Suite 264 passed.
