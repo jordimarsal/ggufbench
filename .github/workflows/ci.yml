@@ -15,4 +15,6 @@ jobs:
       # executors.typescript runs `bun`; java comes with Temurin on ubuntu-latest
       - uses: oven-sh/setup-bun@v2
       - name: Run test suite (stdlib only, no GPU)
-        run: python3 -m unittest discover -s ggufbench/tests -t .
+        # The package IS the repo root, so imports resolve from its parent dir —
+        # same as the documented local workflow ("run from the workspace root").
+        run: cd "$(dirname "$GITHUB_WORKSPACE")" && python3 -m unittest discover -s ggufbench/tests -t .
