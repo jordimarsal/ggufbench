@@ -96,6 +96,9 @@ ALLOWED_MODEL_FLAGS = {
     # template: per-model override of the baseline --jinja (some GGUF
     # templates break under the jinja path — e.g. qwen36 empty content)
     "--no-jinja",
+    # reasoning: some GGUF templates put the answer in reasoning_content
+    # (empty content) — none keeps <think>+answer in content for extraction
+    "--reasoning-format",
     # sampling
     "--temp", "--top-p", "--repeat-penalty",
     "--repeat-last-n", "--presence-penalty", "--frequency-penalty",
