@@ -1,10 +1,12 @@
 import shutil
 import unittest
-from ggufbench import agent
+from ggufbench import agent, executors
 
 # run_tests for java shells out to javac; skip on machines without the toolchain.
 HAS_JAVAC = shutil.which("javac") is not None
+HAS_SANDBOX = executors._probe_sandbox()
 
+@unittest.skipUnless(HAS_SANDBOX, "host cannot create isolated namespaces (unshare -Urn); code-execution coverage runs on sandboxed hosts")
 class TestMockEnv(unittest.TestCase):
     def test_read_write(self):
         e = agent.MockEnv({"a.py": "x=1"}, "python")
@@ -28,6 +30,7 @@ class TestMockEnv(unittest.TestCase):
         self.assertFalse(ok)
 
 
+@unittest.skipUnless(HAS_SANDBOX, "host cannot create isolated namespaces (unshare -Urn); code-execution coverage runs on sandboxed hosts")
 class TestRunTestsFileLookup(unittest.TestCase):
     """The solution-file lookup is case-insensitive: java tasks use
     Solution.java/Test.java (javac requires file == public class) and an exact

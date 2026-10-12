@@ -12,11 +12,14 @@ HAS_JAVAC = shutil.which("javac") is not None
 HAS_UNSHARE = shutil.which("unshare") is not None
 
 
+HAS_SANDBOX = executors._probe_sandbox()
+
 PY_TEST_PASS = "from solution import *\nassert add(2,3)==5\nprint('OK')\n"
 PY_TEST_FAIL = "from solution import *\nassert add(2,3)==6\n"
 PY_SOL = "def add(a,b):\n    return a+b\n"
 PY_SOL_BAD = "def add(a,b):\n    return a-b\n"
 
+@unittest.skipUnless(HAS_SANDBOX, "host cannot create isolated namespaces (unshare -Urn); code-execution coverage runs on sandboxed hosts")
 class TestPyExecutor(unittest.TestCase):
     @unittest.skipUnless(HAS_UNSHARE, "unshare not available")
     def test_pass(self):
@@ -68,6 +71,7 @@ class TestPyExecutor(unittest.TestCase):
         self.assertTrue(r["passed"], r["output"])
 
 
+@unittest.skipUnless(HAS_SANDBOX, "host cannot create isolated namespaces (unshare -Urn); code-execution coverage runs on sandboxed hosts")
 class TestExtraFiles(unittest.TestCase):
     """R2/R3 discriminative_tasks: els fitxers de suport existeixen al sandbox."""
 

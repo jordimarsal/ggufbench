@@ -3,7 +3,9 @@ import urllib.error
 import tempfile
 import shutil
 from pathlib import Path
-from ggufbench import config, graders, token_budget
+from ggufbench import config, executors, graders, token_budget
+
+HAS_SANDBOX = executors._probe_sandbox()
 
 class FakeClient:
     """Client that can be scripted with a sequence of responses per task."""
@@ -121,6 +123,7 @@ class TestCodeTimeout(unittest.TestCase):
         self.assertTrue(r["trace"][0]["detail"].startswith("server error"))
 
 
+@unittest.skipUnless(HAS_SANDBOX, "host cannot create isolated namespaces (unshare -Urn); code-execution coverage runs on sandboxed hosts")
 class TestCodeBudget(unittest.TestCase):
     """ADR-0002 + R3 thinking_batches: a single generous budget (32768). With fixed
     seed/temp, max_tokens is a ceiling, not a target: one attempt at the ceiling produces the
