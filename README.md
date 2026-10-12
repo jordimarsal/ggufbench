@@ -17,7 +17,6 @@ No cloud, no APIs, no puzzles. The scoreboard answers one question:
 12 models × 2 thinking modes (off / on), harness v3, measured 2026-10-10/11
 on 2× RTX 5080. `excl.` = tasks excluded with a recorded reason (never silent).
 
-```text
 | model | think | tools | code | agent | speed | global |
 |---|---|---|---|---|---|---|
 | `qwen36-35b-distill-mxfp4_moe` | off | 100% | 83% | 100% | 16ms | 0.95 |
@@ -44,7 +43,6 @@ on 2× RTX 5080. `excl.` = tasks excluded with a recorded reason (never silent).
 | `ornith-1_5-35b-a3b-abliterated-mtpv2-ud-iq4_xs` | on | 88% | 93% | 96% | 613ms | 0.79 |
 | `qwen3_8-27b-heretic-q4_k_m` | on | 100% | 90% (1 excl.) | 83% | 1515ms | 0.78 |
 | `gemma-4-26b-a4b-it-ud-q5_k_xl` | on | 75% | 87% | 88% | 897ms | 0.71 |
-```
 
 ## Quick start
 
