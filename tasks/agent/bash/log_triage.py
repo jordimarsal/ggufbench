@@ -1,0 +1,6 @@
+ID = "log_triage"
+LANG = "bash"
+GOAL = "Analyze error.log and write a summary.sh that prints the top-3 most frequent ERROR lines with their exact counts (one per line, format: count message)."
+INITIAL_FILES = {"error.log": "2024-01-15 10:00:01 INFO Starting service\n2024-01-15 10:00:02 ERROR Connection refused\n2024-01-15 10:00:03 ERROR Timeout exceeded\n2024-01-15 10:00:04 INFO Processing request\n2024-01-15 10:00:05 ERROR Connection refused\n2024-01-15 10:00:06 ERROR Disk full\n2024-01-15 10:00:07 ERROR Connection refused\n2024-01-15 10:00:08 INFO Request complete\n2024-01-15 10:00:09 ERROR Timeout exceeded\n2024-01-15 10:00:10 ERROR Permission denied\n2024-01-15 10:00:11 ERROR Connection refused\n2024-01-15 10:00:12 ERROR Timeout exceeded\n2024-01-15 10:00:13 ERROR Connection refused", "test_solution.sh": "output=$(bash solution.sh)\necho \"$output\" | grep -q 'Connection refused' || exit 1\necho \"$output\" | grep -q 'Timeout exceeded' || exit 1\necho \"$output\" | grep -q 'Disk full' || exit 1\ncount=$(echo \"$output\" | head -1 | awk '{print $1}')\n[ \"$count\" = \"5\" ] || exit 1\ncount=$(echo \"$output\" | sed -n '2p' | awk '{print $1}')\n[ \"$count\" = \"3\" ] || exit 1\necho OK"}
+TEST_FILE = "test_solution.sh"
+MAX_TURNS = 8
