@@ -200,6 +200,27 @@ class TestCompare(unittest.TestCase):
         self.assertIn('<div class="verdict good">Higher weighted global. +14%</div>', html)
         self.assertIn('<div class="verdict good">Higher pool rank. +50%</div>', html)
 
+    def test_wall_clock_metric(self):
+        """C8: total wall clock as a first-class compare metric (lower wins,
+        human format, verdict with the winner's delta)."""
+        a, b = self._pair()
+        a["wall_time_s"], b["wall_time_s"] = 246.0, 2077.0
+        html = self._static(html_report.render_compare(a, b, pool=[a, b]))
+        self.assertIn("Wall clock (total run)", html)
+        self.assertIn('<div class="mval good">4m 06s</div>', html)
+        self.assertIn('<div class="mval bad">34m 37s</div>', html)
+        self.assertIn('<div class="verdict good">Less wall clock. +88%</div>', html)
+
+    def test_wall_clock_missing_is_neutral(self):
+        """Pre-C8 rows: the wall row renders '—' on both sides, never judged."""
+        pa = html_report._pack(self._pair()[0], 1, 2, 80)
+        pb = html_report._pack(self._pair()[1], 2, 2, 80)
+        wall = html_report._COMPARE_SECTIONS[0][1][2]
+        row = html_report._cmp_row(pa, pb, wall)
+        self.assertIn('<div class="mval miss">—</div>', row)
+        self.assertIn('<span class="miss">—</span>', row)
+        self.assertNotIn("mval good", row)
+
     def test_judge_delta_math(self):
         # exact winner/delta pairs; delta is the winner's improvement over the loser
         self.assertEqual(html_report._judge(125.0, 100.0, False), (0, 25.0))
@@ -237,8 +258,8 @@ class TestCompare(unittest.TestCase):
 
     def test_missing_metric_is_neutral_dash(self):
         static = self._static(self._render())
-        self.assertEqual(static.count('<div class="mval miss">—</div>'), 6)  # 3 levels x 2 sides
-        self.assertEqual(static.count('<div class="verdict"><span class="miss">—</span></div>'), 3)
+        self.assertEqual(static.count('<div class="mval miss">—</div>'), 8)  # 3 levels x 2 sides + wall x 2 (pre-C8 rows)
+        self.assertEqual(static.count('<div class="verdict"><span class="miss">—</span></div>'), 4)  # 3 missing code-level rows + 1 wall-clock row
 
     def test_exclusions_visible_per_metric(self):
         a, b = self._pair()

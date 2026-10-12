@@ -410,6 +410,8 @@ _COMPARE_SECTIONS = [
          "g", None, False, "score2", "Higher weighted global."),
         ("Pool rank", "position in the accumulated scoreboard; lower wins",
          "r", None, True, "rank", "Higher pool rank."),
+        ("Wall clock (total run)", "time to complete the whole benchmark in this mode (C8); lower wins",
+         "w", None, True, "secs", "Less wall clock."),
     ]),
     ("Speed", [
         ("Prompt + reply latency", "speed-task round trip; lower is better",
@@ -505,6 +507,7 @@ def _pack(r, rank, total, min_speed):
         "ms": int(sc["speed_ms"] or 0),
         "gt": sc["gen_tps"] or 0,
         "pt": sc["prompt_tps"] or 0,
+        "w": r.get("wall_time_s"),
         "tools": sc["tools"],
         "code": sc["code"],
         "cex": int(code.get("excluded") or 0),
@@ -520,7 +523,7 @@ def _pack_get(p, key):
         v = p["lv"].get(key[3:])
         return v[0] if v and v[0] is not None else None
     v = p.get(key)
-    if key in ("ms", "gt", "pt", "r"):
+    if key in ("ms", "gt", "pt", "r", "w"):
         return v or None
     return None if v is None else v
 
@@ -570,6 +573,9 @@ def _fmt_value(kind, v, excl=0):
         s = f"#{v}"
     elif kind == "ms":
         s = f"{v} ms"
+    elif kind == "secs":
+        m, s = divmod(int(round(v)), 60)
+        s = f"{m}m {s:02d}s" if m else f"{v:.0f}s"
     elif kind == "tps":
         s = f"{v:.0f} t/s"
     else:  # pct
@@ -703,7 +709,8 @@ _PICKER_JS = """
   var SECTIONS = [
     ["Global", [
       ["Weighted global", "tools .30 · code .30 · agent .25 · speed .15", "g", null, false, "score2", "Higher weighted global."],
-      ["Pool rank", "position in the accumulated scoreboard; lower wins", "r", null, true, "rank", "Higher pool rank."]]],
+      ["Pool rank", "position in the accumulated scoreboard; lower wins", "r", null, true, "rank", "Higher pool rank."],
+      ["Wall clock (total run)", "time to complete the whole benchmark in this mode (C8); lower wins", "w", null, true, "secs", "Less wall clock."]]],
     ["Speed", [
       ["Prompt + reply latency", "speed-task round trip; lower is better", "ms", null, true, "ms", "Faster prompt + reply latency."],
       ["Generation throughput", "output tokens/s", "gt", null, false, "tps", "Faster generation."],
@@ -729,7 +736,7 @@ _PICKER_JS = """
       return (e && e[0] != null) ? e[0] : null;
     }
     var v = p[k];
-    if (k === "ms" || k === "gt" || k === "pt" || k === "r") return v ? v : null;
+    if (k === "ms" || k === "gt" || k === "pt" || k === "r" || k === "w") return v ? v : null;
     return (v == null) ? null : v;
   }
   function getx(p, k) {
@@ -743,6 +750,8 @@ _PICKER_JS = """
     if (kind === "score2") s = v.toFixed(2);
     else if (kind === "rank") s = "#" + v;
     else if (kind === "ms") s = v + " ms";
+    else if (kind === "secs") { var t = Math.round(v), m = Math.floor(t / 60);
+      s = m ? m + "m " + String(t % 60).padStart(2, "0") + "s" : t + "s"; }
     else if (kind === "tps") s = Math.round(v) + " t/s";
     else s = Math.round(v * 100) + "%";
     return ex ? s + " <small>(" + ex + " excl.)</small>" : s;
