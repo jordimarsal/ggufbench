@@ -166,6 +166,8 @@ h1 small{color:var(--muted);font-weight:400}
 .chip{font:11.5px/1 var(--mono);color:var(--muted);border:1px solid var(--border);
   border-radius:999px;padding:5px 9px;background:var(--card2)}
 .chip b{color:var(--text);font-weight:600}
+a.chip{background:var(--primary);color:#fff;border-color:transparent;font-weight:600}
+a.chip:hover{background:var(--primary2);border-color:transparent}
 main{max-width:1180px;margin:0 auto;padding:18px 22px 40px;display:grid;gap:16px}
 .banner{border:1px solid #6b4b0a;background:#1c1503;color:#fcd34d;border-radius:10px;
   padding:10px 14px;font-size:13px}
@@ -672,8 +674,9 @@ _COMPARE_CSS = """
 .secbadge.good{color:var(--good);border-color:var(--good)}
 .picker{display:flex;gap:6px;align-items:center;margin-top:10px;flex-wrap:wrap}
 .picker .l{color:var(--muted);font-size:12px}
-.picker select{background:var(--card2);color:var(--text);border:1px solid var(--border);
+.picker select{background:#16233d;color:var(--text);border:1px solid var(--border);
   border-radius:8px;padding:6px 8px;font:12px var(--mono);max-width:330px}
+.picker select option{background:var(--card);color:var(--text)}
 .picker button{background:var(--card2);color:var(--text);border:1px solid var(--border);
   border-radius:8px;padding:6px 10px;cursor:pointer;font:12px var(--mono)}
 .picker button:hover,.picker select:hover{border-color:var(--primary)}
