@@ -301,6 +301,21 @@ class TestEnvironmentInSavedRow(unittest.TestCase):
         self.assertEqual(len(pool), 1)
         self.assertEqual(pool[0]["environment"], KNOWN_ENV)
 
+    def test_main_persists_wall_time(self):
+        """C8: the row and every measured dimension carry the wall clock."""
+        sm = mock.MagicMock()
+        sm.wait_ready.return_value = True
+        with mock.patch.object(run, "_probe_environment", return_value=KNOWN_ENV), \
+             mock.patch.object(run.S, "ServerManager", return_value=sm), \
+             mock.patch.object(run, "warmup", return_value=[0.1, 0.1, 0.1]):
+            out, err = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                run.main(["--models", "fake-model.gguf", "--dims", "speed"])
+        row = report.load_pool()[0]
+        self.assertIsInstance(row["wall_time_s"], float)
+        self.assertGreaterEqual(row["wall_time_s"], 0)
+        self.assertIsInstance(row["speed"]["wall_time_s"], float)
+
 
 class TestLevelForCode(unittest.TestCase):
     """--level only affects code (R2 of hard_code_tier); outside code, warn and drop it."""

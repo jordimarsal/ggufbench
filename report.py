@@ -132,6 +132,58 @@ def _think_mark(result):
     return result.get("thinking") or "—"
 
 
+# n=1: a quality gap within this margin is a tie for mode picking — the decision
+# then rides on wall clock, which is structural (thinking tokens), not noise.
+OPTIMAL_EPSILON = 0.02
+
+
+def _mode_quality(r):
+    """tools/code/agent weighted mean (speed excluded: wall_time_s already
+    carries the cost side — counting speed here too would double-count it)."""
+    q = sum((r.get(d) or {}).get("score", 0) * config.WEIGHTS.get(d, 0)
+            for d in ("tools", "code", "agent"))
+    w = sum(config.WEIGHTS.get(d, 0) for d in ("tools", "code", "agent")) or 1.0
+    return q / w
+
+
+def optimal_mode(model_rows):
+    """'off'/'on' when one thinking mode dominates the other, else None.
+
+    Dominance (C8) needs both rows to carry wall_time_s: quality (tools/code/
+    agent, speed excluded) not worse by more than OPTIMAL_EPSILON AND wall
+    clock not higher. Anything else (missing wall clock on either row, quality
+    collapse beyond the margin even when faster) -> None: no invented winner.
+    An exact tie resolves deterministically to 'off' (same result in the same
+    time — no reason to pay for thinking tokens).
+    """
+    by = {r.get("thinking"): r for r in model_rows if r.get("thinking") in ("off", "on")}
+    off, on = by.get("off"), by.get("on")
+    if not off or not on:
+        return None
+    wall_off, wall_on = off.get("wall_time_s"), on.get("wall_time_s")
+    if not wall_off or not wall_on:
+        return None
+    q_off, q_on = _mode_quality(off), _mode_quality(on)
+    if wall_off <= wall_on and q_off >= q_on - OPTIMAL_EPSILON:
+        return "off"
+    if wall_on <= wall_off and q_on >= q_off - OPTIMAL_EPSILON:
+        return "on"
+    return None
+
+
+def optimal_by_slug(pool):
+    """{slug: 'off'|'on'} per model with a dominant thinking mode (see optimal_mode)."""
+    by_model = {}
+    for r in pool:
+        by_model.setdefault(r.get("model"), []).append(r)
+    out = {}
+    for model, rs in by_model.items():
+        mode = optimal_mode(rs)
+        if mode:
+            out[config.slug(model)] = mode
+    return out
+
+
 def _render_global_rows(pool, weights, title):
     """Table 1 + tokens section (SPEC 4.6). One row per model with the score of each
     dimension and a weighted global, sorted from best to worst."""
@@ -146,12 +198,14 @@ def _render_global_rows(pool, weights, title):
                      _global_score(r, weights, min_speed)))
     rows.sort(key=lambda x: x[4], reverse=True)
     nw = max((len(r[0]) for r in rows), default=5)
+    optimal = optimal_by_slug(pool)
     header = f"{'MODEL':{nw}} {'THINK':>5} {'tools':>6} {'code':>13} {'agent':>6} {'speed':>9} {'GLOBAL':>7}"
     out = [f"=== {title} ===", header, "-" * len(header)]
     for name, mode, excl, sc, g in rows:
         sp = f"{sc['speed_ms']}ms" if sc["speed_ms"] else "—"
         code = f"{sc['code']:>5.0%}" + (f" ({excl} excl.)" if excl else "")
-        out.append(f"{name:{nw}} {mode:>5} {sc['tools']:>5.0%} {code:>13} "
+        think = f"{mode:>4} ★" if optimal.get(name) == mode else f"{mode:>5}"
+        out.append(f"{name:{nw}} {think:>5} {sc['tools']:>5.0%} {code:>13} "
                    f"{sc['agent']:>5.0%} {sp:>9} {g:>7.2f}")
     # Tokens-per-second heading (output and input).
     out.append("")

@@ -285,5 +285,49 @@ class TestReport(unittest.TestCase):
             self.assertIn("MODEL", out)
 
 
+class TestOptimalMode(unittest.TestCase):
+    """C8: one thinking mode dominates when it is not quality-worse (tools/
+    code/agent, speed excluded) AND finishes in no more wall time. Both rows
+    need wall_time_s; pre-C8 rows get no verdict."""
+
+    @staticmethod
+    def row(mode, wall, code=0.9, tools=1.0, agent=1.0, ms=100):
+        return {"model": "models/foo.gguf", "thinking": mode, "wall_time_s": wall,
+                "speed": {"speed_ms": ms, "gen_tps": 100.0, "prompt_tps": 100.0},
+                "tools": {"score": tools}, "agent": {"score": agent},
+                "code": {"score": code, "excluded": 0}}
+
+    def test_off_dominates_equal_quality_cheaper(self):
+        rows = [self.row("off", 450, code=0.917), self.row("on", 2100, code=0.933)]
+        self.assertEqual(report.optimal_mode(rows), "off")
+        self.assertEqual(report.optimal_by_slug(rows), {"models_foo": "off"})
+
+    def test_on_dominates_when_cheaper(self):
+        rows = [self.row("off", 2100, code=0.90), self.row("on", 450, code=0.917)]
+        self.assertEqual(report.optimal_mode(rows), "on")
+
+    def test_quality_collapse_blocks_even_when_faster(self):
+        rows = [self.row("off", 450, code=0.70), self.row("on", 2100, code=0.933)]
+        self.assertIsNone(report.optimal_mode(rows))
+
+    def test_missing_wall_no_verdict(self):
+        rows = [self.row("off", None), self.row("on", 500)]
+        self.assertIsNone(report.optimal_mode(rows))
+        self.assertEqual(report.optimal_by_slug(rows), {})
+
+    def test_single_mode_no_verdict(self):
+        self.assertIsNone(report.optimal_mode([self.row("off", 450)]))
+
+    def test_exact_tie_resolves_off(self):
+        rows = [self.row("off", 500, 0.9), self.row("on", 500, 0.9)]
+        self.assertEqual(report.optimal_mode(rows), "off")
+
+    def test_star_in_scoreboard_render(self):
+        pool = [self.row("off", 450, code=0.917), self.row("on", 2100, code=0.933)]
+        out = "\n".join(report._render_global_rows(pool, config.WEIGHTS, "Global"))
+        self.assertIn("off ★", out)
+        self.assertNotIn("on ★", out)
+
+
 if __name__ == "__main__":
     unittest.main()

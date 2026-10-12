@@ -341,5 +341,29 @@ class TestCompareWrite(unittest.TestCase):
             shutil.rmtree(tmp)
 
 
+class TestOptimalBadge(unittest.TestCase):
+    """C8: the dominant thinking mode carries the ★ optimal badge in the
+    ranking and the model card; rows without wall_time_s get no marker."""
+
+    @staticmethod
+    def pair(with_wall=True):
+        a = _mk(thinking="off")
+        b = _mk(thinking="on")
+        if with_wall:
+            a["wall_time_s"] = 450.0
+            b["wall_time_s"] = 2100.0
+        return [a, b]
+
+    def test_badge_on_dominant_row(self):
+        html = html_report.render(self.pair())
+        self.assertIn("★ optimal", html)
+        # exactly twice per winning model: once in the ranking, once in its card
+        self.assertEqual(html.count("★ optimal"), 2)
+
+    def test_no_badge_without_wall(self):
+        html = html_report.render(self.pair(with_wall=False))
+        self.assertNotIn("★ optimal", html)
+
+
 if __name__ == "__main__":
     unittest.main()

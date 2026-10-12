@@ -57,6 +57,7 @@ def _rows(pool):
     for r in pool:
         rows.append({
             "name": _display_slug(config.slug(r["model"])),
+            "slug": config.slug(r["model"]),
             "sc": R._scores(r),
             "global": R._global_score(r, config.WEIGHTS, min_speed),
             "engine": r.get("engine", "llama"),
@@ -226,6 +227,9 @@ def render(pool):
     rows = _rows(pool)
     now = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
     rec_section = _rec_section(rows)
+    # C8 optimal thinking mode per model (needs wall_time_s on both rows of a
+    # pair; rows from before it simply get no marker).
+    optimal = R.optimal_by_slug(pool)
     gpus = _gpu_chips()
     w = config.WEIGHTS
     dates = sorted({r["ts"] for r in rows if r["ts"]})
@@ -253,6 +257,8 @@ def render(pool):
         cls = " top" if i == 0 else ""
         think = (f' <span class="badge">think:{_esc(r["thinking"])}</span>'
                  if r["thinking"] != "—" else "")
+        if optimal.get(r["slug"]) == r["thinking"]:
+            think += ' <span class="badge strata">★ optimal</span>'
         ranking.append(
             f'<div class="trow"><div class="pos{cls}">{i + 1}</div>'
             f'<div class="name" title="{_esc(r["name"])}">{_esc(r["name"])}<small>{_esc(r["ts"])} · {r["tasks"]["tools"]}+'
@@ -300,7 +306,9 @@ def render(pool):
         think_line = (f"think: {r['thinking']}\n" if r["thinking"] != "—" else "")
         details.append(
             f'<details><summary>{_esc(r["name"])} <span class="badge{" strata" if r["engine"] == "strata" else ""}">'
-            f'{_esc(r["engine"])} {_esc(r["build"])}</span> <span class="miss">{_esc(r["ts"])}</span></summary>'
+            f'{_esc(r["engine"])} {_esc(r["build"])}</span>'
+            f'{" <span class='badge strata'>★ optimal</span>" if optimal.get(r["slug"]) == r["thinking"] else ""}'
+            f' <span class="miss">{_esc(r["ts"])}</span></summary>'
             f'<pre>{by_level_line}{think_line}excluded code: {r["code_excluded"]}\n{flags}</pre></details>')
 
     banner = ""

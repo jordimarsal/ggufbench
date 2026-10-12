@@ -5,6 +5,7 @@ import json
 import platform
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from . import config, server as S, client as C, graders as G, tasks_loader as T, report as R, html_report
@@ -167,20 +168,33 @@ def _bench_one(model_path, pool, dims, lang_filter, port, quick=False, engine="l
                   "model_config_flags": S.describe_config(model_path, engine=engine),
                   "environment": env}
         lf = set(lang_filter) if lang_filter else None
+        # C8 wall clock: the measured phase only (server boot and warmup are
+        # setup, not the benchmark). Per-dimension too, so a mode comparison
+        # shows where the extra time goes (e.g. thinking inside code/agent).
+        t0 = time.monotonic()
         if "speed" in dims:
+            t = time.monotonic()
             result["speed"] = G.grade_speed(c, _limit(T.load("speed"), quick), on_task=_print_task)
+            result["speed"]["wall_time_s"] = round(time.monotonic() - t, 1)
         if "tools" in dims:
+            t = time.monotonic()
             result["tools"] = G.grade_tools(c, _limit(T.load("tools"), quick), on_task=_print_task)
+            result["tools"]["wall_time_s"] = round(time.monotonic() - t, 1)
         if "code" in dims:
             code_tasks = _limit(T.load("code", lang_filter=lf, level=level), quick)
             if level and not code_tasks:
                 print(f"⚠️  no code task at level={level}", file=sys.stderr, flush=True)
+            t = time.monotonic()
             result["code"] = G.grade_code(c, code_tasks,
                                           on_task=_print_task, model_slug=slug,
                                           gen_tps=result["speed"]["gen_tps"] if "speed" in result else None,
                                           thinking=thinking)
+            result["code"]["wall_time_s"] = round(time.monotonic() - t, 1)
         if "agent" in dims:
+            t = time.monotonic()
             result["agent"] = G.grade_agent(c, _limit(T.load("agent", lang_filter=lf), quick), on_task=_print_task)
+            result["agent"]["wall_time_s"] = round(time.monotonic() - t, 1)
+        result["wall_time_s"] = round(time.monotonic() - t0, 1)
         return result
     finally:
         sm.stop()
