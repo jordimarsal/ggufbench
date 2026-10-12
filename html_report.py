@@ -6,6 +6,7 @@ by the real harness functions (report._scores / report._global_score with
 config.WEIGHTS) so that this page and the CLI always say the same thing.
 
 Usage:  python3 -m ggufbench.html_report   (writes results/report.html and prints the path)
+        or, after any run, python3 -m ggufbench.run --html (same output, one flag)
 """
 
 import datetime
@@ -342,7 +343,8 @@ def render(pool):
 {rec_section}
 </main>
 <footer>
-  Regenerate with <code>python3 -m ggufbench.html_report</code> from the workspace root.
+  Regenerate with <code>python3 -m ggufbench.run --scoreboard --html</code> (or
+  <code>python3 -m ggufbench.html_report</code>) from the workspace root.
   Ranking relative to this hardware and this harness: not at all comparable with
   public benchmarks (HumanEval, BFCL, SWE-bench). More: <code>docs/SPEC.md</code> ·
   <code>docs/MILLORA.md</code> · <code>AGENTS.md</code>.
@@ -352,11 +354,27 @@ def render(pool):
 """
 
 
-def main(argv=None):
-    pool = R.load_pool()
+def write_default_report(pool=None):
+    """Render the pool to results/report.html (config.RESULTS_DIR) and return the
+    path written. Single owner of the render+path logic: run.py --html calls this
+    instead of duplicating it. The pool is read at call time via report.load_pool()
+    (the same accumulated source --scoreboard uses) unless one is passed in.
+    Returns None when the pool is empty: nothing to render, no file touched."""
+    if pool is None:
+        pool = R.load_pool()
+    if not pool:
+        return None
     out = config.RESULTS_DIR / "report.html"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(render(pool), encoding="utf-8")
+    return out
+
+
+def main(argv=None):
+    out = write_default_report()
+    if out is None:
+        print("pool is empty: no HTML report written")
+        return 0
     print(str(out))
     return 0
 

@@ -6,7 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from . import config, server as S, client as C, graders as G, tasks_loader as T, report as R
+from . import config, server as S, client as C, graders as G, tasks_loader as T, report as R, html_report
 
 
 def parse_weights(s):
@@ -293,12 +293,26 @@ def _parse_args(argv=None):
     ap.add_argument("--info", action="store_true",
                    help="Table 1 + Table 3 (per-task detail)")
     ap.add_argument("--scoreboard", action="store_true")
+    ap.add_argument("--html", action="store_true",
+                    help="after the run (or together with --scoreboard), regenerate "
+                         "the HTML report from the accumulated pool")
     ap.add_argument("--forget")
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--port", type=int, default=None,
                     help=f"default {config.PORT} (llama) / {config.STRATA_PORT} (strata)")
     ap.add_argument("--weights", default=None)
     return ap.parse_args(argv)
+
+
+def _write_html_report(pool=None):
+    """--html: regenerate the HTML report from the accumulated pool (the same
+    source --scoreboard reads, not just this run's rows). One line of feedback on
+    stderr either way, so --json keeps stdout parseable."""
+    out = html_report.write_default_report(pool)
+    if out is None:
+        print("pool is empty: no HTML report written", file=sys.stderr, flush=True)
+    else:
+        print(f"→ report: {out}", file=sys.stderr, flush=True)
 
 
 def main(argv=None):
@@ -321,6 +335,10 @@ def main(argv=None):
     if args.scoreboard:
         pool = R.load_pool()
         print(R.render(pool, weights, title="Scoreboard", level=level, show_tasks=args.task))
+        # --scoreboard --html = "refresh everything": read-only render + report
+        # regenerated from the same accumulated pool.
+        if args.html:
+            _write_html_report(pool)
         return
 
     dims = [d.strip() for d in args.dims.split(",") if d.strip()]
@@ -356,6 +374,8 @@ def main(argv=None):
         print(json.dumps(pool, indent=2, ensure_ascii=False))
     else:
         print(R.render(pool, weights, title="Benchmark Results", level=level, show_tasks=args.task))
+    if args.html:
+        _write_html_report(pool)
 
 if __name__ == "__main__":
     main()

@@ -129,6 +129,7 @@ The package is imported as `ggufbench`; running from inside the directory fails 
 ```sh
 python3 -m unittest discover -s ggufbench/tests -t .    # full suite (~6 s, NO GPU)
 python3 -m ggufbench.run --scoreboard                   # accumulated scoreboard (read-only)
+python3 -m ggufbench.run --scoreboard --html            # refresh scoreboard + report (results/report.html)
 python3 -m ggufbench.run --models <name> [--quick]      # llama run (starts the server itself)
 python3 -m ggufbench.run --engine strata --models iq3_xxs [--quick]
 python3 -m ggufbench.html_report                        # writes ggufbench/results/report.html

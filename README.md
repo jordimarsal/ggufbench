@@ -57,8 +57,7 @@ cd ..
 python3 -m ggufbench.run --models ../models/Qwen3.8-27B-UD-Q5_K_M.gguf
 
 # accumulated scoreboard + HTML report
-python3 -m ggufbench.run --scoreboard
-python3 -m ggufbench.html_report   # → ggufbench/results/report.html
+python3 -m ggufbench.run --scoreboard --html   # → scoreboard + ggufbench/results/report.html
 ```
 
 ## The four dimensions

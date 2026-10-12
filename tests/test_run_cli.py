@@ -1,5 +1,6 @@
 import contextlib
 import io
+import json
 import platform
 import shutil
 import subprocess
@@ -329,6 +330,70 @@ class TestLevelForCode(unittest.TestCase):
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
             run.main(["--level", "expert", "--forget", "zz_nothing"])
         self.assertNotIn("invalid choice", err.getvalue())
+
+
+class TestHtmlFlag(unittest.TestCase):
+    """--html: regenerate results/report.html from the accumulated pool (the same
+    source --scoreboard reads, not just this run's rows), with one line of
+    feedback either way."""
+
+    def setUp(self):
+        self.tmpdir = Path(tempfile.mkdtemp())
+        self.enterContext(config.override(POOL_FILE=self.tmpdir / "pool.jsonl",
+                                          RESULTS_DIR=self.tmpdir / "results",
+                                          RESULTS_MODELS=self.tmpdir / "models",
+                                          RESULTS_RUNS=self.tmpdir / "runs"))
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir)
+
+    def _run(self, argv):
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            run.main(argv)
+        return out.getvalue(), err.getvalue()
+
+    def _seed_pool(self):
+        # Minimal valid row, same fixture shape as the html report tests
+        # (test_html_report._mk): the report needs speed timings and a real ts.
+        row = _mk("seed.gguf")
+        row["ts"] = "2026-10-10T10:00:00"
+        row["speed"].update(speed_ms=100, gen_tps=100.0, prompt_tps=300.0)
+        config.POOL_FILE.write_text(json.dumps(row) + "\n", encoding="utf-8")
+
+    def test_flag_parses(self):
+        self.assertFalse(run._parse_args([]).html)
+        self.assertTrue(run._parse_args(["--html"]).html)
+
+    def test_html_after_mocked_run_writes_and_prints_path(self):
+        sm = mock.MagicMock()
+        sm.wait_ready.return_value = True
+        with mock.patch.object(run, "_probe_environment", return_value=KNOWN_ENV), \
+             mock.patch.object(run.S, "ServerManager", return_value=sm), \
+             mock.patch.object(run, "warmup", return_value=[0.1, 0.1, 0.1]):
+            out, err = self._run(["--models", "fake-model.gguf", "--dims", "", "--html"])
+        report_html = config.RESULTS_DIR / "report.html"
+        self.assertTrue(report_html.is_file())
+        self.assertTrue(report_html.read_text(encoding="utf-8").startswith("<!doctype html>"))
+        self.assertIn("→ report:", err)
+        self.assertIn(str(report_html), err)
+
+    def test_scoreboard_with_html_writes_report(self):
+        # --scoreboard --html = the "refresh everything" combo (read-only mode
+        # still regenerates the report from the seeded pool).
+        self._seed_pool()
+        out, err = self._run(["--scoreboard", "--html"])
+        report_html = config.RESULTS_DIR / "report.html"
+        self.assertTrue(report_html.is_file())
+        self.assertTrue(report_html.read_text(encoding="utf-8").startswith("<!doctype html>"))
+        self.assertIn("→ report:", err)
+        self.assertIn(str(report_html), err)
+        self.assertIn("seed", out)  # the scoreboard itself is still printed
+
+    def test_empty_pool_skips_write_with_message(self):
+        out, err = self._run(["--scoreboard", "--html"])
+        self.assertFalse((config.RESULTS_DIR / "report.html").exists())
+        self.assertIn("pool is empty", err)
 
 
 if __name__ == "__main__":
