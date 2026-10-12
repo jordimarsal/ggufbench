@@ -1,6 +1,8 @@
+import io
 import json
 import tempfile
 import unittest
+from contextlib import redirect_stderr
 from pathlib import Path
 
 from ggufbench import server, config
@@ -63,6 +65,57 @@ class TestModelConfigTxt(unittest.TestCase):
         self.assertIn("--ctx-size=65536", a)
         self.assertIn("--cache-type-v=q8_0", a)
         self.assertEqual(a.count("--cache-type-k"), 1)  # only the baseline one
+
+class TestProfileFlagAllowList(unittest.TestCase):
+    """LOW security fix: model .txt flags pass through without allow-list validation."""
+
+    def _args_with_txt(self, txt_body, name="m.gguf"):
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / Path(name).with_suffix(".txt").name).write_text(txt_body)
+            return server.build_args(str(Path(d) / name), "fixed", 8999)
+
+    def test_allow_listed_flag_passes_through(self):
+        a = self._args_with_txt("--jinja\n--spec-type draft-mtp\n")
+        self.assertIn("--jinja", a)
+        i = a.index("--spec-type"); self.assertEqual(a[i + 1], "draft-mtp")
+
+    def test_unknown_flag_dropped_with_warning(self):
+        f = io.StringIO()
+        with redirect_stderr(f):
+            valid, dropped = server._validate_model_flags(["--frobnicate", "3"])
+        self.assertEqual(valid, [])
+        self.assertEqual(dropped, ["--frobnicate"])
+        self.assertIn("dropped: --frobnicate", f.getvalue())
+
+    def test_value_like_flag_pair_dropped(self):
+        f = io.StringIO()
+        with redirect_stderr(f):
+            valid, dropped = server._validate_model_flags(["--unknown-flag", "-v"])
+        self.assertEqual(valid, [])
+        # both the unknown flag and its value-like token are dropped
+        self.assertIn("--unknown-flag", dropped)
+        self.assertIn("-v", dropped)
+        self.assertIn("dropped: --unknown-flag", f.getvalue())
+        self.assertIn("dropped: -v", f.getvalue())
+
+    def test_infra_flags_still_filtered_before_validation(self):
+        """Infra flags (-m/--model/--port/--host) are stripped by _strip_infra
+        before validation; they never reach the allow-list check."""
+        a = self._args_with_txt("--port 1234 --host 0.0.0.0\n--spec-type draft-mtp\n")
+        self.assertNotIn("1234", a)
+        self.assertNotIn("0.0.0.0", a)
+        self.assertIn("draft-mtp", a)
+
+    def test_describe_config_shows_dropped_names(self):
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "m.txt").write_text(
+                "--jinja\n--frobnicate 3\n--ctx-size 65536\n")
+            desc = server.describe_config(Path(d) / "m.gguf")
+        self.assertIn("--jinja", desc)
+        self.assertIn("--ctx-size 65536", desc)
+        self.assertIn("dropped:", desc)
+        self.assertIn("--frobnicate", desc)
+
 
 class TestStrata(unittest.TestCase):
     """--engine strata mode: startup command, port, waits and configuration."""

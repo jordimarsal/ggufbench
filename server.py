@@ -57,6 +57,45 @@ def _has_flag(args, *names):
     return any(a.split("=", 1)[0] in names for a in args)
 
 
+def _validate_model_flags(raw_args):
+    """Filter raw model-profile flags through ALLOWED_MODEL_FLAGS.
+
+    Unknown flag names are dropped with one stderr warning each.
+    Values that look like flags (start with "-") are also dropped as
+    mis-pairings.  Returns (valid_args, [dropped_names]).
+    """
+    from . import config
+    valid, dropped = [], []
+    i = 0
+    while i < len(raw_args):
+        name = raw_args[i].split("=", 1)[0]
+        if name not in config.ALLOWED_MODEL_FLAGS:
+            # unknown flag → drop it and its value (if present)
+            dropped.append(name)
+            i += 1
+            # consume the following token so we don't re-process it
+            if i < len(raw_args):
+                next_token = raw_args[i]
+                if "=" not in name:  # --flag=value has no separate value
+                    if next_token[0] == "-":
+                        # mis-pairing: both tokens look like flags
+                        dropped.append(next_token)
+                        i += 1
+                    else:
+                        # legitimate value for this unknown flag — skip it
+                        i += 1
+            continue
+        # known flag → keep it; skip its value if present
+        valid.append(raw_args[i])
+        i += 1
+        if i < len(raw_args) and raw_args[i][0] != "-" and "=" not in raw_args[i - 1]:
+            valid.append(raw_args[i])
+            i += 1
+    for d in dropped:
+        print(f"\u26a0\ufe0f profile flag not in allow-list, dropped: {d}", file=sys.stderr, flush=True)
+    return valid, dropped
+
+
 def build_args(model_path, context_mode, port):
     """Composes the server command line.
 
@@ -67,7 +106,8 @@ def build_args(model_path, context_mode, port):
       - .txt with -c/--ctx-size  -> drop the harness' -c
       - .txt with --cache-type-k/v -> drop the corresponding CACHE_FLAGS entry
       - the rest (--spec-type, -md, --mmproj, ...) are simply appended."""
-    extra = _strip_infra(config.load_model_config_args(model_path))
+    raw = config.load_model_config_args(model_path)
+    extra, _dropped = _validate_model_flags(_strip_infra(raw))
     args = [str(config.SERVER_BIN), "-m", str(model_path)]
     if not _has_flag(extra, "-c", "--ctx-size"):
         args += ["-c", str(resolve_context(context_mode, model_path))]
@@ -82,11 +122,16 @@ def build_args(model_path, context_mode, port):
 
 def describe_config(model_path, engine="llama"):
     """Readable description of the flags the model profile provides (for
-    progress on stderr and as result metadata). None if it has none."""
+    progress on stderr and as result metadata).  Unknown/dropped flags are
+    appended so receipts show what was rejected.  None if no flags at all."""
     if engine == "strata":
         return describe_strata_config(model_path)
-    extra = config.load_model_config_args(model_path)
-    return " ".join(extra) if extra else None
+    raw = config.load_model_config_args(model_path)
+    valid, dropped = _validate_model_flags(raw)
+    parts = [" ".join(valid)] if valid else []
+    if dropped:
+        parts.append("dropped: " + ", ".join(dropped))
+    return " | ".join(parts) if parts else None
 
 
 def describe_strata_config(config_path):

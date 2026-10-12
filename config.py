@@ -68,6 +68,38 @@ SERVER_FLAGS = [
 # override it (then the flag must not be duplicated: llama-server warns).
 CACHE_FLAGS = ["--cache-type-k", "q4_0", "--cache-type-v", "q4_0"]
 
+# Per-model profile flags that are allowed through from models/<model>.txt.
+# Values pass unvalidated EXCEPT: a value starting with "-" looks like a flag
+# mis-pairing → drop the pair with a warning.  Unknown flag names are also
+# dropped (with a warning).  Infra flags (-m/--model, --port, --host) are
+# handled separately by _strip_infra in server.py.
+ALLOWED_MODEL_FLAGS = {
+    # context / batching
+    "-c", "--ctx-size", "-b", "--batch-size",
+    "--threads",
+    # GPU / layers
+    "--n-gpu-layers", "-ngl",
+    "--tensor-split", "--split-mode",
+    "--main-gpu",
+    # attention / cache
+    "--flash-attn", "--no-mmap",
+    "--cache-bias", "--cache-type-k", "--cache-type-v",
+    "--no-prompt-cache",
+    # sampling
+    "--temp", "--top-p", "--repeat-penalty",
+    "--repeat-last-n", "--presence-penalty", "--frequency-penalty",
+    "--mirostat", "--mirostat-tau", "--mirostat-eta",
+    "--penalize-nl", "--ignore-eos",
+    # model loading
+    "--mmproj", "-md",
+    "--spec-type", "--spec-draft-n-max",
+    "--draft-min-p",
+    # misc
+    "--jinja", "--parallel",
+    "--mlock", "--mmap",
+    "--log-disable", "--log-prefix",
+}
+
 def load_model_config_args(model_path) -> list:
     """Reads models/<model>.txt: extra server flags, one per line, same
     convention as bin/start-dev-ai.sh (where they are also applied last).
