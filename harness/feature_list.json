@@ -1,6 +1,6 @@
 {
   "project": {
-    "name": "benchmark",
+    "name": "ggufbench",
     "parallel": false,
     "modules": [
       "performance-benchmarks",

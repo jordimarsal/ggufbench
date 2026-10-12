@@ -1,6 +1,6 @@
 import unittest
 
-from benchmark import tasks_loader
+from ggufbench import tasks_loader
 
 
 class TestHardTasks(unittest.TestCase):

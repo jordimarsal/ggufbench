@@ -122,16 +122,16 @@ Design: `docs/SPEC.md` · improvement roadmap: `docs/MILLORA.md` · architecture
 
 ### Commands — ALWAYS from the workspace root (`/home/jordi/ia/llama/`)
 
-The package is imported as `benchmark`; running from inside the directory fails with
-`ModuleNotFoundError`. Notes: the git repo IS `benchmark/`; the servers and the models
+The package is imported as `ggufbench`; running from inside the directory fails with
+`ModuleNotFoundError`. Notes: the git repo IS `ggufbench/`; the servers and the models
 (40+ GB) live outside.
 
 ```sh
-python3 -m unittest discover -s benchmark/tests -t .    # full suite (~6 s, NO GPU)
-python3 -m benchmark.run --scoreboard                   # accumulated scoreboard (read-only)
-python3 -m benchmark.run --models <name> [--quick]      # llama run (starts the server itself)
-python3 -m benchmark.run --engine strata --models iq3_xxs [--quick]
-python3 -m benchmark.html_report                        # writes benchmark/results/report.html
+python3 -m unittest discover -s ggufbench/tests -t .    # full suite (~6 s, NO GPU)
+python3 -m ggufbench.run --scoreboard                   # accumulated scoreboard (read-only)
+python3 -m ggufbench.run --models <name> [--quick]      # llama run (starts the server itself)
+python3 -m ggufbench.run --engine strata --models iq3_xxs [--quick]
+python3 -m ggufbench.html_report                        # writes ggufbench/results/report.html
 ```
 
 ### Non-negotiable rules

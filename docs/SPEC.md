@@ -1,7 +1,7 @@
 # ggufbench — Design document
 
 **Date:** 2026-08-03 (evolving; see `harness/progress/history.md`)
-**Location:** `/home/jordi/ia/llama/benchmark/`
+**Location:** `/home/jordi/ia/llama/ggufbench/`
 **Status:** In production — harness v3, 6 features delivered (see `harness/feature_list.json`)
 
 ## 1. Goal
@@ -57,7 +57,7 @@ The end goal is picking the best model for **opencode** (coding agent).
   - **Lifecycle**: starts with `start_new_session` and `stop()` kills the whole
     process group — the `engine/strata` child would outlive the parent
     `serve/server.py` and keep holding VRAM. Server output
-    is saved to `/tmp/benchmark-strata-server-<port>.log` (never /dev/null).
+    is saved to `/tmp/ggufbench-strata-server-<port>.log` (never /dev/null).
   - **The two engines never run at once**: they compete for the same GPUs.
 - **Warmup** of 1 generation before measuring/any task.
 - Same prompts/tests for all models.
@@ -65,7 +65,7 @@ The end goal is picking the best model for **opencode** (coding agent).
 ## 3. Architecture
 
 ```
-benchmark/
+ggufbench/
 ├── run.py            # CLI / entry point
 ├── config.py         # weights, defaults, paths, server flags
 ├── server.py         # llama-server lifecycle (start/stop/ready)
@@ -313,7 +313,7 @@ One task = one file, self-contained and describable.
 ## 7. CLI
 
 ```
-benchmark/run.py [options]
+ggufbench/run.py [options]
   --models all|<list>          # default: all (models/*.gguf; with --engine strata: strata-*.json)
   --engine llama|strata        # engine serving the model (default: llama)
   --context fixed|adapted      # default: fixed (16384)

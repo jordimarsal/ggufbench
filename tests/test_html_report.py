@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from benchmark import config, html_report, report
+from ggufbench import config, html_report, report
 
 
 def _mk(name="models/foo.gguf", engine="llama", code_score=0.9, tools_score=0.75,

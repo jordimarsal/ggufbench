@@ -1,5 +1,5 @@
 import unittest
-from benchmark import client
+from ggufbench import client
 
 SAMPLE = {
     "choices": [{"finish_reason": "tool_calls", "message": {
@@ -67,15 +67,15 @@ class TestChatExtra(unittest.TestCase):
         return captured["body"]
 
     def test_defaults_without_extra(self):
-        from benchmark import config
+        from ggufbench import config
         body = self._capture()
         self.assertEqual(body["temperature"], config.TEMPERATURE)
         self.assertEqual(body["seed"], config.SEED)
         self.assertNotIn("chat_template_kwargs", body)
 
     def test_extra_merges_into_body(self):
-        from benchmark import config
-        from benchmark import config as cfg
+        from ggufbench import config
+        from ggufbench import config as cfg
         body = self._capture(extra=cfg.thinking_body("strata", "off"))
         # the new field is there...
         self.assertEqual(body["chat_template_kwargs"], {"enable_thinking": False})

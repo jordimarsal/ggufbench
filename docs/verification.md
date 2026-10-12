@@ -17,7 +17,7 @@ Every feature carries unit tests (stdlib `unittest`, `tests/test_<module>.py`). 
 
 ```
 cd /home/jordi/ia/llama/
-python3 -m unittest discover -s benchmark/tests -t .   # last line: "N tests ... OK"
+python3 -m unittest discover -s ggufbench/tests -t .   # last line: "N tests ... OK"
 ```
 
 Read the final counter: a row of dots without `F`/`E` is not a summary.
@@ -32,7 +32,7 @@ models are present or the port is busy.
 
 ### Level 3: Real bench smoke (GPU, optional)
 
-`python3 -m benchmark.run --engine <engine> --models <name> --quick` (4 tasks, ~2 min):
+`python3 -m ggufbench.run --engine <engine> --models <name> --quick` (4 tasks, ~2 min):
 manual smoke before a long re-measure. Never with both engines at once.
 
 ### Level 4: Requirement Traceability (Mandatory for All Features)
@@ -78,7 +78,7 @@ final gate.
 
 A chat response is not evidence. After every implementer batch, verify on disk:
 tasks `[x]` in `harness/specs/<name>/tasks.md`, files existing and non-empty, and
-**run the gates yourself** (`python3 -m unittest discover -s benchmark/tests -t .`).
+**run the gates yourself** (`python3 -m unittest discover -s ggufbench/tests -t .`).
 
 ---
 

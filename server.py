@@ -139,7 +139,7 @@ class ServerManager:
     def log_path(self):
         """Where the server output is saved (Strata only): a startup
         error must be readable, not lost inside a DEVNULL."""
-        return Path(tempfile.gettempdir()) / f"benchmark-{self.engine}-server-{self.port}.log"
+        return Path(tempfile.gettempdir()) / f"ggufbench-{self.engine}-server-{self.port}.log"
 
     def start(self):
         out = subprocess.DEVNULL

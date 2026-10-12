@@ -1,5 +1,5 @@
 import unittest
-from benchmark import executors
+from ggufbench import executors
 
 PY_TEST_PASS = "from solution import *\nassert add(2,3)==5\nprint('OK')\n"
 PY_TEST_FAIL = "from solution import *\nassert add(2,3)==6\n"

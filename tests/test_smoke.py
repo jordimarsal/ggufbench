@@ -7,7 +7,7 @@ from pathlib import Path
 class SmokeTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        from benchmark import config
+        from ggufbench import config
         cls.config = config
         # Only MAIN servable GGUFs (>= 1 GB, excluding mmproj/drafts/embeddings),
         # sorted by size: the smoke wants to load fast, not the biggest model.
@@ -36,8 +36,8 @@ class SmokeTest(unittest.TestCase):
         if self.port_busy:
             self.skipTest(f"a server is listening on port {self.config.PORT}: GPUs busy")
 
-        from benchmark import server as S, client as C, graders as G, tasks_loader as T
-        from benchmark import config
+        from ggufbench import server as S, client as C, graders as G, tasks_loader as T
+        from ggufbench import config
 
         model_path = self.models[0]
         port = config.PORT + 1
@@ -88,7 +88,7 @@ class SmokeTest(unittest.TestCase):
         if not self.has_models:
             self.skipTest("No models found in MODELS_DIR")
 
-        from benchmark import config
+        from ggufbench import config
         try:
             import subprocess
             out = subprocess.run([str(config.SERVER_BIN), "--version"],

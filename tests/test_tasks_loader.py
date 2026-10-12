@@ -1,5 +1,5 @@
 import unittest, os, textwrap
-from benchmark import tasks_loader
+from ggufbench import tasks_loader
 
 class TestLoad(unittest.TestCase):
     @classmethod

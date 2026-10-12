@@ -1,4 +1,4 @@
-# Harness — benchmark
+# Harness — ggufbench
 
 Installed with [harness-standard](https://github.com/jordimarsal/harness-standard) (`opencode`, `v0.8.0`).
 

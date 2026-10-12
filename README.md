@@ -49,18 +49,18 @@ on 2× RTX 5080. `excl.` = tasks excluded with a recorded reason (never silent).
 ## Quick start
 
 ```bash
-# 1. clone (the repo IS the python package; keep it as ./benchmark)
-git clone https://github.com/jordimarsal/ggufbench benchmark
+# 1. clone (the repo IS the python package; keep it as ./ggufbench)
+git clone https://github.com/jordimarsal/ggufbench ggufbench
 
 # 2. put your GGUF models next to it (../models/*.gguf)
 
 # 3. run the full benchmark on a model (starts llama-server itself)
 cd ..
-python3 -m benchmark.run --models ../models/Qwen3.8-27B-UD-Q5_K_M.gguf
+python3 -m ggufbench.run --models ../models/Qwen3.8-27B-UD-Q5_K_M.gguf
 
 # accumulated scoreboard + HTML report
-python3 -m benchmark.run --scoreboard
-python3 -m benchmark.html_report   # → benchmark/results/report.html
+python3 -m ggufbench.run --scoreboard
+python3 -m ggufbench.html_report   # → ggufbench/results/report.html
 ```
 
 ## The four dimensions

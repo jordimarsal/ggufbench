@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from benchmark import run, report
+from ggufbench import run, report
 
 
 def _mk(model="m"):

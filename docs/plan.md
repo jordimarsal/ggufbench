@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build an automatic benchmark at `/home/jordi/ia/llama/benchmark/` that compares local models (llama-server) on speed, tool-calling, code (4 languages) and multi-step agent, with accumulated results.
+**Goal:** Build an automatic benchmark at `/home/jordi/ia/llama/ggufbench/` that compares local models (llama-server) on speed, tool-calling, code (4 languages) and multi-step agent, with accumulated results.
 
 **Architecture:** Python harness (stdlib only) that for each model launches `llama-server` with fixed flags, runs a task suite, classifies the tasks, and accumulates the results in a persistent pool (`results/models/`). The agent loop simulates an in-memory code environment with `read_file/write_file/run_tests` tools. The per-language executors run generated code in a sandbox (tempdir+timeout+no-network).
 
@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- **Location:** everything under `/home/jordi/ia/llama/benchmark/`.
+- **Location:** everything under `/home/jordi/ia/llama/ggufbench/`.
 - **Server binary:** `/home/jordi/ia/llama/llama-server` (symlink); models at `/home/jordi/ia/llama/models/*.gguf`.
 - **No external deps:** HTTP via `urllib.request`; harness tests via `python -m unittest` (stdlib). No `pip install`.
 - **Fixed server flags** (from `start-dev-ai.sh`): `-ngl 999 --flash-attn auto --no-mmap --jinja --parallel 1 -b 512 --temp 0.2 --top-p 0.95 --repeat-penalty 1.1 --repeat-last-n 256 --seed 42 --cache-type-k q4_0 --cache-type-v q4_0 --host 127.0.0.1 --port <P>`.
@@ -25,7 +25,7 @@
 ## File Structure
 
 ```
-benchmark/
+ggufbench/
 ├── run.py                 # CLI entry (argparse) + orchestration
 ├── config.py              # constants: paths, flags, weights, slug()
 ├── client.py              # chat() HTTP + parsing of timings/tool_calls
@@ -51,8 +51,8 @@ benchmark/
 ## Task 1: Scaffold, git init, config.py and slug()
 
 **Files:**
-- Create: `benchmark/config.py`, `benchmark/__init__.py` (empty), `benchmark/tests/__init__.py` (empty), `benchmark/tests/test_config.py`
-- Create: `benchmark/.gitignore` (ignora `results/runs/`, `__pycache__/`)
+- Create: `ggufbench/config.py`, `ggufbench/__init__.py` (empty), `ggufbench/tests/__init__.py` (empty), `ggufbench/tests/test_config.py`
+- Create: `ggufbench/.gitignore` (ignora `results/runs/`, `__pycache__/`)
 
 **Interfaces:**
 - Produces: `config.BASE_DIR`, `config.MODELS_DIR`, `config.SERVER_BIN`, `config.RESULTS_DIR`, `config.SERVER_FLAGS` (list), `config.PORT`, `config.CONTEXT_FIXED`, `config.WEIGHTS` (dict), `config.slug(name) -> str`.
@@ -60,7 +60,7 @@ benchmark/
 - [ ] **Step 1: git init + structure**
 
 ```bash
-cd /home/jordi/ia/llama/benchmark
+cd /home/jordi/ia/llama/ggufbench
 git init -q
 mkdir -p tasks/{speed,tools,code/{python,bash,java,typescript},agent/{python,bash,java,typescript}} results/{models,runs} tests
 touch __init__.py tests/__init__.py
@@ -68,7 +68,7 @@ touch __init__.py tests/__init__.py
 
 - [ ] **Step 2: .gitignore**
 
-Create `benchmark/.gitignore`:
+Create `ggufbench/.gitignore`:
 ```
 __pycache__/
 *.pyc
@@ -79,10 +79,10 @@ results/models/
 
 - [ ] **Step 3: failing test for config + slug**
 
-`benchmark/tests/test_config.py`:
+`ggufbench/tests/test_config.py`:
 ```python
 import unittest
-from benchmark import config
+from ggufbench import config
 
 class TestConfig(unittest.TestCase):
     def test_paths_exist(self):
@@ -104,17 +104,17 @@ if __name__ == "__main__":
 
 - [ ] **Step 4: verify that it fails**
 
-Run: `cd /home/jordi/ia/llama && python -m unittest benchmark.tests.test_config -v`
+Run: `cd /home/jordi/ia/llama && python -m unittest ggufbench.tests.test_config -v`
 Expected: FAIL (`ModuleNotFoundError` or `AttributeError`).
 
 - [ ] **Step 5: implement config.py**
 
-`benchmark/config.py`:
+`ggufbench/config.py`:
 ```python
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent          # /home/jordi/ia/llama
-BENCH_DIR = Path(__file__).resolve().parent                # .../benchmark
+BENCH_DIR = Path(__file__).resolve().parent                # .../ggufbench
 MODELS_DIR = BASE_DIR / "models"
 SERVER_BIN = BASE_DIR / "llama-server"
 RESULTS_DIR = BENCH_DIR / "results"
@@ -159,13 +159,13 @@ def slug(name: str) -> str:
 
 - [ ] **Step 6: verify pass**
 
-Run: `cd /home/jordi/ia/llama && python -m unittest benchmark.tests.test_config -v`
+Run: `cd /home/jordi/ia/llama && python -m unittest ggufbench.tests.test_config -v`
 Expected: 4 PASS.
 
 - [ ] **Step 7: commit**
 
 ```bash
-cd /home/jordi/ia/llama/benchmark
+cd /home/jordi/ia/llama/ggufbench
 git add -A && git commit -m "feat: scaffold + config.py (paths, flags, weights, slug)"
 ```
 
@@ -174,17 +174,17 @@ git add -A && git commit -m "feat: scaffold + config.py (paths, flags, weights, 
 ## Task 2: client.py — HTTP chat + parsing
 
 **Files:**
-- Create: `benchmark/client.py`, `benchmark/tests/test_client.py`
+- Create: `ggufbench/client.py`, `ggufbench/tests/test_client.py`
 
 **Interfaces:**
 - Produces: `client.chat(messages, tools=None, tool_choice=None, max_tokens=256, base_url=..., timeout=60) -> dict` (complete response JSON); `client.parse_timings(resp) -> dict|None`; `client.extract_tool_call(resp) -> dict|None` (returns `{"name":..., "arguments": <parsed json or None>}` or None); `client.first_text(resp) -> str`.
 
 - [ ] **Step 1: failing test**
 
-`benchmark/tests/test_client.py`:
+`ggufbench/tests/test_client.py`:
 ```python
 import unittest
-from benchmark import client
+from ggufbench import client
 
 SAMPLE = {
     "choices": [{"finish_reason": "tool_calls", "message": {
@@ -226,11 +226,11 @@ if __name__ == "__main__":
 
 - [ ] **Step 2: verify that it fails**
 
-Run: `python -m unittest benchmark.tests.test_client -v` → FAIL (ImportError).
+Run: `python -m unittest ggufbench.tests.test_client -v` → FAIL (ImportError).
 
 - [ ] **Step 3: implement client.py**
 
-`benchmark/client.py`:
+`ggufbench/client.py`:
 ```python
 import json
 import urllib.request
@@ -290,7 +290,7 @@ def first_text(resp):
 
 - [ ] **Step 4: verify pass**
 
-Run: `python -m unittest benchmark.tests.test_client -v` → 6 PASS.
+Run: `python -m unittest ggufbench.tests.test_client -v` → 6 PASS.
 
 - [ ] **Step 5: commit**
 
@@ -303,17 +303,17 @@ git add -A && git commit -m "feat: client.py (HTTP chat + parse timings/tool_cal
 ## Task 3: code_extract.py — extract code block per language
 
 **Files:**
-- Create: `benchmark/code_extract.py`, `benchmark/tests/test_code_extract.py`
+- Create: `ggufbench/code_extract.py`, `ggufbench/tests/test_code_extract.py`
 
 **Interfaces:**
 - Produces: `code_extract.extract(text, lang) -> str|None`. `lang` one of `python|bash|java|typescript`. Returns the code of the first ` ```lang ` block (or alias: `py`, `sh`, `ts`, `js`). None if there is none.
 
 - [ ] **Step 1: failing test**
 
-`benchmark/tests/test_code_extract.py`:
+`ggufbench/tests/test_code_extract.py`:
 ```python
 import unittest
-from benchmark import code_extract
+from ggufbench import code_extract
 
 class TestExtract(unittest.TestCase):
     def test_python_block(self):
@@ -339,11 +339,11 @@ if __name__ == "__main__":
 
 - [ ] **Step 2: verify it fails**
 
-Run: `python -m unittest benchmark.tests.test_code_extract -v` → FAIL.
+Run: `python -m unittest ggufbench.tests.test_code_extract -v` → FAIL.
 
 - [ ] **Step 3: implement code_extract.py**
 
-`benchmark/code_extract.py`:
+`ggufbench/code_extract.py`:
 ```python
 import re
 
@@ -372,7 +372,7 @@ def extract(text, lang):
 
 - [ ] **Step 4: verify pass**
 
-Run: `python -m unittest benchmark.tests.test_code_extract -v` → 7 PASS.
+Run: `python -m unittest ggufbench.tests.test_code_extract -v` → 7 PASS.
 
 - [ ] **Step 5: commit**
 
@@ -385,17 +385,17 @@ git add -A && git commit -m "feat: code_extract.py (extreure bloc per llenguatge
 ## Task 4: executors.py — Python executor + sandbox
 
 **Files:**
-- Create: `benchmark/executors.py`, `benchmark/tests/test_executors.py`
+- Create: `ggufbench/executors.py`, `ggufbench/tests/test_executors.py`
 
 **Interfaces:**
 - Produces: `executors.run(lang, solution_code, test_code, timeout=30) -> dict` with `{"passed": bool, "output": str, "elapsed_ms": int}`. For now only `lang=="python"`. Uses `executors.SANDBOX_PREFIX` (list to block the network).
 
 - [ ] **Step 1: failing test**
 
-`benchmark/tests/test_executors.py`:
+`ggufbench/tests/test_executors.py`:
 ```python
 import unittest
-from benchmark import executors
+from ggufbench import executors
 
 PY_TEST_PASS = "from solution import *\nassert add(2,3)==5\nprint('OK')\n"
 PY_TEST_FAIL = "from solution import *\nassert add(2,3)==6\n"
@@ -423,7 +423,7 @@ if __name__ == "__main__":
 
 - [ ] **Step 3: implement executors.py (python + base sandbox)**
 
-`benchmark/executors.py`:
+`ggufbench/executors.py`:
 ```python
 import subprocess, tempfile, os, time, shutil
 
@@ -465,7 +465,7 @@ def _python(tmp, solution_code, test_code, timeout, started):
 
 - [ ] **Step 4: verify pass**
 
-Run: `python -m unittest benchmark.tests.test_executors -v` → 3 PASS.
+Run: `python -m unittest ggufbench.tests.test_executors -v` → 3 PASS.
 
 - [ ] **Step 5: commit**
 
@@ -478,8 +478,8 @@ git add -A && git commit -m "feat: executors.py (python runner + sandbox)"
 ## Task 5: executors.py — bash, java, typescript
 
 **Files:**
-- Modify: `benchmark/executors.py` (add `_bash`, `_java`, `_typescript` and dispatch them in `_run_in`)
-- Modify: `benchmark/tests/test_executors.py` (add tests)
+- Modify: `ggufbench/executors.py` (add `_bash`, `_java`, `_typescript` and dispatch them in `_run_in`)
+- Modify: `ggufbench/tests/test_executors.py` (add tests)
 
 **Interfaces:**
 - Extends: `executors.run(lang, ...)` supports `bash|java|typescript` in addition to `python`.
@@ -572,7 +572,7 @@ def _typescript(tmp, solution_code, test_code, timeout, started):
 
 - [ ] **Step 4: verify pass** (all 8 tests)
 
-Run: `python -m unittest benchmark.tests.test_executors -v` → 8 PASS.
+Run: `python -m unittest ggufbench.tests.test_executors -v` → 8 PASS.
 
 - [ ] **Step 5: commit**
 
@@ -585,17 +585,17 @@ git add -A && git commit -m "feat: executors per bash, java, typescript"
 ## Task 6: server.py — build_args + ServerManager
 
 **Files:**
-- Create: `benchmark/server.py`, `benchmark/tests/test_server.py`
+- Create: `ggufbench/server.py`, `ggufbench/tests/test_server.py`
 
 **Interfaces:**
 - Produces: `server.build_args(model_path, context_mode, port) -> list[str]` (all the args, model included); `server.ServerManager(model_path, context_mode, port)` with `.start()`, `.wait_ready(timeout=180) -> bool`, `.stop()`, `.is_alive() -> bool`. `context_mode` is `"fixed"` or `adapted` or an integer.
 
 - [ ] **Step 1: failing test**
 
-`benchmark/tests/test_server.py`:
+`ggufbench/tests/test_server.py`:
 ```python
 import unittest
-from benchmark import server, config
+from ggufbench import server, config
 
 class TestBuildArgs(unittest.TestCase):
     def test_fixed_context(self):
@@ -622,7 +622,7 @@ if __name__ == "__main__":
 
 - [ ] **Step 3: implement server.py**
 
-`benchmark/server.py`:
+`ggufbench/server.py`:
 ```python
 import subprocess, time, urllib.request, json
 from . import config
@@ -688,7 +688,7 @@ class ServerManager:
 
 - [ ] **Step 4: verify pass**
 
-Run: `python -m unittest benchmark.tests.test_server -v` → 3 PASS.
+Run: `python -m unittest ggufbench.tests.test_server -v` → 3 PASS.
 
 - [ ] **Step 5: commit**
 
@@ -701,17 +701,17 @@ git add -A && git commit -m "feat: server.py (build_args + ServerManager lifecyc
 ## Task 7: agent.py — MockEnv + tools + run_agent loop
 
 **Files:**
-- Create: `benchmark/agent.py`, `benchmark/tests/test_agent.py`
+- Create: `ggufbench/agent.py`, `ggufbench/tests/test_agent.py`
 
 **Interfaces:**
 - Produces: `agent.MockEnv(files: dict[str,str], lang: str)` with `.read_file(path)`, `.write_file(path, content)`, `.run_tests(test_filename)`; `agent.run_agent(client_mod, task, max_turns=8) -> dict` where `task` is `{"lang","goal","initial_files","test_file"}` and the result is `{"success": bool, "turns": int, "tool_calls": int}`. Uses `executors.run` for `run_tests`.
 
 - [ ] **Step 1: failing test**
 
-`benchmark/tests/test_agent.py`:
+`ggufbench/tests/test_agent.py`:
 ```python
 import unittest
-from benchmark import agent
+from ggufbench import agent
 
 class TestMockEnv(unittest.TestCase):
     def test_read_write(self):
@@ -763,7 +763,7 @@ if __name__ == "__main__":
 
 - [ ] **Step 3: implement agent.py**
 
-`benchmark/agent.py`:
+`ggufbench/agent.py`:
 ```python
 import json
 from . import executors
@@ -861,7 +861,7 @@ def run_agent(client_mod, task, max_turns=8):
 
 - [ ] **Step 4: verify pass**
 
-Run: `python -m unittest benchmark.tests.test_agent -v` → 5 PASS.
+Run: `python -m unittest ggufbench.tests.test_agent -v` → 5 PASS.
 
 - [ ] **Step 5: commit**
 
@@ -874,7 +874,7 @@ git add -A && git commit -m "feat: agent.py (MockEnv + multi-step loop + tools)"
 ## Task 8: graders.py — speed, tools, code, agent
 
 **Files:**
-- Create: `benchmark/graders.py`, `benchmark/tests/test_graders.py`
+- Create: `ggufbench/graders.py`, `ggufbench/tests/test_graders.py`
 
 **Interfaces:**
 - Consumes: `client`, `code_extract`, `executors`, `agent`, `config`.
@@ -882,10 +882,10 @@ git add -A && git commit -m "feat: agent.py (MockEnv + multi-step loop + tools)"
 
 - [ ] **Step 1: failing test**
 
-`benchmark/tests/test_graders.py`:
+`ggufbench/tests/test_graders.py`:
 ```python
 import unittest
-from benchmark import graders
+from ggufbench import graders
 
 class FakeClient:
     """Client that can be scripted with a sequence of responses per task."""
@@ -937,7 +937,7 @@ if __name__ == "__main__":
 
 - [ ] **Step 3: implement graders.py**
 
-`benchmark/graders.py`:
+`ggufbench/graders.py`:
 ```python
 import statistics
 from . import client as C, code_extract, executors, agent as A
@@ -1011,7 +1011,7 @@ def grade_agent(client_mod, tasks):
 
 - [ ] **Step 4: verify pass**
 
-Run: `python -m unittest benchmark.tests.test_graders -v` → 4 PASS (classes).
+Run: `python -m unittest ggufbench.tests.test_graders -v` → 4 PASS (classes).
 
 - [ ] **Step 5: commit**
 
@@ -1024,7 +1024,7 @@ git add -A && git commit -m "feat: graders.py (speed/tools/code/agent + by_lang)
 ## Task 9: tasks_loader.py — discover tasks
 
 **Files:**
-- Create: `benchmark/tasks_loader.py`, `benchmark/tests/test_tasks_loader.py`
+- Create: `ggufbench/tasks_loader.py`, `ggufbench/tests/test_tasks_loader.py`
 - Create: example task: `tasks/tools/_example.py` (deleted at the end of the task), to test loading.
 
 **Interfaces:**
@@ -1032,10 +1032,10 @@ git add -A && git commit -m "feat: graders.py (speed/tools/code/agent + by_lang)
 
 - [ ] **Step 1: failing test**
 
-`benchmark/tests/test_tasks_loader.py`:
+`ggufbench/tests/test_tasks_loader.py`:
 ```python
 import unittest, os, textwrap
-from benchmark import tasks_loader
+from ggufbench import tasks_loader
 
 class TestLoad(unittest.TestCase):
     @classmethod
@@ -1068,7 +1068,7 @@ if __name__ == "__main__":
 
 - [ ] **Step 3: implement tasks_loader.py**
 
-`benchmark/tasks_loader.py`:
+`ggufbench/tasks_loader.py`:
 ```python
 import importlib.util, pathlib
 from . import config
@@ -1111,7 +1111,7 @@ def load(dimension, lang_filter=None):
 
 - [ ] **Step 4: verify pass**
 
-Run: `python -m unittest benchmark.tests.test_tasks_loader -v` → 2 PASS.
+Run: `python -m unittest ggufbench.tests.test_tasks_loader -v` → 2 PASS.
 
 - [ ] **Step 5: commit**
 
@@ -1124,7 +1124,7 @@ git add -A && git commit -m "feat: tasks_loader.py (descobrir/carregar tasks per
 ## Task 10: report.py — tables, persistence, normalization
 
 **Files:**
-- Create: `benchmark/report.py`, `benchmark/tests/test_report.py`
+- Create: `ggufbench/report.py`, `ggufbench/tests/test_report.py`
 
 **Interfaces:**
 - Consumes: `config`.
@@ -1132,10 +1132,10 @@ git add -A && git commit -m "feat: tasks_loader.py (descobrir/carregar tasks per
 
 - [ ] **Step 1: failing test**
 
-`benchmark/tests/test_report.py`:
+`ggufbench/tests/test_report.py`:
 ```python
 import unittest
-from benchmark import report, config
+from ggufbench import report, config
 
 def mk(model, gen_tps=None, tools=1.0, code=1.0, agent=1.0,
        code_lang=None, agent_lang=None):
@@ -1177,7 +1177,7 @@ if __name__ == "__main__":
 
 - [ ] **Step 3: implement report.py**
 
-`benchmark/report.py`:
+`ggufbench/report.py`:
 ```python
 import json, datetime
 from pathlib import Path
@@ -1274,7 +1274,7 @@ def render(pool, weights, verbose=False):
 
 - [ ] **Step 4: verify pass**
 
-Run: `python -m unittest benchmark.tests.test_report -v` → 4 PASS.
+Run: `python -m unittest ggufbench.tests.test_report -v` → 4 PASS.
 
 - [ ] **Step 5: commit**
 
@@ -1287,18 +1287,18 @@ git add -A && git commit -m "feat: report.py (taules global/per-lleng+perfil, po
 ## Task 11: run.py — CLI and orchestration
 
 **Files:**
-- Create: `benchmark/run.py`, `benchmark/tests/test_run_cli.py` (args test, no network)
+- Create: `ggufbench/run.py`, `ggufbench/tests/test_run_cli.py` (args test, no network)
 
 **Interfaces:**
 - Consumes: all the above.
-- Produces: executable `python -m benchmark.run` o `python benchmark/run.py`.
+- Produces: executable `python -m ggufbench.run` o `python ggufbench/run.py`.
 
 - [ ] **Step 1: failing test (CLI parsing)**
 
-`benchmark/tests/test_run_cli.py`:
+`ggufbench/tests/test_run_cli.py`:
 ```python
 import unittest
-from benchmark import run
+from ggufbench import run
 
 class TestParseWeights(unittest.TestCase):
     def test_parse_weights(self):
@@ -1321,7 +1321,7 @@ if __name__ == "__main__":
 
 - [ ] **Step 3: implement run.py**
 
-`benchmark/run.py`:
+`ggufbench/run.py`:
 ```python
 import argparse, json, sys, datetime
 from . import config, server as S, client as C, graders as G, tasks_loader as T, report as R
@@ -1378,7 +1378,7 @@ def _server_build():
     return "unknown"
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(prog="benchmark")
+    ap = argparse.ArgumentParser(prog="ggufbench")
     ap.add_argument("--models", default="all")
     ap.add_argument("--context", default="fixed", choices=["fixed", "adapted"])
     ap.add_argument("--dims", default="speed,tools,code,agent")
@@ -1420,7 +1420,7 @@ if __name__ == "__main__":
 
 - [ ] **Step 4: verify pass**
 
-Run: `python -m unittest benchmark.tests.test_run_cli -v` → 3 PASS.
+Run: `python -m unittest ggufbench.tests.test_run_cli -v` → 3 PASS.
 
 - [ ] **Step 5: commit**
 
@@ -1469,7 +1469,7 @@ Each file defines `TOOLS` with the full JSON schema of each function (type/descr
 
 Run:
 ```bash
-cd /home/jordi/ia/llama && python -c "from benchmark import tasks_loader as T; \
+cd /home/jordi/ia/llama && python -c "from ggufbench import tasks_loader as T; \
 print('tools:', len(T.load('tools')), '| speed:', len(T.load('speed')))"
 ```
 Expected: `tools: 8 | speed: 1`.
@@ -1516,7 +1516,7 @@ The `PROMPT` must explicitly ask for the block with the correct tag and the expe
 
 Run:
 ```bash
-cd /home/jordi/ia/llama && python -c "from benchmark import tasks_loader as T; \
+cd /home/jordi/ia/llama && python -c "from ggufbench import tasks_loader as T; \
 import collections; c=T.load('code'); print(len(c), collections.Counter(t['lang'] for t in c))"
 ```
 Expected: `8 Counter({'python': 2, 'bash': 2, 'java': 2, 'typescript': 2})`.
@@ -1526,7 +1526,7 @@ Expected: `8 Counter({'python': 2, 'bash': 2, 'java': 2, 'typescript': 2})`.
 For each task, run `executors.run(lang, <correct solution you write>, TEST_CODE)` and verify `passed==True`. Quick check script:
 ```bash
 cd /home/jordi/ia/llama && python -c "
-from benchmark import tasks_loader as T, executors
+from ggufbench import tasks_loader as T, executors
 for t in T.load('code'):
     print(t['name'], t['lang'], '-> crea solució correcta manualment i verifica abans de commit')
 "
@@ -1571,7 +1571,7 @@ Each `INITIAL_FILES` includes the `test_solution.<ext>` that validates the goal.
 
 Run:
 ```bash
-cd /home/jordi/ia/llama && python -c "from benchmark import tasks_loader as T; \
+cd /home/jordi/ia/llama && python -c "from ggufbench import tasks_loader as T; \
 import collections; a=T.load('agent'); print(len(a), collections.Counter(t['lang'] for t in a))"
 ```
 Expected: `6 Counter({'python': 2, 'typescript': 2, 'java': 1, 'bash': 1})`.
@@ -1581,8 +1581,8 @@ Expected: `6 Counter({'python': 2, 'typescript': 2, 'java': 1, 'bash': 1})`.
 For each task: with the original `INITIAL_FILES`, `MockEnv(...).run_tests()` must be FAIL; with the correct solution applied, PASS. Script:
 ```bash
 cd /home/jordi/ia/llama && python -c "
-from benchmark import tasks_loader as T
-from benchmark.agent import MockEnv
+from ggufbench import tasks_loader as T
+from ggufbench.agent import MockEnv
 for t in T.load('agent'):
     e = MockEnv(dict(t['initial_files']), t['lang'], t['test_file'])
     ok,_ = e.run_tests(); print(t['name'], 'initial:', 'PASS(!'+')' if ok else 'fail(ok)')
@@ -1611,38 +1611,38 @@ ps -eo pid,cmd | grep '[l]lama-server' | awk '{print $1}' | xargs -r kill -9
 ```
 Run (quick mode, 1 task per dimension):
 ```bash
-cd /home/jordi/ia/llama && python -m benchmark.run --models /home/jordi/ia/llama/models/Qwen3-VL-8B-Instruct-1M-Q6_K.gguf --quick
+cd /home/jordi/ia/llama && python -m ggufbench.run --models /home/jordi/ia/llama/models/Qwen3-VL-8B-Instruct-1M-Q6_K.gguf --quick
 ```
 Expected: starts the server, runs 1 task per dimension, saves `results/models/<slug>.json`, and prints the scoreboard (1 model).
 
 - [ ] **Step 2: verify the pool JSON**
 
 ```bash
-ls /home/jordi/ia/llama/benchmark/results/models/
-cat /home/jordi/ia/llama/benchmark/results/models/*.json | python -m json.tool | head -40
+ls /home/jordi/ia/llama/ggufbench/results/models/
+cat /home/jordi/ia/llama/ggufbench/results/models/*.json | python -m json.tool | head -40
 ```
 Expected: a file with `model`, `speed.gen_tps`, `tools.score`, `code.score/by_lang`, `agent.score/by_lang`.
 
 - [ ] **Step 3: scoreboard read-only**
 
 ```bash
-cd /home/jordi/ia/llama && python -m benchmark.run --scoreboard
+cd /home/jordi/ia/llama && python -m ggufbench.run --scoreboard
 ```
 Expected: re-prints the tables without re-running.
 
 - [ ] **Step 4: second model to test accumulation** (optional, slow)
 
 ```bash
-python -m benchmark.run --models /home/jordi/ia/llama/models/SkyRL-Agent-WebResearch-8B.Q8_0.gguf --quick --scoreboard 2>/dev/null || \
-python -m benchmark.run --models /home/jordi/ia/llama/models/SkyRL-Agent-WebResearch-8B.Q8_0.gguf --quick
-python -m benchmark.run --scoreboard
+python -m ggufbench.run --models /home/jordi/ia/llama/models/SkyRL-Agent-WebResearch-8B.Q8_0.gguf --quick --scoreboard 2>/dev/null || \
+python -m ggufbench.run --models /home/jordi/ia/llama/models/SkyRL-Agent-WebResearch-8B.Q8_0.gguf --quick
+python -m ggufbench.run --scoreboard
 ```
 Expected: scoreboard with 2 accumulated models.
 
 - [ ] **Step 5: commit final**
 
 ```bash
-cd /home/jordi/ia/llama/benchmark
+cd /home/jordi/ia/llama/ggufbench
 echo "results/models/" >> .gitignore  # already there; confirm
 git add -A && git commit -m "chore: smoke e2e verificat contra models reals" --allow-empty
 ```

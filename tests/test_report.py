@@ -1,6 +1,6 @@
 import unittest, json, tempfile, shutil
 from pathlib import Path
-from benchmark import report, config
+from ggufbench import report, config
 
 POOL_FILE = config.RESULTS_MODELS / "pool.jsonl"
 

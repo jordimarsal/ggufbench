@@ -14,10 +14,10 @@ result trustworthy.
    - `python3 -m unittest discover` green before burning GPU.
    - Backup of the current pool to
      `results/models/pool.pre-remeasure.jsonl` (cheap rollback if the GPU dies mid-run).
-2. **llama batch (R1, R2):** `python3 -m benchmark.run --models all` from the workspace
+2. **llama batch (R1, R2):** `python3 -m ggufbench.run --models all` from the workspace
    root. The harness starts/stops `llama-server` per model, sequentially.
    Progress on stderr → captured to `harness/logs/remeasure_pool/batch-llama.log`.
-3. **Strata batch (R1, R2):** `python3 -m benchmark.run --engine strata --models
+3. **Strata batch (R1, R2):** `python3 -m ggufbench.run --engine strata --models
    iq3_xxs` → `harness/logs/remeasure_pool/batch-strata.log`. Started only when the
    llama batch has finished and no llama-server process remains alive.
 4. **Verification (R3, R4):** count pool entries per `ts` (single session),

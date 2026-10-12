@@ -36,7 +36,7 @@ exclusions + pool key by `(slug, thinking)`) — the re-measure does not start u
 its Completion Gate (`remeasure_pool` stays `blocked`).
 # R5 evidence — discrimination smoke (discriminative_tasks)
 
-Date: 2026-10-10 · `python3 -m benchmark.run --dims speed,code --level expert` on 2 models.
+Date: 2026-10-10 · `python3 -m ggufbench.run --dims speed,code --level expert` on 2 models.
 
 Full log (`.log`, not versioned by the global gitignore): `smoke-r5.log`.
 Symbols: `✓` passes · `✗` fails (includes `no code block`: the model delivers no code) · `⊥` server error (environment noise, does not count as discrimination).

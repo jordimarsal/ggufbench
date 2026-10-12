@@ -5,7 +5,7 @@ Single-page SELF-CONTAINED: inline CSS, zero JS, zero dependencies, zero network
 by the real harness functions (report._scores / report._global_score with
 config.WEIGHTS) so that this page and the CLI always say the same thing.
 
-Usage:  python3 -m benchmark.html_report   (writes results/report.html and prints the path)
+Usage:  python3 -m ggufbench.html_report   (writes results/report.html and prints the path)
 """
 
 import datetime
@@ -342,7 +342,7 @@ def render(pool):
 {rec_section}
 </main>
 <footer>
-  Regenerate with <code>python3 -m benchmark.html_report</code> from the workspace root.
+  Regenerate with <code>python3 -m ggufbench.html_report</code> from the workspace root.
   Ranking relative to this hardware and this harness: not at all comparable with
   public benchmarks (HumanEval, BFCL, SWE-bench). More: <code>docs/SPEC.md</code> ·
   <code>docs/MILLORA.md</code> · <code>AGENTS.md</code>.

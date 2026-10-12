@@ -1,5 +1,5 @@
 import unittest
-from benchmark import agent
+from ggufbench import agent
 
 class TestMockEnv(unittest.TestCase):
     def test_read_write(self):

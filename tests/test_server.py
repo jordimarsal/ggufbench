@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from benchmark import server, config
+from ggufbench import server, config
 
 class TestBuildArgs(unittest.TestCase):
     def test_fixed_context(self):

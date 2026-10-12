@@ -5,12 +5,12 @@
       depends_on: (none)
       refs: R2
 
-- [x] T2: llama batch — `python3 -m benchmark.run --models all` + ON (dual thinking_batches batch: off 10/10 + on 10/10, with restart documented in the log for early process death) (sequential, one server
+- [x] T2: llama batch — `python3 -m ggufbench.run --models all` + ON (dual thinking_batches batch: off 10/10 + on 10/10, with restart documented in the log for early process death) (sequential, one server
       at a time) with log at `harness/logs/remeasure_pool/batch-llama.log`
       depends_on: T1
       refs: R1, R2
 
-- [x] T3: Strata batch — `python3 -m benchmark.run --engine strata --models iq3_xxs` + ON (strata on/v3 code=0.92, exit 0, batch-strata-on.log)
+- [x] T3: Strata batch — `python3 -m ggufbench.run --engine strata --models iq3_xxs` + ON (strata on/v3 code=0.92, exit 0, batch-strata-on.log)
       with log at `harness/logs/remeasure_pool/batch-strata.log` (only when no
       llama-server remains alive)
       depends_on: T2

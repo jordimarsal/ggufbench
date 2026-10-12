@@ -1,6 +1,6 @@
 import unittest, json, tempfile, shutil
 from pathlib import Path
-from benchmark import token_budget
+from ggufbench import token_budget
 
 
 class TestTokenBudget(unittest.TestCase):

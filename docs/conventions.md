@@ -18,7 +18,7 @@ without learning a new style.
 ## Style Rules
 
 - **Python 3.12, pure stdlib:** no external dependencies (no pytest, no requests, no
-  pyproject). The suite runs with `python3 -m unittest discover -s benchmark/tests -t .`
+  pyproject). The suite runs with `python3 -m unittest discover -s ggufbench/tests -t .`
   from the workspace root (`/home/jordi/ia/llama/`), never from inside the package.
 - **Format:** PEP 8, ~100 col lines, 4-space indentation. No formatter configured:
   uniformity is set by the existing code (open a module and imitate it).

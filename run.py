@@ -208,7 +208,7 @@ def _server_build(engine="llama"):
 def _parse_args(argv=None):
     """Pure CLI parsing (testable without a GPU): every option, including
     --thinking. main() only runs it."""
-    ap = argparse.ArgumentParser(prog="benchmark")
+    ap = argparse.ArgumentParser(prog="ggufbench")
     ap.add_argument("--models", default="all",
                     help="all | .gguf path | name (short or partial) — comma-separated "
                          "(with --engine strata: all | config name, ex. iq3_xxs)")

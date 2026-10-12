@@ -1,5 +1,5 @@
 import unittest
-from benchmark import config
+from ggufbench import config
 
 class TestConfig(unittest.TestCase):
     def test_paths_exist(self):

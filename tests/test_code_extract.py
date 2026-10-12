@@ -1,5 +1,5 @@
 import unittest
-from benchmark import code_extract
+from ggufbench import code_extract
 
 class TestExtract(unittest.TestCase):
     def test_python_block(self):

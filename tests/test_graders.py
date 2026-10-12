@@ -3,7 +3,7 @@ import urllib.error
 import tempfile
 import shutil
 from pathlib import Path
-from benchmark import graders, token_budget
+from ggufbench import graders, token_budget
 
 class FakeClient:
     """Client that can be scripted with a sequence of responses per task."""
