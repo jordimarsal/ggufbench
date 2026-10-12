@@ -6,6 +6,9 @@
 # The pool with the raw receipts stays local (gitignored): only the rendered
 # single-file report goes public. Safe to re-run any time; force-pushes
 # gh-pages with a fresh orphan commit every time.
+#
+# results/compare.html is shipped as-is: it already holds the last pair executed
+# with `run.py --compare`. It is only generated here when it does not exist yet.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -18,10 +21,16 @@ cd "$REPO_ROOT/.."
 python3 -m ggufbench.html_report
 [ -f "$REPORT" ] || { echo "no report at $REPORT (empty pool?)"; exit 1; }
 
-# 1b. head-to-head compare page (MILLORA §4.4): default pair = top of the
-#     scoreboard vs the same model in the other thinking mode. Best effort:
-#     it is only pushed when it gets written (pool with 2+ rows).
-python3 -c "from ggufbench import html_report as h; p = h.write_default_compare(); print('compare page:', p if p else 'skipped (needs 2+ pool rows)')"
+# 1b. head-to-head compare page (MILLORA §4.4): the file already on disk IS the
+#     last pair run with `run.py --compare` (every such run overwrites it), so it
+#     is pushed as-is. Only when it is missing (first publish) fall back to the
+#     default pair = top of the scoreboard vs the same model in the other thinking
+#     mode. Best effort: it is only pushed when it gets written (pool with 2+ rows).
+if [ -f "$COMPARE" ]; then
+    echo "compare page: kept as-is (last --compare run) → $COMPARE"
+else
+    python3 -c "from ggufbench import html_report as h; p = h.write_default_compare(); print('compare page:', p if p else 'skipped (needs 2+ pool rows)')"
+fi
 
 # 2. ship it as the gh-pages root: temp repo, orphan branch, one file
 SLUG="$(git -C "$REPO_ROOT" remote get-url origin | sed -E 's#.*github\.com[:/]##; s#\.git$##')"
