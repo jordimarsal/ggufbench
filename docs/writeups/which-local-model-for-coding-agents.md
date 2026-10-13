@@ -1,5 +1,7 @@
 # Which local model should a coding agent run? Nine GGUFs, one harness, receipts
 
+*Also available in [Spanish](which-local-model-for-coding-agents.es.md) and [Catalan](which-local-model-for-coding-agents.ca.md).*
+
 I run coding agents on my own hardware. llama.cpp on two RTX 5080s, models from my `models` folder, and one question: which GGUF, at which quant, should I load before I start working?
 
 Public leaderboards measure something else. They are mostly trained on, they score single-shot answers, and they say nothing about whether a model can call a tool with well-formed arguments, survive a multi-call loop, read a folder, edit a file, and verify its own change. That is the work an agent does all day, so I stopped reading those tables for this decision and built [ggufbench](https://github.com/jordimarsal/ggufbench).
