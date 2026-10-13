@@ -106,7 +106,7 @@ def grade_tools(client_mod, tasks, max_turns=6, on_task=None, runs=1):
                 results.append({"id": t["id"], "passed": False, "detail": f"server error: {e}"[:160],
                                 "_excluded": True})
                 if on_task:
-                    on_task("tools", {"id": t["id"], "passed": False})
+                    on_task("tools", {"id": t["id"], "passed": False, "excluded": True})
                 continue
             got = C.extract_tool_call(resp)
             exp = t.get("expected")
@@ -365,7 +365,8 @@ def grade_agent(client_mod, tasks, max_turns=8, on_task=None, runs=1):
                                 "detail": f"server error: {e}"[:160]})
                 by_lang.setdefault(t["lang"], []).append(False)
                 if on_task:
-                    on_task("agent", {"id": t["id"], "lang": t["lang"], "passed": False, "turns": 0})
+                    on_task("agent", {"id": t["id"], "lang": t["lang"], "passed": False, "turns": 0,
+                                      "excluded": True})
                 continue
             results.append({"id": t["id"], "passed": r["success"], "turns": r["turns"],
                             "_excluded": False,
