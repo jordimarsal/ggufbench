@@ -1008,7 +1008,18 @@ def render_compare(row_a, row_b, pool=None):
     min_speed, ranks, _ordered = _ranked(pool)
     pa = _pack(row_a, ranks.get(R._key_of(row_a)), len(pool), min_speed)
     pb = _pack(row_b, ranks.get(R._key_of(row_b)), len(pool), min_speed)
-    packs = [_pack(r, ranks.get(R._key_of(r)), len(pool), min_speed) for r in pool]
+    # Picker list: non-retired rows only (retired models stay out of the way,
+    # but an explicitly compared retired pair still renders via _find_or_append
+    # below), deduped by (slug, think) so stale key variants never double up.
+    packs = []
+    _seen = set()
+    for r in pool:
+        if _is_retired(r.get("model")):
+            continue
+        p = _pack(r, ranks.get(R._key_of(r)), len(pool), min_speed)
+        if (p["s"], p["t"]) not in _seen:
+            _seen.add((p["s"], p["t"]))
+            packs.append(p)
     ia, ib = _find_or_append(packs, pa), _find_or_append(packs, pb)
 
     def _options(selected):

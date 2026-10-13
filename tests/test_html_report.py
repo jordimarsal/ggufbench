@@ -524,5 +524,50 @@ class TestRetiredGray(unittest.TestCase):
                 html_report._RETIRED_STEMS = None
 
 
+class TestComparePicker(unittest.TestCase):
+    """Pick-a-pair list: unique (slug, think) options, retired models out
+    (unless explicitly compared)."""
+
+    def _pool3(self):
+        a = _mk("models/aaa.gguf", thinking="off")
+        b = _mk("models/bbb.gguf", thinking="off")
+        c = _mk("models/ccc.gguf", thinking="on")
+        return a, b, c
+
+    @staticmethod
+    def _options(html):
+        import re
+        body = html.split('<select id="sel-a"', 1)[1].split("</select>", 1)[0]
+        return re.findall(r">([^<]+)</option>", body)
+
+    def test_picker_excludes_retired(self):
+        a, b, c = self._pool3()
+        with mock.patch.object(html_report, "_retired_stems", return_value={"aaa"}):
+            html = html_report.render_compare(b, c, pool=[a, b, c])
+        opts = self._options(html)
+        self.assertEqual(len(opts), 2)
+        self.assertTrue(any("bbb" in o for o in opts))
+        self.assertTrue(any("ccc" in o for o in opts))
+        self.assertFalse(any("aaa" in o for o in opts))
+
+    def test_picker_dedupes_duplicate_rows(self):
+        # Stale pool states appended the same (model, thinking) twice: the
+        # picker must still list the pair once.
+        a, b, _c = self._pool3()
+        with mock.patch.object(html_report, "_retired_stems", return_value=set()):
+            html = html_report.render_compare(b, b, pool=[a, dict(a), b])
+        opts = self._options(html)
+        aaa = [o for o in opts if o.startswith("aaa")]
+        self.assertEqual(len(aaa), 1)
+
+    def test_explicit_retired_pair_still_renders(self):
+        a, b, _c = self._pool3()
+        with mock.patch.object(html_report, "_retired_stems", return_value={"aaa"}):
+            html = html_report.render_compare(a, b, pool=[a, b])
+        static = html.split('<div id="cmp-body">', 1)[1].split("</main>", 1)[0]
+        self.assertIn("aaa", static)
+        self.assertIn("bbb", static)
+
+
 if __name__ == "__main__":
     unittest.main()
