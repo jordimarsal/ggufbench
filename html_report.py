@@ -1010,7 +1010,8 @@ def render_compare(row_a, row_b, pool=None):
     pb = _pack(row_b, ranks.get(R._key_of(row_b)), len(pool), min_speed)
     # Picker list: non-retired rows only (retired models stay out of the way,
     # but an explicitly compared retired pair still renders via _find_or_append
-    # below), deduped by (slug, think) so stale key variants never double up.
+    # below), deduped by (slug, think) so stale key variants never double up,
+    # ordered by (slug, think): each model's off/on pair adjacent, off first.
     packs = []
     _seen = set()
     for r in pool:
@@ -1020,6 +1021,7 @@ def render_compare(row_a, row_b, pool=None):
         if (p["s"], p["t"]) not in _seen:
             _seen.add((p["s"], p["t"]))
             packs.append(p)
+    packs.sort(key=lambda p: (p["s"], p["t"]))
     ia, ib = _find_or_append(packs, pa), _find_or_append(packs, pb)
 
     def _options(selected):

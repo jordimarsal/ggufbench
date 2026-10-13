@@ -568,6 +568,18 @@ class TestComparePicker(unittest.TestCase):
         self.assertIn("aaa", static)
         self.assertIn("bbb", static)
 
+    def test_picker_ordered_by_slug_then_think(self):
+        a, b, c = self._pool3()  # aaa/off, bbb/off, ccc/on
+        a_on = _mk("models/aaa.gguf", thinking="on")
+        with mock.patch.object(html_report, "_retired_stems", return_value=set()):
+            html = html_report.render_compare(b, c, pool=[c, b, a_on, a])
+        opts = self._options(html)
+        self.assertEqual(
+            [o.split(" · ")[0] for o in opts],
+            ["aaa", "aaa", "bbb", "ccc"])
+        self.assertTrue(opts[0].endswith("think:off"))
+        self.assertTrue(opts[1].endswith("think:on"))
+
 
 if __name__ == "__main__":
     unittest.main()
