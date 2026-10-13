@@ -14,43 +14,34 @@ No cloud, no APIs, no puzzles. The scoreboard answers one question:
 
 ## Scoreboard
 
-12 models × 2 thinking modes (off / on), harness v3, measured 2026-10-10/12
-on 2× RTX 5080. `excl.` = tasks excluded with a recorded reason (never silent).
-Scores are single-sample (n=1 per task, fixed seed): the table **orders**
-models on this harness — it does not certify close ranks. Strata rows re-measured today with engine 0.1.43.
+15 models, thinking OFF, harness v3 (12 tools · 60 code · 28 agent tasks), ctx 32768,
+**3 runs per task** (mean ± stdev), measured 2026-10-12/13 on 2× RTX 5080.
+`excl.` = excluded with a recorded reason. Scores are per-seed sampling
+(seeds 42/43/44): the ± is real run-to-run variance, and the table **orders**
+models on this harness — it does not certify close ranks.
+ON-mode rows + qwen36 pending re-measure (see notes below).
 
 Live rendered report: <https://jordimarsal.github.io/ggufbench/> ·
 regenerate locally with `harness/tools/publish-report.sh` after a re-measure.
 
 | model | think | tools | code | agent | speed | global |
 |---|---|---|---|---|---|---|
-| `qwen36-35b-distill-mxfp4_moe` | off | 100% | 83% | 100% | 16ms | 0.95 |
-| `gemma-4-26b-a4b-it-ud-q5_k_xl` | off | 100% | 88% | 100% | 33ms | 0.89 |
-| `qwen3_8-27b-ud-q3_k_xl` | off | 100% | 87% | 100% | 33ms | 0.88 |
-| `qwen3_8-27b-turbofcfusion-735-882-here-uncen-neo-coder-max-mtp-q4_k_s` | off | 100% | 88% | 100% | 42ms | 0.87 |
-| `ornith-1_5-35b-a3b-abliterated-mtpv2-ud-iq4_xs` | off | 100% | 85% | 92% | 31ms | 0.86 |
-| `qwen3_8-27b-coder390-efficientthink-q4lynnstyle-mtp` | off | 100% | 85% | 100% | 44ms | 0.86 |
-| `huihui-ornith-1_5-35b-a3b-abliterated_i1-iq3_s` | off | 100% | 82% | 92% | 32ms | 0.85 |
-| `qwen3_8-27b-ud-q5_k_m` | off | 100% | 82% | 96% | 40ms | 0.84 |
-| `qwen3_8-27b-coder390-efficientthink-q4lynnstyle-mtp` | on | 100% | 95% | 100% | 681ms | 0.84 |
-| `strata-iq3_xxs` | off | 100% | 92% | 100% | 46ms | 0.88 |
-| `qwen3_8-27b-heretic-q4_k_m` | off | 100% | 87% | 100% | 92ms | 0.84 |
-| `qwen3_8-27b-ud-q5_k_m` | on | 100% | 96% (4 excl.) | 96% | 665ms | 0.83 |
-| `qwen3_8-27b-ud-q3_k_xl` | on | 100% | 95% (2 excl.) | 96% | 629ms | 0.83 |
-| `qwen3_8-27b-turbofcfusion-735-882-here-uncen-neo-coder-max-mtp-q4_k_s` | on | 100% | 92% (1 excl.) | 100% | 1707ms | 0.83 |
-| `strata-iq3_xxs` | on | 100% | 93% | 96% | 578ms | 0.82 |
-| `ornith-1_5-35b-a3b-apex-mtp-quality` | on | 100% | 92% (1 excl.) | 92% | 388ms | 0.81 |
-| `huihui-ornith-1_5-35b-a3b-abliterated_i1-iq3_s` | on | 100% | 90% | 92% | 403ms | 0.81 |
-| `qwen3-vl-8b-instruct-1m-q6_k` | off | 100% | 73% | 88% | 37ms | 0.80 |
-| `qwen3-vl-8b-instruct-1m-q6_k` | on | 100% | 73% | 88% | 37ms | 0.80 |
-| `ornith-1_5-35b-a3b-apex-mtp-quality` | off | 88% | 80% | 88% | 30ms | 0.80 |
-| `qwen36-35b-distill-mxfp4_moe` | on | 100% | 78% (5 excl.) | 96% | 186ms | 0.79 |
-| `ornith-1_5-35b-a3b-abliterated-mtpv2-ud-iq4_xs` | on | 88% | 93% | 96% | 613ms | 0.79 |
-| `qwen3_8-27b-heretic-q4_k_m` | on | 100% | 90% (1 excl.) | 83% | 1515ms | 0.78 |
-| `gemma-4-26b-a4b-it-ud-q5_k_xl` | on | 75% | 87% | 88% | 897ms | 0.71 |
-
-## Quick start
-
+| strata-iq3_xxs | off ★ | 83% ±0 | 89% ±5 | 92% ±8 | 45ms | 0.79 ±3 |
+| qwen3_8-27b-turbofcfusion-...-mtp-q4_k_s | off | 92% ±0 | 83% ±5 | 94% ±2 | 49ms | 0.80 ±1 |
+| gemma-4-26b-a4b-it-ud-q5_k_xl | off | 92% ±0 | 84% ±1 | 95% ±2 | 34ms | 0.82 ±0 |
+| qwen3_8-27b-ud-q3_k_xl | off | 92% ±0 | 75% ±8 | 92% ±8 | 36ms | 0.78 ±4 |
+| qwen3_8-27b-heretic-q4_k_m | off | 92% ±0 | 85% ±2 | 87% ±10 | 69ms | 0.78 ±2 |
+| qwen3_8-27b-ud-q5_k_m | off | 92% ±0 | 78% ±0 | 87% ±10 | 41ms | 0.77 ±3 |
+| qwen3-coder-30b-a3b-instruct-ud-q4_k_xl | off | 92% ±0 | 23% ±24 (29 excl.) | 0% ±0 | 18ms | 0.45 ±7 |
+| qwen3_8-27b-coder390-efficientthink-...-mtp | off | 92% ±0 | 76% ±5 | 92% ±8 | 46ms | 0.77 ±3 |
+| qwen3-vl-8b-instruct-1m-q6_k | off | 92% ±0 | 76% ±1 | 87% ±8 | 37ms | 0.77 ±2 |
+| qwen3_8-27b-ud-q4_k_m | off | 92% ±0 | 68% ±3 | 93% ±6 | 38ms | 0.76 ±2 |
+| huihui-ornith-1_5-35b-a3b-abliterated_i1-iq3_s | off | 92% ±0 | 71% ±3 | 82% ±0 | 29ms | 0.76 ±1 |
+| qwen3_8-27b-ud-q4_k_xl | off | 92% ±0 | 72% ±8 | 82% ±0 | 35ms | 0.75 ±2 |
+| nvidia-nemotron-3_5-lightning-30b-a3b-iq4_xs | off | 83% ±0 | 44% ±7 (6 excl.) | 87% ±8 | 13ms | 0.75 ±4 |
+| ornith-1_5-35b-a3b-abliterated-mtpv2-ud-iq4_xs | off | 92% ±0 | 74% ±1 | 71% ±6 | 31ms | 0.74 ±1 |
+| ornith-1_5-35b-a3b-apex-mtp-quality | off | 83% ±0 | 71% ±1 | 82% ±14 | 30ms | 0.73 ±4 |
+| muse-glimmer-30b-kquant-dynamic-q4_k_xl | off | 33% ±8 | 81% ±3 | 93% ±2 | 1408ms | 0.58 ±4 |
 ```bash
 # 1. clone (the repo IS the python package; keep it as ./ggufbench)
 git clone https://github.com/jordimarsal/ggufbench ggufbench
