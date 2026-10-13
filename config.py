@@ -60,7 +60,7 @@ SEED = 42
 SERVER_FLAGS = [
     "-ngl", "999",
     "--flash-attn", "auto",
-    "--no-mmap",
+    "--load-mode", "none",  # 0.6.0+: replaces the removed --no-mmap
     "--jinja",
     "--parallel", "1",
     "-b", "512",
@@ -90,7 +90,7 @@ ALLOWED_MODEL_FLAGS = {
     "--tensor-split", "--split-mode",
     "--main-gpu",
     # attention / cache
-    "--flash-attn", "--no-mmap",
+    "--flash-attn", "--load-mode",
     "--cache-bias", "--cache-type-k", "--cache-type-v",
     "--no-prompt-cache",
     # template: per-model override of the baseline --jinja (some GGUF

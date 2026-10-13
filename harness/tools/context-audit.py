@@ -39,8 +39,8 @@ it does not choose the context a server runs with.
 Estimate caps and floors (same as the estimator): the result is capped by the declared
 `<arch>.context_length` and floored to a multiple of 1024 tokens.
 
-Weights are the GGUF file size on disk (a proxy; with -ngl 999 + --no-mmap the weights
-live in VRAM, which is why VRAM is the constraint). VRAM is summed across GPUs because
+Weights are the GGUF file size on disk (a proxy; with -ngl 999 + --load-mode none
+(0.6.0+; was --no-mmap) the weights live in VRAM, which is why VRAM is the constraint). VRAM is summed across GPUs because
 llama.cpp tensor-splits the model and the KV over them.
 
 --- Output -------------------------------------------------------------------------

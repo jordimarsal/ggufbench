@@ -21,7 +21,7 @@ class TestBuildArgs(unittest.TestCase):
         i = a.index("-c"); self.assertEqual(a[i+1], "4096")
     def test_flags_all_present(self):
         a = server.build_args("/p/m.gguf", "fixed", 8999)
-        for flag in ["-ngl", "--flash-attn", "--no-mmap", "--jinja", "--temp", "--seed"]:
+        for flag in ["-ngl", "--flash-attn", "--load-mode", "none", "--jinja", "--temp", "--seed"]:
             self.assertIn(flag, a)
 
 class TestModelConfigTxt(unittest.TestCase):
