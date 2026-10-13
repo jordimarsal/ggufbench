@@ -14,10 +14,10 @@ No cloud, no APIs, no puzzles. The scoreboard answers one question:
 
 ## Scoreboard
 
-9 models, thinking OFF, harness v3 (12 tools · 60 code · 28 agent tasks), ctx 32K,
+7 models, thinking OFF, harness v3 (12 tools · 60 code · 28 agent tasks), ctx 32K,
 llama-server 0.6.0-dev+4413a19, **3 runs per task, seeds 42/43/44** (mean ± stdev),
 measured 2026-10-13 on 2× RTX 5080. `excl.` = excluded with a recorded reason.
-7 models retired 2026-10-13 (flota prima — vegeu `models/retired/`); their rows
+9 models retired 2026-10-13 (flota prima — vegeu `models/retired/`); their rows
 stay in the full report as a record. ON-mode rows pending their own pass.
 
 Live rendered report: <https://jordimarsal.github.io/ggufbench/> ·
@@ -33,8 +33,6 @@ regenerate locally with `harness/tools/publish-report.sh` after a re-measure.
 | qwen3_8-27b-ud-q3_k_xl | off | 92% ±0 | 76% ±1 | 92% ±8 | 36ms | 0.78 ±2 |
 | ornith-1_5-35b-a3b-apex-mtp-quality | off | 92% ±0 | 73% ±0 | 87% ±8 | 29ms | 0.78 ±2 |
 | qwen3-vl-8b-instruct-1m-q6_k | off | 92% ±0 | 76% ±1 | 87% ±8 | 36ms | 0.77 ±2 |
-| huihui-ornith-1_5-35b-a3b-abliterated_i1-iq3_s | off | 92% ±0 | 72% ±4 | 82% ±0 | 28ms | 0.76 ±1 |
-| ornith-1_5-35b-a3b-abliterated-mtpv2-ud-iq4_xs | off | 92% ±0 | 75% ±2 | 77% ±16 | 29ms | 0.76 ±5 |
 | strata-iq3_xxs | off | 86% ±5 | 88% ±4 | 96% ±0 | 50ms | 0.80 ±2 |
 
 
