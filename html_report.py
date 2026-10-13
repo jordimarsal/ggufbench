@@ -932,13 +932,9 @@ _PICKER_JS = """
     document.getElementById("cmp-body").innerHTML =
       mixedBanner(A, B) + '<div class="cards">' + card(A) + card(B) + "</div>" + sections(A, B);
   }
-  POOL.forEach(function (p, i) {
-    var o = document.createElement("option");
-    o.value = String(i);
-    o.textContent = p.s + " · think:" + p.t;
-    selA.appendChild(o);
-    selB.appendChild(o.cloneNode(true));
-  });
+  // NOTE: options are server-rendered into the selects (same POOL order as the
+  // JSON below), so the picker must NOT append them again — that doubled every
+  // entry in JS-enabled browsers.
   function byLabel(lab) {
     if (!lab) return -1;
     var kv = lab.split(",");

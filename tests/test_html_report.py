@@ -580,6 +580,11 @@ class TestComparePicker(unittest.TestCase):
         self.assertTrue(opts[0].endswith("think:off"))
         self.assertTrue(opts[1].endswith("think:on"))
 
+    def test_picker_js_does_not_append_options(self):
+        # Regression: the inline JS re-appended every server-rendered option,
+        # doubling the whole list in JS-enabled browsers (curl never saw it).
+        self.assertNotIn("appendChild", html_report._PICKER_JS)
+
 
 if __name__ == "__main__":
     unittest.main()
