@@ -513,10 +513,15 @@ class TestRetiredGray(unittest.TestCase):
         self.assertNotIn("gray = retired", html)
         self.assertIn("Recommendations (by use)", html)
 
-    def test_real_retired_dir_resolves(self):
-        stems = html_report._retired_stems()
-        self.assertIn("Qwen3-Coder-30B-A3B-Instruct-UD-Q4_K_XL", stems)
-        self.assertNotIn("foo", stems)
+    def test_retired_dir_missing_is_empty(self):
+        # models/retired/ lives outside the repo: absent on CI checkouts.
+        # The lookup must degrade to "nothing retired", never crash.
+        with mock.patch.object(config, "MODELS_DIR", Path("/nonexistent-xyz")):
+            html_report._RETIRED_STEMS = None
+            try:
+                self.assertEqual(html_report._retired_stems(), set())
+            finally:
+                html_report._RETIRED_STEMS = None
 
 
 if __name__ == "__main__":
