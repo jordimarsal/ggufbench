@@ -30,6 +30,27 @@ def _esc(s):
     return _html.escape(str(s), quote=True)
 
 
+_RETIRED_STEMS = None
+
+
+def _retired_stems():
+    """Stems of the model profiles archived in models/retired/ — the pruned
+    fleet. Their pool rows stay as a record but render gray. Cached; tests
+    patch this function for determinism."""
+    global _RETIRED_STEMS
+    if _RETIRED_STEMS is None:
+        try:
+            _RETIRED_STEMS = {p.stem for p in (config.MODELS_DIR / "retired").glob("*.txt")}
+        except OSError:
+            _RETIRED_STEMS = set()
+    return _RETIRED_STEMS
+
+
+def _is_retired(model):
+    """A row is retired when its model file stem lives in models/retired/."""
+    return os.path.splitext(os.path.basename(model or ""))[0] in _retired_stems()
+
+
 # Sanitizer: strips sensitive local paths from user-derived text before HTML escaping.
 # Only applied at render time — raw pool/results JSON files are never touched.
 def _sanitize_public(text):
@@ -112,6 +133,7 @@ def _rows(pool):
         rows.append({
             "name": _display_slug(config.slug(r["model"])),
             "slug": config.slug(r["model"]),
+            "retired": _is_retired(r.get("model")),
             "sc": R._scores(r),
             "global": R._global_score(r, config.WEIGHTS, min_speed),
             "spread": R.run_spread(r, config.WEIGHTS, min_speed),
@@ -178,8 +200,9 @@ def _picks(rows):
 
 
 def _rec_section(rows):
-    """Final recommendations section: one card per winner with data and uses."""
-    cards = _picks(rows)
+    """Final recommendations section: one card per winner with data and uses.
+    Retired models never appear here — you cannot run what you deleted."""
+    cards = _picks([r for r in rows if not r["retired"]])
     if not cards:
         return ""
     out = ['<section>\n  <h2>Recommendations (by use)</h2>\n  <div class="grid2">']
@@ -251,6 +274,9 @@ tr:hover td{background:rgba(59,130,246,.07)}
 .name small{display:block;color:var(--muted);font-weight:400;font:11px var(--mono)}
 .badge{display:inline-block;font:10.5px/1 var(--mono);border-radius:5px;padding:3px 6px;
   border:1px solid var(--border);color:var(--muted)}
+.retired .name,.retired .num,.retired .gval,.retired td,.retired small,.retired summary,.retired .pos{color:var(--muted)!important;font-weight:400}
+.retired .heat{background:#232f45!important;color:var(--muted)!important}
+.retired .badge{background:transparent!important;color:var(--muted)!important;border-color:var(--border)!important;font-weight:400}
 .badge.strata{color:#0b1220;background:var(--accent);border-color:var(--accent);font-weight:700}
 .gval{font:600 15px var(--mono);text-align:right;color:var(--primary2)}
 .gval.top{color:var(--accent)}
@@ -302,6 +328,8 @@ def render(pool):
     # locally and on gh-pages): the report keeps its zero-JS contract, the link
     # is the whole integration.
     chips.append('<a class="chip" href="compare.html">head-to-head compare →</a>')
+    if any(r["retired"] for r in rows):
+        chips.append('<span class="chip">gray = retired model (record only)</span>')
 
     kpis = [("Best overall", f"{rows[0]['global']:.2f}" if rows else "—"),
             ("Fastest (gen)", f"{max((r['sc']['gen_tps'] for r in rows), default=0):.0f} t/s"),
@@ -315,8 +343,10 @@ def render(pool):
                  if r["thinking"] != "—" else "")
         if optimal.get(r["slug"]) == r["thinking"]:
             think += ' <span class="badge strata">★ optimal</span>'
+        if r["retired"]:
+            think += ' <span class="badge">retired</span>'
         ranking.append(
-            f'<div class="trow"><div class="pos{cls}">{i + 1}</div>'
+            f'<div class="trow{" retired" if r["retired"] else ""}"><div class="pos{cls}">{i + 1}</div>'
             f'<div class="name" title="{_esc(r["name"])}">{_esc(r["name"])}<small>{_esc(r["ts"])} · {r["tasks"]["tools"]}+'
             f'{r["tasks"]["code"]}+{r["tasks"]["agent"]} tasks · excluded code: {r["code_excluded"]}</small></div>'
             f'<div class="gval{cls}">{r["global"]:.2f}{_spread_html((r["spread"] or {}).get("global"))} '
@@ -331,7 +361,9 @@ def render(pool):
             # was clipped in narrow columns. title = full name as tooltip.
             think = (f'<span class="badge">think:{_esc(r["thinking"])}</span> '
                      if r["thinking"] != "—" else "")
-            out.append(f'<div class="trow">'
+            if r["retired"]:
+                think += '<span class="badge">retired</span> '
+            out.append(f'<div class="trow{" retired" if r["retired"] else ""}">'
                        f'<div class="name" title="{_esc(r["name"])}">{think}{_esc(r["name"])}</div>'
                        f'<div class="num" style="text-align:right">{fmt(v)}</div></div>')
         return "".join(out)
@@ -348,7 +380,9 @@ def render(pool):
                     cells.append(f"<td>{_heat(v)}</td>")
         think = (f'<span class="badge">think:{_esc(r["thinking"])}</span> '
                  if r["thinking"] != "—" else "")
-        matrix_rows.append(f'<tr><td class="name" title="{_esc(r["name"])}">{think}{_esc(r["name"])}</td>'
+        if r["retired"]:
+            think += '<span class="badge">retired</span> '
+        matrix_rows.append(f'<tr{" class=\"retired\"" if r["retired"] else ""}><td class="name" title="{_esc(r["name"])}">{think}{_esc(r["name"])}</td>'
                            f'{"".join(cells)}</tr>')
     matrix_head = "".join(f'<th>{dim}:{lang}</th>' for dim in ("code", "agent") for lang in langs)
 
@@ -362,9 +396,10 @@ def render(pool):
                 f"{k} {v:.0%}" for k, v in sorted(bl.items())) + "\n"
         think_line = (f"think: {r['thinking']}\n" if r["thinking"] != "—" else "")
         details.append(
-            f'<details><summary>{_esc(r["name"])} <span class="badge{" strata" if r["engine"] == "strata" else ""}">'
+            f'<details{" class=\"retired\"" if r["retired"] else ""}><summary>{_esc(r["name"])} <span class="badge{" strata" if r["engine"] == "strata" else ""}">'
             f'{_esc(r["engine"])} {_esc(r["build"])}</span>'
             f'{" <span class='badge strata'>★ optimal</span>" if optimal.get(r["slug"]) == r["thinking"] else ""}'
+            f'{" <span class=\"badge\">retired</span>" if r["retired"] else ""}'
             f' <span class="miss">{_esc(r["ts"])}</span></summary>'
             f'<pre>{by_level_line}{think_line}excluded code: {r["code_excluded"]}\n{flags}</pre></details>')
 

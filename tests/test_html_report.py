@@ -2,6 +2,7 @@ import shutil
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from ggufbench import config, html_report
 
@@ -482,6 +483,40 @@ class TestRunSpreadCells(unittest.TestCase):
         html = html_report.render_compare(a, b, pool=[a, b])
         self.assertNotIn('<div class="v">0.77 <small>', html)   # both cards stay bare
         self.assertNotIn('"gs"', html)
+
+
+class TestRetiredGray(unittest.TestCase):
+    """Retired models (stems in models/retired/) render gray as a record and
+    never appear in Recommendations (by use)."""
+
+    def _render_foo_retired(self, **kw):
+        with mock.patch.object(html_report, "_retired_stems", return_value={"foo"}):
+            return html_report.render([_mk()], **kw)
+
+    def test_retired_row_is_gray_with_badge(self):
+        html = self._render_foo_retired()
+        static = html.split('<div id="cmp-body">', 1)[0] if '<div id="cmp-body">' in html else html
+        self.assertIn('<div class="trow retired">', static)
+        self.assertIn('<span class="badge">retired</span>', static)
+        self.assertIn("gray = retired model (record only)", static)
+        self.assertIn(".retired .heat", static)
+
+    def test_retired_excluded_from_recommendations(self):
+        html = self._render_foo_retired()
+        self.assertNotIn("Recommendations (by use)", html)
+
+    def test_non_retired_unchanged(self):
+        with mock.patch.object(html_report, "_retired_stems", return_value=set()):
+            html = html_report.render([_mk()])
+        self.assertNotIn("trow retired", html)
+        self.assertNotIn(">retired</span>", html)
+        self.assertNotIn("gray = retired", html)
+        self.assertIn("Recommendations (by use)", html)
+
+    def test_real_retired_dir_resolves(self):
+        stems = html_report._retired_stems()
+        self.assertIn("Qwen3-Coder-30B-A3B-Instruct-UD-Q4_K_XL", stems)
+        self.assertNotIn("foo", stems)
 
 
 if __name__ == "__main__":
