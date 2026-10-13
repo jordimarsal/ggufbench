@@ -191,9 +191,9 @@ class TestServerBuild(unittest.TestCase):
 
     def test_reads_version_from_stderr(self):
         import subprocess as _sp
-        orig = self._fake("", "version: 0.4.0-dev (build 10872)\nbuilt with GNU\n")
+        orig = self._fake("", "version: 0.4.0-dev (build 10872, commit b31b71f3a)\nbuilt with GNU\n")
         try:
-            self.assertEqual(run._server_build("llama"), "0.4.0-dev")
+            self.assertEqual(run._server_build("llama"), "0.4.0-dev+b31b71f")
         finally:
             _sp.run = orig
 

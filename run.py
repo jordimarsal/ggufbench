@@ -3,6 +3,7 @@ import datetime
 import difflib
 import json
 import platform
+import re
 import subprocess
 import sys
 import time
@@ -241,9 +242,13 @@ def _server_build(engine="llama"):
         out = subprocess.run([str(config.SERVER_BIN), "--version"],
                              capture_output=True, text=True, timeout=10)
         # llama-server writes the version to stderr, not stdout: both must be checked.
+        # The commit is part of the identity: two rebuilds can share the version
+        # ("0.4.0-dev") while differing in behavior — receipts must tell them apart.
         for line in (out.stdout + out.stderr).splitlines():
             if line.startswith("version:"):
-                return line.split()[1]
+                ver = line.split()[1]
+                m = re.search(r"commit ([0-9a-f]{7,40})", line)
+                return f"{ver}+{m.group(1)[:7]}" if m else ver
     except (OSError, subprocess.TimeoutExpired):
         pass
     return "unknown"
