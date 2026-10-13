@@ -74,7 +74,7 @@ SERVER_FLAGS = [
 
 # KV cache kept separate from SERVER_FLAGS because models/<model>.txt can
 # override it (then the flag must not be duplicated: llama-server warns).
-CACHE_FLAGS = ["--cache-type-k", "q4_0", "--cache-type-v", "q4_0"]
+CACHE_FLAGS = ["--cache-type-k", "q8_0", "--cache-type-v", "q8_0"]
 
 # Per-model profile flags that are allowed through from models/<model>.txt.
 # Values pass unvalidated EXCEPT: a value starting with "-" looks like a flag

@@ -13,7 +13,7 @@
 - **Location:** everything under `/home/jordi/ia/llama/ggufbench/`.
 - **Server binary:** `/home/jordi/ia/llama/llama-server` (symlink); models at `/home/jordi/ia/llama/models/*.gguf`.
 - **No external deps:** HTTP via `urllib.request`; harness tests via `python -m unittest` (stdlib). No `pip install`.
-- **Fixed server flags** (from `start-dev-ai.sh`): `-ngl 999 --flash-attn auto --no-mmap --jinja --parallel 1 -b 512 --temp 0.2 --top-p 0.95 --repeat-penalty 1.1 --repeat-last-n 256 --seed 42 --cache-type-k q4_0 --cache-type-v q4_0 --host 127.0.0.1 --port <P>`.
+- **Fixed server flags** (from `start-dev-ai.sh`): `-ngl 999 --flash-attn auto --no-mmap --jinja --parallel 1 -b 512 --temp 0.2 --top-p 0.95 --repeat-penalty 1.1 --repeat-last-n 256 --seed 42 --cache-type-k q8_0 --cache-type-v q8_0 --host 127.0.0.1 --port <P>`.
 - **Context modes:** `fixed` (16384 by default) or `adapted` (the model's viable).
 - **Code sandbox:** new tempdir + `timeout 30` + `unshare -n` if available; generated code never outside the tempdir.
 - **Commits:** the project has its own `git init` (Task 1).
@@ -137,8 +137,8 @@ SERVER_FLAGS = [
     "--repeat-penalty", "1.1",
     "--repeat-last-n", "256",
     "--seed", "42",
-    "--cache-type-k", "q4_0",
-    "--cache-type-v", "q4_0",
+    "--cache-type-k", "q8_0",
+    "--cache-type-v", "q8_0",
     "--host", "127.0.0.1",
 ]
 

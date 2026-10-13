@@ -48,9 +48,11 @@ class TestModelConfigTxt(unittest.TestCase):
         a = self._args_with_txt("--cache-type-k q8_0\n")
         self.assertEqual(a.count("--cache-type-k"), 1)
         self.assertEqual(a[a.index("--cache-type-k") + 1], "q8_0")
-        # the baseline's v is kept
+        # the baseline's v is kept (read from config so a baseline change does not break this)
         self.assertIn("--cache-type-v", a)
-        i = a.index("--cache-type-v"); self.assertEqual(a[i + 1], "q4_0")
+        i = a.index("--cache-type-v")
+        baseline_v = config.CACHE_FLAGS[config.CACHE_FLAGS.index("--cache-type-v") + 1]
+        self.assertEqual(a[i + 1], baseline_v)
     def test_txt_spec_type_appended_last(self):
         a = self._args_with_txt("--spec-type draft-mtp\n")
         self.assertIn("draft-mtp", a)

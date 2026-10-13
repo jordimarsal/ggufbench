@@ -20,7 +20,7 @@ The end goal is picking the best model for **opencode** (coding agent).
 
 - **Common flags** for all models (baseline in `config.SERVER_FLAGS`):
   `temp 0.2`, `top-p 0.95`, `seed 42`, `repeat-penalty 1.1`, `-ngl 999`,
-  `--flash-attn auto`, `--load-mode none` (0.6.0+; was `--no-mmap`), `--jinja`, KV cache `q4_0/q4_0`
+  `--flash-attn auto`, `--load-mode none` (0.6.0+; was `--no-mmap`), `--jinja`, KV cache `q8_0/q8_0`
   (`config.CACHE_FLAGS`), `--parallel 1`.
 - **Sampling (n=1)**: one graded attempt per task (`temp 0.2`, `seed 42`).
   Single-sample noise is real: the scoreboard is a *ranking on this
