@@ -8,7 +8,7 @@ One harness, same conditions, four dimensions, and the raw receipts of every cal
 
 ## The rules that make the numbers mean something
 
-Every model runs with identical samplings: temperature 0.2, top-p 0.95, seed 42, KV cache q4_0, `--jinja`, one slot. The settings are pinned in two places, the server flags and the request body, so a config drift on the server side cannot leak into a comparison.
+Every model runs with identical samplings: temperature 0.2, top-p 0.95, seed 42, KV cache q8_0, `--jinja`, one slot. The settings are pinned in two places, the server flags and the request body, so a config drift on the server side cannot leak into a comparison.
 
 Each model keeps its own profile file. That profile is applied last and can override the baseline, so models compete in their real best configuration instead of a lab setup I invented. Infrastructure flags are fixed by the harness, and whatever the model ended up running with is recorded in its result row.
 
@@ -20,7 +20,7 @@ Every task keeps three runs, seeds 42, 43 and 44, and the scoreboard reports mea
 
 ## What the scoreboard said
 
-The current pool ran on harness v3: 12 tool tasks, 60 code tasks, 28 multi-step agent tasks, 32K context, measured on 2026-10-13. The top of the table:
+The current pool runs harness v3: 16 tool tasks, 60 code tasks across four languages (32 easy, 16 hard, 12 expert), 42 multi-step agent tasks, 32K context. The scoreboard rows below were measured on 2026-10-13. The top of the table:
 
 | model | tools | code | agent | speed | global |
 | --- | --- | --- | --- | --- | --- |
@@ -41,7 +41,7 @@ I measured it as a separate pool row instead of folding it into one number. Acro
 
 ### Easy code tasks don't discriminate
 
-Every serious model passed the trivial tasks, 84% to 100%, which means that dimension was measuring nothing. I added a hard tier (fix, optimise, implement real code) before the scores started to separate. The gap shows up in code before it shows up in tool-calling, which is where I expected the opposite.
+Every serious model passed the trivial tasks, 84% to 100%, so on its own the dimension measured nothing. Two levels were added on top: hard, and expert, the latter built from multi-error debugging tasks with strict output contracts (return the complete corrected file, exact rounding, defensive copies). The scoreboard folds the three levels into one code column; the per-level breakdown it records (`by_level`) is where the separation lives.
 
 ## What I would tell you to do
 
