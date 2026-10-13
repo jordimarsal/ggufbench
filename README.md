@@ -18,7 +18,9 @@ No cloud, no APIs, no puzzles. The scoreboard answers one question:
 llama-server 0.6.0-dev+4413a19, **3 runs per task, seeds 42/43/44** (mean ± stdev),
 measured 2026-10-13 on 2× RTX 5080. `excl.` = excluded with a recorded reason.
 9 models retired 2026-10-13 (flota prima — vegeu `models/retired/`); their rows
-stay in the full report as a record. ON-mode rows pending their own pass.
+stay in the full report as a record. Strata dual complete on engine 0.1.43.1
+(off 0.80 ±2 ★ optimal, on 0.76 ±0 — thinking hurts here, 5.7× the wall clock).
+Llama ON rows pending their own pass.
 
 Live rendered report: <https://jordimarsal.github.io/ggufbench/> ·
 regenerate locally with `harness/tools/publish-report.sh` after a re-measure.: <https://jordimarsal.github.io/ggufbench/> ·
