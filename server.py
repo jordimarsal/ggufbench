@@ -1,4 +1,5 @@
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -233,13 +234,12 @@ class ServerManager:
         return Path(tempfile.gettempdir()) / f"ggufbench-{self.engine}-server-{self.port}.log"
 
     def start(self):
-        out = subprocess.DEVNULL
+        # Server output always lands in the log file (both engines): a crash
+        # mid-run must leave its last words behind, not vanish into DEVNULL.
+        # (Before: only Strata logged; llama crashes were undebuggable.)
         if self.engine == "strata":
             args = strata_command(self.model_path, self.port)
             cwd = str(config.STRATA_DIR)
-            self._logfh = open(self.log_path, "w", encoding="utf-8")
-            out = self._logfh
-            print(f"  server log: {self.log_path}", file=sys.stderr, flush=True)
         else:
             args = build_args(self.model_path, self.context_mode, self.port)
             cwd = None
@@ -247,6 +247,9 @@ class ServerManager:
             if extra:
                 print(f"  config {Path(self.model_path).stem}.txt: {extra}",
                       file=sys.stderr, flush=True)
+        self._logfh = open(self.log_path, "w", encoding="utf-8")
+        out = self._logfh
+        print(f"  server log: {self.log_path}", file=sys.stderr, flush=True)
         # Own process group (start_new_session): stop() must also reach Strata's
         # child (engine/strata), which would otherwise be orphaned, and never another process.
         self.proc = subprocess.Popen(args, stdout=out, stderr=subprocess.STDOUT,
@@ -306,6 +309,10 @@ class ServerManager:
         self.proc, self.pgid, self._logfh = None, None, None
         if proc is None:
             return
+        # A server that already died on its own (nonzero exit) is the case worth
+        # keeping evidence for: archive its log next to the run receipts instead
+        # of letting the next start() truncate it away.
+        died_rc = proc.poll()
         if proc.poll() is None:
             # SIGTERM first (clean stop); if it does not exit within 15s, escalate.
             try:
@@ -326,4 +333,15 @@ class ServerManager:
                 pass
         if logfh:
             logfh.close()
+        if died_rc is not None and died_rc != 0:
+            config.RESULTS_RUNS.mkdir(parents=True, exist_ok=True)
+            ts = time.strftime("%Y%m%d-%H%M%S", time.localtime())
+            dest = (config.RESULTS_RUNS /
+                    f"{ts}-server-{self.engine}-{self.port}-CRASH.log")
+            try:
+                shutil.copy(self.log_path, dest)
+            except OSError:
+                dest = None
+            print(f"  server died on its own (rc={died_rc}): log preserved at {dest}",
+                  file=sys.stderr, flush=True)
         time.sleep(2)

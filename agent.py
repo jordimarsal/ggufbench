@@ -102,4 +102,5 @@ def run_agent(client_mod, task, max_turns=8):
             result = _exec_tool(name, args, env)
             history.append({"role": "tool", "tool_call_id": tc.get("id", "x"), "content": result})
     ok, _ = env.run_tests()
-    return {"success": ok, "turns": actual_turns, "tool_calls": tool_calls}
+    return {"success": ok, "turns": actual_turns, "tool_calls": tool_calls,
+            "history": history}

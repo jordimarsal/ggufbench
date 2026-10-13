@@ -23,6 +23,15 @@ def save_result(result):
     config.RESULTS_RUNS.mkdir(parents=True, exist_ok=True)
     slug = _slug_of(result)
     key = _key_of(result)
+    # Agent conversations ride out-of-band: the full episodes live in a sidecar
+    # file next to the run receipt; the pool row stays lean with only a pointer.
+    convos = (result.get("agent") or {}).pop("conversations", None)
+    ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    mode = result.get("thinking") or "na"
+    if convos is not None:
+        sidecar = config.RESULTS_RUNS / f"{ts}-{slug}-{mode}-agent-convos.json"
+        sidecar.write_text(json.dumps(convos, ensure_ascii=False))
+        result["agent"]["conversations_file"] = sidecar.name
     # Upsert per (slug, thinking): the two modes coexist; re-running the same mode
     # replaces it (it used to key on the slug alone, so the second batch would overlap the first).
     pool = [r for r in load_pool() if _key_of(r) != key]
@@ -30,8 +39,6 @@ def save_result(result):
     with open(config.POOL_FILE, "w") as f:
         for r in pool:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
-    ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    mode = result.get("thinking") or "na"
     (config.RESULTS_RUNS / f"{ts}-{slug}-{mode}.json").write_text(json.dumps(result, indent=2, ensure_ascii=False))
 
 

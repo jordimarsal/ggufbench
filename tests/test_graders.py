@@ -429,5 +429,35 @@ class TestGradersMultiRun(unittest.TestCase):
         self.assertIsNone(captured[-1])
 
 
+@unittest.skipUnless(HAS_SANDBOX, "host cannot create isolated namespaces (unshare -Urn); code-execution coverage runs on sandboxed hosts")
+class TestAgentConversations(unittest.TestCase):
+    """grade_agent keeps per-task per-run episode histories so the next HTTP 500
+    (or any failure) can be debugged from the receipt, not re-run."""
+
+    def test_histories_collected_per_task_per_run(self):
+        class C:
+            def chat(self, *a, **k):
+                return {"choices": [{"message": {"content": "hi"}}]}
+        tasks = [{"id": "a", "lang": "python", "goal": "g", "max_turns": 2,
+                  "initial_files": {"solution.py": "", "test_solution.py": "print('OK')"},
+                  "test_file": "test_solution.py"}]
+        r = graders.grade_agent(C(), tasks, runs=2)
+        convos = r["conversations"]
+        self.assertEqual(set(convos), {"a"})
+        self.assertEqual(len(convos["a"]), 2)
+        roles = [m.get("role") for m in convos["a"][0]]
+        self.assertEqual(roles[:2], ["system", "user"])
+        # the model's reply is recorded verbatim (real servers add "role";
+        # minimal fixtures may omit it — receipts stay faithful either way)
+        self.assertTrue(any(m.get("content") == "hi" for m in convos["a"][0]))
+
+    def test_truncation_marks_long_content(self):
+        out = graders._trunc_history([{"role": "user", "content": "x" * 5000}])
+        self.assertTrue(out[0]["content"].endswith("chars]"))
+        self.assertLess(len(out[0]["content"]), 5000)
+        short = graders._trunc_history([{"role": "a", "content": "short"}])
+        self.assertEqual(short[0]["content"], "short")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -350,6 +350,7 @@ def grade_agent(client_mod, tasks, max_turns=8, on_task=None, runs=1):
     a task with ALL runs excluded is excluded from the mean entirely.
     """
     section_runs = []
+    conversations = {}
     for _run_idx in range(runs):
         if runs > 1:
             client_mod.run_index = _run_idx  # per-run seed injection; N==1 keeps it None
@@ -359,6 +360,7 @@ def grade_agent(client_mod, tasks, max_turns=8, on_task=None, runs=1):
         for t in tasks:
             try:
                 r = A.run_agent(client_mod, t, max_turns=t.get("max_turns", max_turns))
+                conversations.setdefault(t["id"], []).append(_trunc_history(r["history"]))
             except _TRANSIENT as e:
                 results.append({"id": t["id"], "passed": False, "turns": 0,
                                 "_excluded": True,
@@ -421,7 +423,24 @@ def grade_agent(client_mod, tasks, max_turns=8, on_task=None, runs=1):
         for sr_results, _sr_by_lang in section_runs
     ) if section_runs else 0
     result = {"passed": score == 1.0, "turns": total_turns,
-              "trace": trace, "by_lang": {}, "score": score}
+              "trace": trace, "by_lang": {}, "score": score,
+              "conversations": conversations}
     if runs > 1:
         result["runs"] = runs
     return result
+
+
+_CONVO_TRUNC = 4000
+
+
+def _trunc_history(hist):
+    """Bounded copy of an agent episode: message contents over the cap are cut
+    with a marker (receipts stay complete enough to debug, never unbounded)."""
+    out = []
+    for m in hist:
+        m = dict(m)
+        c = m.get("content")
+        if isinstance(c, str) and len(c) > _CONVO_TRUNC:
+            m["content"] = c[:_CONVO_TRUNC] + f"\n[...truncated {len(c) - _CONVO_TRUNC} chars]"
+        out.append(m)
+    return out

@@ -426,5 +426,40 @@ class TestOptimalMode(unittest.TestCase):
         self.assertNotIn("on ★", out)
 
 
+class TestAgentConvoSidecar(unittest.TestCase):
+    """Agent conversations ride out-of-band: the pool row stays lean with only
+    a pointer, the full episodes live in a sidecar file next to the receipt."""
+
+    def setUp(self):
+        self.tmpdir = Path(tempfile.mkdtemp())
+        self.enterContext(config.override(POOL_FILE=self.tmpdir / "pool.jsonl",
+                                          RESULTS_MODELS=self.tmpdir / "models",
+                                          RESULTS_RUNS=self.tmpdir / "runs"))
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir)
+
+    def test_conversations_go_to_sidecar(self):
+        r = mk("m", speed_ms=50)
+        r["thinking"] = "off"
+        r["agent"]["conversations"] = {"a": [[{"role": "user", "content": "hi"}]]}
+        report.save_result(r)
+        pool = report.load_pool()
+        self.assertEqual(len(pool), 1)
+        self.assertNotIn("conversations", pool[0]["agent"])
+        self.assertIn("conversations_file", pool[0]["agent"])
+        sidecar = self.tmpdir / "runs" / pool[0]["agent"]["conversations_file"]
+        self.assertTrue(sidecar.is_file())
+        self.assertEqual(json.loads(sidecar.read_text()),
+                         {"a": [[{"role": "user", "content": "hi"}]]})
+
+    def test_no_conversations_no_sidecar(self):
+        r = mk("m", speed_ms=50)
+        r["thinking"] = "off"
+        report.save_result(r)
+        self.assertNotIn("conversations_file", report.load_pool()[0]["agent"])
+        self.assertEqual(list((self.tmpdir / "runs").glob("*-agent-convos.json")), [])
+
+
 if __name__ == "__main__":
     unittest.main()

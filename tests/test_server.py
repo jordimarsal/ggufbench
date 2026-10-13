@@ -1,9 +1,11 @@
 import io
 import json
+import shutil
 import tempfile
 import unittest
 from contextlib import redirect_stderr
 from pathlib import Path
+from unittest import mock
 
 from ggufbench import server, config
 
@@ -293,6 +295,49 @@ class TestContextResolution(unittest.TestCase):
             q.write_text(json.dumps({"args": ["--pack", "/p"]}), encoding="utf-8")
             self.assertEqual(server.resolve_context_and_source(str(q), "fixed", engine="strata"),
                              (None, "engine-default"))
+
+
+class TestServerCrashLog(unittest.TestCase):
+    """stop() archives the server log when the process died on its own
+    (the crash evidence must survive the next start, which truncates it)."""
+
+    def setUp(self):
+        self.tmpdir = Path(tempfile.mkdtemp())
+        self.enterContext(config.override(RESULTS_RUNS=self.tmpdir / "runs"))
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+        for p in Path(tempfile.gettempdir()).glob("ggufbench-llama-server-81*.log"):
+            p.unlink(missing_ok=True)
+
+    def _sm(self, port=8199):
+        sm = server.ServerManager("/m.gguf", engine="llama", port=port)
+        sm.log_path.write_text("boom\n")
+        return sm
+
+    def test_crash_preserves_log(self):
+        sm = self._sm()
+        sm.proc = mock.MagicMock()
+        sm.proc.poll.return_value = -6
+        sm.pgid = None
+        sm._logfh = None
+        with redirect_stderr(io.StringIO()):
+            sm.stop()
+        saved = list((self.tmpdir / "runs").glob("*-CRASH.log"))
+        self.assertEqual(len(saved), 1)
+        self.assertIn("boom", saved[0].read_text())
+
+    def test_clean_stop_preserves_nothing(self):
+        sm = self._sm()
+        sm.proc = mock.MagicMock()
+        sm.proc.poll.return_value = None
+        sm.proc.wait.return_value = 0
+        sm.pgid = None
+        sm._logfh = None
+        with redirect_stderr(io.StringIO()):
+            sm.stop()
+        where = self.tmpdir / "runs"
+        self.assertFalse(where.exists() and any(where.iterdir()))
 
 
 if __name__ == "__main__":
