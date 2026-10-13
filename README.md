@@ -26,7 +26,7 @@ regenerate locally with `harness/tools/publish-report.sh` after a re-measure.
 
 | model | think | tools | code | agent | speed | global |
 |---|---|---|---|---|---|---|
-| strata-iq3_xxs | off ★ | 83% ±0 | 89% ±5 | 92% ±8 | 45ms | 0.79 ±3 |
+| strata-iq3_xxs | off | 86% ±5 | 88% ±4 | 96% ±0 | 50ms | 0.80 ±2 |
 | qwen3_8-27b-turbofcfusion-...-mtp-q4_k_s | off | 92% ±0 | 83% ±5 | 94% ±2 | 49ms | 0.80 ±1 |
 | gemma-4-26b-a4b-it-ud-q5_k_xl | off | 92% ±0 | 84% ±1 | 95% ±2 | 34ms | 0.82 ±0 |
 | qwen3_8-27b-ud-q3_k_xl | off | 92% ±0 | 75% ±8 | 92% ±8 | 36ms | 0.78 ±4 |
