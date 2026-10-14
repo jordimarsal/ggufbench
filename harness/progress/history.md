@@ -222,3 +222,29 @@ C9 fleet re-measure at v5.
 retro: the gate was worth more than the generator — `check-task.py` caught three of my own
 wrong expectations and every broken fleet task, while the fleet's own claims were wrong
 twice; and "remove it" beat "ship it broken" every time the gate said no.
+
+## 2026-10-14 (cont.) — C4 completed: 13 multi-file projects, 18/72/72 (done)
+
+The three tasks the gate had rejected were rewritten by hand with that same gate, plus one
+extra for typescript so its cell recovers the task lost to `mapped_type_refactor`:
+`bash/csv_quoted_fields` (a parser splitting quoted fields on the inner comma),
+`bash/retry_pipeline` (gives up on the first failure; the fake operation now lives in a FILE
+— `attempt.sh` — because the rejected version defined it inside the test, in a shell the
+child process cannot see), `java/feature_flag_end_to_end` (Cli ignores `--quiet`, Renderer
+ignores the flag it gets; the test captures stdout/stderr and asserts the header is gone and
+the rows are not) and `typescript/order_merge_duplicates` (repeated SKUs must accumulate).
+All four verified with `check-task.py` (shipped FAILS / reference PASSES — references stay in
+/tmp) and by the structural gate, which is back to its real target (>=3 multi-file per
+language, >=12 total; `test_multifile_tasks_start_from_a_failing_state` keeps rejecting any
+project that passes as shipped). **Final ledger of the fill: tools 18 · code 72 · agent 72
+(bash/java/python/typescript each 18), tasks_version v5** — the four cells finally have the
+same shape, which is what makes a by_language difference the model's and not the dataset's.
+Suite 438 green, `init.sh` green, bench "no benchmark regression" (loaders 1.20-1.24x, inside
+the warning band), no server running. Commits d0d05a8 + 12bf918 (+ the harness commit
+35a0d2c). **The task set is frozen: what is left is the C9 fleet re-measure at v5, then the
+three write-ups and the README tables with the new numbers.**
+
+retro: the two bash rewrites cost less than repairing the originals because the contract was
+written from the test backwards ("what can a child process actually see and assert?"); the
+generator (a local model) was useful for volume, the gate for truth, and the second pass was
+pure gate-driven authorship.

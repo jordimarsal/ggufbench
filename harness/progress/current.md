@@ -10,19 +10,21 @@
 
 ## Plan
 
-_Next session — the goal is one GPU night, at v5, with everything frozen:_
+_The task set is frozen at v5 (tools 18 · code 72 · agent 72). What is left is the night of
+GPU, not the dataset:_
 
-1. **Finish C4's task fill** (3 multi-file agent projects: bash 2, java 1) so all four
-   languages have 3 each (18 agent/lang; the accepted floor today is 9 of 12, asserted).
-   Follow the C3/C4 recipe: project that FAILS its own test + reference in /tmp +
-   `python3 harness/tools/check-task.py --task <task> --reference <ref>` → `VERDICT: ok`,
-   then `python3 -m unittest ggufbench.tests.test_agent_tasks`.
-2. **Then the C9 fleet re-measure** (option 1) at v5: 7 GGUF + Strata, OFF × runs 3, one
-   frozen tuple (task set 18/72/68 · engine build · KV baseline q8_0 · thinking off). This
-   is the run that makes the published board homogeneous and makes the baseline/engine axes
-   of §C10 start reporting.
-3. **After it:** the 3 write-ups (they still state the C1-era condition) + README tables
-   with the new numbers.
+1. **C9 option 1 — the fleet re-measure at v5.** 7 GGUF + Strata, thinking OFF, `--runs 3`,
+   one sitting, one frozen tuple: task set 18/72/72 · engine build · KV baseline `q8_0` ·
+   OFF. Never llama-server and Strata at the same time (the harness owns the lifecycle).
+   Expected: run time grows (the suite is bigger), so plan the whole night; then
+   `python3 -m ggufbench.run --scoreboard --html` and `harness/tools/publish-report.sh`.
+   The board afterwards should show ONE task set, ONE baseline id (`f982b06a`) and the new
+   engine/build axis; §C10's baseline axis starts reporting from the first new row.
+2. **Then the three write-ups** (`docs/writeups/*.md`, 3 languages): they still describe the
+   C1-era condition (12/60/28, "42 multi-step agent tasks") and their "top rows are ties"
+   conclusion leans on numbers the re-measure will replace.
+3. **Then the README scoreboard tables** with the measured v5 rows (the current tables mark
+   v5 as "no rows measured yet").
 
 ## Log
 
