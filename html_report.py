@@ -194,7 +194,7 @@ def _by_set_section(rows):
         labels = sorted({r["set"].split("·")[0] for r in group})
         out.append(f'  <div class="setblock" id="set-{_esc(sig.replace("/", "-"))}">'
                    f'<h3>{_esc(sig)} tasks '
-                   f'<span class="miss">· label {" / ".join(_esc(l) for l in labels)} · '
+                   f'<span class="setmeta">· label {" / ".join(_esc(l) for l in labels)} · '
                    f'{len(group)} row{"s" if len(group) != 1 else ""} · measured {_esc(span)}</span></h3>')
         for r in group:
             think = (f' <span class="badge">think:{_esc(r["thinking"])}</span>'
@@ -329,6 +329,10 @@ _CSS = """
   --bg:#0b1220; --card:#101a2e; --card2:#0d1526; --border:#1e2a44;
   --text:#e7eef9; --muted:#93a4be; --primary:#3b82f6; --primary2:#60a5fa;
   --accent:#f59e0b; --good:#34d399; --bad:#f87171;
+  /* Minor titles / metadata headings (task-set block headers). Amber, because in this
+     page that is already the "condition / caveat" colour of the mixed-conditions banner:
+     the set of tasks a row ran is a caveat, not a score. One variable to retune it. */
+  --label:#f59e0b;
   --mono:'Fira Code',ui-monospace,'Cascadia Mono','JetBrains Mono',monospace;
   --sans:'Fira Sans','Segoe UI',system-ui,-apple-system,sans-serif;
 }
@@ -385,7 +389,8 @@ tr:hover td{background:rgba(59,130,246,.07)}
 .sortbar select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .setblock{border:1px solid var(--border);border-radius:9px;background:var(--card2);
   padding:8px 10px;margin-bottom:8px}
-.setblock h3{margin:0 0 6px;font:600 12px var(--mono);letter-spacing:.3px}
+.setblock h3{margin:0 0 6px;font:600 12px var(--mono);letter-spacing:.3px;color:var(--label)}
+.setblock h3 .setmeta{color:var(--label);opacity:.75;font-weight:400}
 .gval{font:600 15px var(--mono);text-align:right;color:var(--primary2)}
 .gval.top{color:var(--accent)}
 .gval small,.kpi .v small{color:var(--muted);font-weight:400;font-size:11px}

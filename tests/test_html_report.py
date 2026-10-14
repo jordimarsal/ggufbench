@@ -245,6 +245,17 @@ class TestTaskSetDisplay(unittest.TestCase):
         self.assertIn("Tool-calling (16 tasks)", html)
         self.assertNotIn("Tool-calling (8 tasks)", html)   # the old hardcoded number
 
+    def test_minor_titles_have_their_own_colour(self):
+        """The by-set block header — the page's minor title — is not painted with the muted
+        body colour: --label is the single knob for it (amber, same family as the
+        mixed-conditions banner: the task set is a caveat, not a score)."""
+        html = html_report.render([_mk()])
+        self.assertIn("--label:#f59e0b", html)
+        self.assertIn(".setblock h3{", html)
+        self.assertIn("color:var(--label)", html)
+        self.assertIn('<span class="setmeta">', html)
+        self.assertNotIn('<span class="miss">· label', html)
+
     def test_set_named_in_the_mixed_conditions_banner(self):
         a, b = self._rows()
         static = html_report.render([a, b])
