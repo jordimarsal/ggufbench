@@ -156,3 +156,36 @@ retro: the request was really "make the condition self-evident in the artifact" 
 (`task_signature`) already existed from the morning's fix, so this pass only had to surface
 it and order by it; the expensive part was the report's zero-JS contract, which had to be
 renegotiated in docs and tests instead of quietly broken.
+
+## 2026-10-14 (cont.) — C10: the baseline and the engine build are conditions too (done)
+
+Found while answering "what is left in MILLORA": the task set was the only condition that
+travelled in data and was checked. Two others did not. **Engine build:** llama 0.4.0-dev
+(7 rows) and 0.6.0-dev+4413a19 (8 rows) live inside the *same* 12/60/28 set (Strata
+0.1.43.1 vs 0.1.44.1 likewise) — displayed per row, never compared. **Baseline flags:**
+ADR-0008 switched the KV cache `q4_0`→`q8_0` on 2026-10-13 20:16, i.e. after the whole C1
+batch (last row 13:39) and before the two rows of 14/10, and no field recorded which one a
+row ran with (`model_config_flags` is the per-model profile). Implemented (human order,
+dispatched to the local fleet via the llama-slots skill — Strata iq3_xxs, the skill's
+dispatch default, one implementer, leader-reviewed): `config.baseline_argv()`;
+`report.baseline_flags()/baseline_id()` (`sha1[:8]`, `?` for rows that predate the field —
+never invented), `CONDITION_AXES`, `condition_axes()`, `mixed_axes()`; `save_result` records
+`baseline_flags`; the CLI footer, the HTML chips/banner, the per-row `<pre>` and the compare
+banner (server + picker JS, kept in sync by a guard test) now fire per axis. Docs: SPEC §2
+(three condition axes) + MILLORA §C10 closed with the evidence — current baseline id
+`f982b06a`, the pre-ADR-0008 q4_0 one `fd886dd9`, both verified by hand. Reviewer fixed
+"1 rows" → "1 row" in the banner counts and recorded the deliberate trade-off that the
+digest is the literal argv the server received (an infra edit over-warns rather than hides).
+Verified: 416 tests green (2 smoke skips while the local server held the GPUs), `init.sh`
+green, the picker JS exercised in node against a stub DOM (six cases: identical → no banner;
+baseline-only / engine-only / set-only / date-only / version-only → the right clauses),
+evidence in `harness/logs/c10/` + `harness/progress/impl_c10.md`. Published: gh-pages
+`b6d20fd` (the page now carries the engines chip and `baseline ? (not recorded)` per row; the
+baseline axis stays silent until a row is re-measured under the field). Strata stopped after
+the dispatch (GPUs free). Commit b6d20fd.
+
+retro: the second axis was found by *listing what the data does not say*, not by reading the
+code — the audit question ("what does the board compare?") transferred from C9 unchanged and
+paid again; and giving the implementer the exact function names + the three surfaces turned
+a 125B local model into a usable worker, with the review finding only a plural. What stays
+human: deciding which flags count as a condition (the digest trade-off) and committing.
