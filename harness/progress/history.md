@@ -189,3 +189,36 @@ code — the audit question ("what does the board compare?") transferred from C9
 paid again; and giving the implementer the exact function names + the three surfaces turned
 a 125B local model into a usable worker, with the review finding only a plural. What stays
 human: deciding which flags count as a condition (the digest trade-off) and committing.
+
+## 2026-10-14 (cont.) — C3 fill + C4 multi-file agents; suite becomes v5 (done, 9/12 C4 tasks)
+
+Human order: have **all** the C3 and C4 tasks in place *before* spending the GPU night on
+C9, so the fleet is measured once (at v5) instead of twice. Two units, both landed.
+**C3 (closed, MILLORA §C3):** tools 16→18 (+2 argument-precision/instruction-following),
+code 15→18 per language (+1 hard, +2 expert each) → every code cell is 8 easy + 5 hard +
+5 expert (72 tasks), four languages identical (asserted). New: `parse_size_hard` ×4,
+`csv_stats_expert` ×3, `ledger_fifo_expert`, `ttl_cache_debug_expert`,
+`format_duration_expert`, `schedule_slots_expert`, `diff_objects_expert`. **C4 (§C4):** the
+harness learned to grade a project — `list_files` tool, the whole project handed to the
+executor (a fix in a module the test never names now changes the verdict; java compiles
+every `.java`), flat-sandbox path validation, and **the test file read-only + graded from its
+pristine copy** (tasks already said "without touching the tests"; nothing enforced it).
+9 multi-file projects (5-8 files, 14 turns): python 3, ts 3, java 2, bash 1, each verified
+with the new `harness/tools/check-task.py` (reference outside the repo) and gated by
+`tests/test_agent_tasks.py` ("the shipped project MUST fail its own test"). **Rejected and
+removed rather than shipped broken:** `typescript/mapped_type_refactor` (types are erased,
+bun does not type-check → unmeasurable AND test-less: a free pass for every model),
+`bash/csv_quoted_fields`, `bash/retry_pipeline` (tests that could not exercise their own
+contract), `java/feature_flag_end_to_end` (passed as shipped). `TASKS_VERSION` → **v5**
+(18 tools / 72 code / 68 agent); README's scoreboard restructured (v5 current, no row
+measured at it yet) + lineage row; AGENTS/SPEC/MILLORA updated. The local fleet (qwen36,
+4 slots) wrote most of the agent tasks: 12 dispatches, 9 usable — the lesson is that the
+model's *self*-verification was not reliable (3 tasks reported "VERDICT ok" that do not
+survive a re-run) while the tool itself was: every task that ships was re-verified by the
+leader. Suite 438 green, `init.sh` green, bench "no benchmark regression", server stopped.
+Commits 35a0d2c + d0d05a8. Open: the 3 remaining multi-file tasks (bash 2, java 1) and the
+C9 fleet re-measure at v5.
+
+retro: the gate was worth more than the generator — `check-task.py` caught three of my own
+wrong expectations and every broken fleet task, while the fleet's own claims were wrong
+twice; and "remove it" beat "ship it broken" every time the gate said no.

@@ -10,22 +10,21 @@
 
 ## Plan
 
-_Pick the next job. Open items (2026-10-14):_
+_Next session — the goal is one GPU night, at v5, with everything frozen:_
 
-- **C9 option 1 (the one that unblocks the rest):** re-measure the active fleet (7 GGUF +
-  Strata, OFF × runs 3) under the current suite **and the current baseline**, in one sitting
-  with one frozen tuple — task set · engine build · KV baseline · thinking. Since §C10 every
-  new row records its baseline (`f982b06a` today) and the board's engine/baseline axes start
-  reporting; only then is the published table homogeneous, and only then do the write-ups
-  make sense to update (they still state the C1-era condition and their ties conclusion
-  leans on qwen36's old 0.84).
-- **C1 stage 3:** `pass@1` with repeated samples on the code tasks only.
-- **C3** (more tasks per cell) and **C4** (multi-file agent) from MILLORA §2.
-- **feature 7 `lora_eval`**: `spec_ready`, waiting on the human Spec Gate.
+1. **Finish C4's task fill** (3 multi-file agent projects: bash 2, java 1) so all four
+   languages have 3 each (18 agent/lang; the accepted floor today is 9 of 12, asserted).
+   Follow the C3/C4 recipe: project that FAILS its own test + reference in /tmp +
+   `python3 harness/tools/check-task.py --task <task> --reference <ref>` → `VERDICT: ok`,
+   then `python3 -m unittest ggufbench.tests.test_agent_tasks`.
+2. **Then the C9 fleet re-measure** (option 1) at v5: 7 GGUF + Strata, OFF × runs 3, one
+   frozen tuple (task set 18/72/68 · engine build · KV baseline q8_0 · thinking off). This
+   is the run that makes the published board homogeneous and makes the baseline/engine axes
+   of §C10 start reporting.
+3. **After it:** the 3 write-ups (they still state the C1-era condition) + README tables
+   with the new numbers.
 
 ## Log
-
-_—_
 
 ## Next step
 
