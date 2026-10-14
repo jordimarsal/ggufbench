@@ -122,8 +122,13 @@ ALLOWED_MODEL_FLAGS = {
     # reasoning: some GGUF templates put the answer in reasoning_content
     # (empty content) — none keeps <think>+answer in content for extraction
     "--reasoning-format",
-    # sampling
-    "--temp", "--top-p", "--repeat-penalty",
+    # sampling. The whole sampler a card recommends must be declarable here: the profile is
+    # where "the model runs as its authors intend" lives (SPEC §2), and llama.cpp takes any
+    # parameter the command line does not set from the GGUF's own `general.sampling.*`
+    # metadata. `--seed` stays OUT on purpose: it belongs to the run protocol (per-run
+    # seeds, C1 stage 2), not to the model.
+    "--temp", "--top-p", "--top-k", "--min-p", "--xtc-probability",
+    "--repeat-penalty",
     "--repeat-last-n", "--presence-penalty", "--frequency-penalty",
     "--mirostat", "--mirostat-tau", "--mirostat-eta",
     "--penalize-nl", "--ignore-eos",

@@ -7,7 +7,7 @@ from contextlib import redirect_stderr
 from pathlib import Path
 from unittest import mock
 
-from ggufbench import server, config
+from ggufbench import config, server
 
 class TestBuildArgs(unittest.TestCase):
     def test_fixed_context(self):
@@ -344,3 +344,20 @@ class TestServerCrashLog(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class TestSamplerFlagsAreAllowed(unittest.TestCase):
+    """MILLORA §C11 + the A/B experiment of 2026-10-14: a model's profile is where "it runs as
+    its authors intend" lives (SPEC §2), so the *sampler* must be declarable there — without
+    `--top-k`/`--min-p`/`--xtc-probability` in the allow-list, a profile carrying the card's
+    sampler was silently trimmed (the harness dropped `--top-k` and said so), which would have
+    measured a half-B."""
+
+    def test_sampler_flags_are_allowed(self):
+        for flag in ("--temp", "--top-p", "--top-k", "--min-p", "--xtc-probability",
+                     "--repeat-penalty", "--repeat-last-n"):
+            self.assertIn(flag, config.ALLOWED_MODEL_FLAGS, flag)
+
+    def test_seed_stays_out_because_it_is_protocol(self):
+        """`--seed` is the per-run protocol (C1 stage 2 draws seeds 42+idx); letting a profile
+        pin it would silently defeat the repeated-runs measurement."""
+        self.assertNotIn("--seed", config.ALLOWED_MODEL_FLAGS)
