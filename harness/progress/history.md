@@ -92,3 +92,39 @@ dropped from mean. N=1 byte-compatible (omits `"runs"` key); N>1 adds back `"exc
 for API compat. Fixed: `by_lang` in grade_code to aggregate across runs, turns accumulation
 in grade_agent across all N runs, exclusion key handling. Test suite: new TestGradersMultiRun
 (3 cases), new TestRunsCLI (--runs parsing/validation/propagation). Suite 264 passed.
+
+## 2026-10-14 — ad-hoc: C1 close-out + two report defects + C9 signature (done)
+
+Human order, outside gates (all 6 features stay `done`; `lora_eval` still `spec_ready`).
+C1: the llama ON re-pass was **dropped by decision** (C8 already answers the thinking
+question with measurements) and qwen36 — the model the jinja template degeneration had
+kept out of the batch, fixed by the llama.cpp update — was measured OFF × runs 3 at the
+full suite (16/60/60): global **0.81 ±0** (tools 94% ±0, code 76% ±2, agent 77% ±3,
+18 ms, 212.7 t/s, **0 exclusions**), wall 1104 s, rank 7/30. The expert tier is its weak
+spot (by_level expert 0.58 vs hard 0.81 / easy 0.79; code by_lang: ts 1.00, py 0.90,
+java 0.71, bash 0.69). Two defects found and closed on the way: **D7** retired rows lost
+their gray marking because the only source was `models/retired/*.txt`, outside the repo
+and deleted — the registry is now tracked data (`harness/retired.json`, union with the
+archived profiles, degrades to empty); **D8** one model held two pool identities because
+`--models` globs absolute paths while a hand-passed path stays relative — `run.model_id`
+stores a workspace-relative path and `report._key_of` identifies by file name (ADR-0009),
+collapsing the qwen36 twin (31 → 30 rows). Finding: the pool held **three task sets under
+one `tasks_version`** (8/60/24 ×11, 12/60/28 ×17, 16/60/60 ×2) because the C3 commits added
+tasks and never bumped it. Decision: make the drift impossible — `report.task_signature`
+(derived from the traces, stored per row, retroactively derived for legacy rows) + CLI
+footer note + HTML chip/banner + compare banner and picker `sig`, `TASKS_VERSION` → v4
+(MILLORA §2c/C9 option 2 done; option 1, the fleet re-measure, stays open). Also closed:
+**D9** the suite wrote 5572 junk receipts into the real `results/runs/` since 2026-08-03
+(three setUps overrode `POOL_FILE` but not `RESULTS_RUNS`) — fixed + rule in
+`docs/conventions.md §Testing` + the guard test that snapshots the real dir; parked in
+`results/runs/_test-junk/` with a README. Loader baselines re-recorded (the C3 growth:
+load_agent 2.33x, load_tools 1.91x, matching the file ratios; code loader 1.01x).
+Report regenerated and **published** (`gh-pages` b6a7c57, main 0dd372e): 30 models, 9 gray,
+no `_home_jordi` twin, task-sets chip. Suite 375 green (1 skip); `harness/init.sh` green;
+bench gate "no benchmark regression". Commits 8431a01 → 729fd66.
+
+retro: the two defects were both **two sources of truth** (file location vs tracked
+registry; path string vs model identity) and the third (D9) a writer path nobody had
+enumerated — one grep for "what writes where" would have caught all three; the pool drift,
+in turn, came from a *label* (`tasks_version`) doing a *data* job, which is why the fix is
+derived data rather than a promise to bump a constant.
