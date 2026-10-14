@@ -214,6 +214,30 @@ class TestRender(unittest.TestCase):
         self.assertIn("baseline ? (not recorded)", html)
 
 
+class TestCodeBudgetLine(unittest.TestCase):
+    """§C12: the per-model card states the code token cap the row ran under (and the
+    exception when a per-task calibration was in play). Rows from before the field simply
+    omit the line."""
+
+    def _row(self, **code_extra):
+        r = _mk()
+        r["code"].update(code_extra)
+        return r
+
+    def test_card_shows_the_cap(self):
+        html = html_report.render([self._row(code_budget=32768)])
+        self.assertIn("code budget 32768", html)
+
+    def test_card_names_a_stored_calibration(self):
+        html = html_report.render([self._row(code_budget=32768, code_budget_stored={"4096": 3})])
+        self.assertIn("code budget 32768", html)
+        self.assertIn("3 task(s) at 4096 (stored calibration)", html)
+
+    def test_rows_without_the_field_omit_the_line(self):
+        html = html_report.render([_mk()])
+        self.assertNotIn("code budget", html)
+
+
 class TestTaskSetDisplay(unittest.TestCase):
     """§C9 follow-up: every row states the test version it was measured with, the board
     can be ordered by set (static blocks + the in-page control), and the section titles

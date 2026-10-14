@@ -224,6 +224,11 @@ def grade_code(client_mod, tasks, max_turns=8, on_task=None, model_slug=None, ge
     a task with ALL runs excluded is excluded from the mean entirely.
     """
     section_runs = []
+    # The cap is a CONDITION and it travels with the row: `code_budget` is the ladder value
+    # this run used, `code_budget_stored` lists the tasks that ran under a cap recorded in the
+    # token_budgets artifact instead (legacy calibrations from the ladder era, honoured since
+    # — MILLORA §C12). Before this, a row could not say what budget its tasks had.
+    stored_caps = {}
     for _run_idx in range(runs):
         if runs > 1:
             client_mod.run_index = _run_idx  # per-run seed injection; N==1 keeps it None
@@ -233,6 +238,8 @@ def grade_code(client_mod, tasks, max_turns=8, on_task=None, model_slug=None, ge
         for t in tasks:
             stored = token_budget.get("code", model_slug, thinking, t["lang"], t["id"])
             budgets = [stored] if stored else CODE_LADDER
+            if stored:
+                stored_caps.setdefault(stored, set()).add((t["lang"], t["id"]))
             msgs = [{"role": "system", "content": _code_system_prompt(t["lang"])},
                     {"role": "user", "content": t["prompt"]}]
             text, code, server_err = "", None, None
@@ -339,7 +346,9 @@ def grade_code(client_mod, tasks, max_turns=8, on_task=None, model_slug=None, ge
     result = {"passed": score == 1.0, "turns": len(results), "trace": trace,
               "by_lang": {l: round(sum(ps)/len(ps), 2) for l, ps in by_lang.items()},
               "by_level": {l: round(sum(ps)/len(ps), 2) for l, ps in by_level.items()},
-              "score": score, "excluded": total_excluded_tasks}
+              "score": score, "excluded": total_excluded_tasks,
+              "code_budget": CODE_MAX_TOKENS,
+              "code_budget_stored": {cap: len(ts) for cap, ts in sorted(stored_caps.items())}}
     if runs > 1:
         result["runs"] = runs
     return result

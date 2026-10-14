@@ -309,7 +309,11 @@ where it came from: `profile` / `baseline` / `audit` — §2), `tasks_version` (
 counts) together with `task_signature` (the graded counts the row really ran: the label
 alone let three sets live under "v3" — §2, MILLORA §C9), `thinking` (`on`/`off`: thinking
 chain, pool key together with the slug), `weights`, `ts`,
-`server_build` (llama.cpp version) and `model_config_flags` (flags extracted from
+`server_build` (llama.cpp version), `code_budget` + `code_budget_stored` (the code token
+cap the tasks ran under, and any per-task calibration from the `token_budgets` artifact
+that was in play: caps are conditions like context — a 4096-token cap and a 32768 one do
+not measure the same thing, and before 2026-10-14 the row did not say which it used,
+MILLORA §C12) and `model_config_flags` (flags extracted from
 `models/<model>.txt`, or null — remember that since 2026-10 every model runs
 with its profile). The scoreboard warns (or filters) when results with
 different conditions are mixed.

@@ -1,4 +1,5 @@
 import contextlib
+import json
 import io
 import unittest
 import urllib.error
@@ -544,3 +545,65 @@ class TestSharedIdsAcrossLanguages(unittest.TestCase):
         self.assertIn("bubble_sort", shared)
         self.assertEqual(shared["bubble_sort"], {"bash", "java", "python", "typescript"})
         self.assertEqual(len(code), len({(t["lang"], t["id"]) for t in code}))
+
+class TestCodeBudgetTravels(unittest.TestCase):
+    """MILLORA §C12: the code token cap is a condition (`graders.CODE_MAX_TOKENS`, single
+    attempt since ADR-0002) and the row must say which cap its tasks ran under, including the
+    case where the `token_budgets` artifact gave a task a different one."""
+
+    def setUp(self):
+        # token_budget caches the artifact in module state: without resetting it, one test's
+        # temp file leaks into the next (the D1 family of test pollution).
+        token_budget.reset_cache()
+        self.addCleanup(token_budget.reset_cache)
+
+    def _task(self):
+        return [{"id": "t1", "lang": "python", "level": "easy", "prompt": "p",
+                 "test_code": "from solution import *\nassert f() == 1\nprint('OK')\n"}]
+
+    class _Client:
+        run_index = None
+        def __init__(self):
+            self.budgets = []
+        def chat(self, msgs, max_tokens=None, **k):
+            self.budgets.append(max_tokens)
+            return {"choices": [{"message": {"content": "```python\ndef f():\n    return 1\n```"}}],
+                    "usage": {"completion_tokens": 3}}
+
+    def test_default_run_reports_the_ladder_cap(self):
+        r = graders.grade_code(self._Client(), self._task(), model_slug="m", thinking="off")
+        self.assertEqual(r["code_budget"], graders.CODE_MAX_TOKENS)
+        self.assertEqual(r["code_budget_stored"], {})
+
+    def test_a_stored_calibration_is_recorded_and_used(self):
+        """A schema-2 calibration is the one case where the cap is not the ladder value: the
+        row must name it (before §C12 it was invisible) and the call must carry it."""
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "tb.json"
+            path.write_text(json.dumps({"code/m/off/python/t1": 4096, "_schema": 2}))
+            with config.override(TOKEN_BUDGETS=path):
+                token_budget.reset_cache()
+                client = self._Client()
+                r = graders.grade_code(client, self._task(), model_slug="m", thinking="off")
+        self.assertEqual(r["code_budget"], graders.CODE_MAX_TOKENS)
+        self.assertEqual(r["code_budget_stored"], {4096: 1})
+        self.assertEqual(client.budgets, [4096])
+
+
+class TestLegacyBudgetsAreInert(unittest.TestCase):
+    """The scare of 2026-10-14: `results/token_budgets.json` carries 37 pre-schema entries
+    (4096/8192) naming fleet models. They are ignored on purpose (`_load()` returns {} without
+    `_schema: 2`), so they are NOT hidden smaller caps — pinned here so nobody re-introduces
+    the gate by accident."""
+
+    def setUp(self):
+        token_budget.reset_cache()
+        self.addCleanup(token_budget.reset_cache)
+
+    def test_pre_schema_file_is_ignored(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "tb.json"
+            path.write_text(json.dumps({"code/m/off/python/t1": 4096}))   # no _schema
+            with config.override(TOKEN_BUDGETS=path):
+                token_budget.reset_cache()
+                self.assertIsNone(token_budget.get("code", "m", "off", "python", "t1"))

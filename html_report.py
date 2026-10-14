@@ -253,6 +253,9 @@ def _rows(pool):
             "set_size": R._set_size(R.task_signature(r)),
             "by_lang": {d: (r.get(d) or {}).get("by_lang") or {} for d in ("code", "agent")},
             "code_by_level": (r.get("code") or {}).get("by_level") or {},
+            # §C12: the code token cap and any per-task calibration that was in play.
+            "code_budget": (r.get("code") or {}).get("code_budget"),
+            "code_budget_stored": (r.get("code") or {}).get("code_budget_stored") or {},
             "tasks": {d: len((r.get(d) or {}).get("trace") or [])
                       for d in ("tools", "code", "agent")},
             "flags": r.get("model_config_flags"),
@@ -559,6 +562,14 @@ def render(pool, sort="global"):
         # config.SERVER_FLAGS + config.CACHE_FLAGS (docs/SPEC.md §2); the id says which
         # version of them the row ran under ('?' = the row predates the field).
         base_line = f"baseline {r['base']}" + ("" if r["base"] != "?" else " (not recorded)")
+        # §C12: the token cap the code tasks ran under (rows before it simply omit the line).
+        budget_line = ""
+        if r["code_budget"]:
+            stored = r["code_budget_stored"]
+            extra = (f" · {sum(stored.values())} task(s) at "
+                     + ", ".join(f"{cap}" for cap in stored) + " (stored calibration)"
+                     ) if stored else ""
+            budget_line = f"\ncode budget {r['code_budget']}{extra}"
         details.append(
             f'<details{" class=\"retired\"" if r["retired"] else ""}><summary>{_esc(r["name"])} <span class="badge{" strata" if r["engine"] == "strata" else ""}">'
             f'{_esc(r["engine"])} {_esc(r["build"])}</span>'
@@ -566,7 +577,7 @@ def render(pool, sort="global"):
             f'{" <span class=\"badge\">retired</span>" if r["retired"] else ""}'
             f' <span class="miss">{_esc(r["ts"])}</span></summary>'
             f'<pre>{by_level_line}{think_line}excluded code: {r["code_excluded"]}\n'
-            f'{base_line}\n{flags}</pre></details>')
+            f'{base_line}{budget_line}\n{flags}</pre></details>')
 
     banner = ""
     if len(dates) > 1 or mixed:
