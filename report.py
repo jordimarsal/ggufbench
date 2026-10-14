@@ -1,3 +1,4 @@
+import hashlib
 import json
 import datetime
 import os
@@ -32,6 +33,59 @@ def signature_counts(pool):
         sig = task_signature(r)
         counts[sig] = counts.get(sig, 0) + 1
     return dict(sorted(counts.items(), key=lambda kv: (-kv[1], kv[0])))
+
+
+def baseline_flags() -> str:
+    """The baseline a row is measured under, as text: the harness' common flags
+    (`config.baseline_argv()` = SERVER_FLAGS + CACHE_FLAGS) — never the per-model profile,
+    which is already recorded as `model_config_flags`. It is a CONDITION (§C10): ADR-0008
+    switched the KV cache q4_0 -> q8_0, so rows measured before it are not comparable with
+    rows measured after, and nothing else in the data says so."""
+    return " ".join(config.baseline_argv())
+
+
+def baseline_id(row) -> str:
+    """Short id of the baseline recorded in a row (the flags themselves live in config; the
+    id is what the board prints). '?' when the row predates the field: the baseline was
+    never recorded, and inventing one would turn an unknown condition into a
+    seemingly known one."""
+    flags = row.get("baseline_flags")
+    if not isinstance(flags, str) or not flags:
+        return "?"
+    return hashlib.sha1(flags.encode("utf-8")).hexdigest()[:8]
+
+
+def _engine_label(row) -> str:
+    """Engine and build as ONE value: the pair is the condition (a build change is what
+    makes two rows incomparable), and the engine name alone would hide it."""
+    return f"{row.get('engine') or 'llama'} {row.get('server_build') or '?'}"
+
+
+# The condition axes the board compares, in a fixed order — every note lists them in this
+# one order. A row carries all three (`task_signature`, `engine` + `server_build`,
+# `baseline_flags`): §C10 is the §C9 rule applied to the two axes §C9 did not cover.
+CONDITION_AXES = ("task set", "engine", "baseline")
+
+
+def condition_axes(pool) -> dict[str, dict[str, int]]:
+    """axis -> {value: number of rows}, axes in CONDITION_AXES order and values most
+    frequent first (the same spirit as `signature_counts`). An axis with more than one
+    value is a condition the pool mixes."""
+    axes = {axis: {} for axis in CONDITION_AXES}
+    for r in pool:
+        values = (task_signature(r), _engine_label(r), baseline_id(r))
+        for axis, value in zip(CONDITION_AXES, values):
+            counts = axes[axis]
+            counts[value] = counts.get(value, 0) + 1
+    return {axis: dict(sorted(counts.items(), key=lambda kv: (-kv[1], kv[0])))
+            for axis, counts in axes.items()}
+
+
+def mixed_axes(pool) -> list[str]:
+    """The axes with MORE THAN ONE value, in CONDITION_AXES order. [] means the pool is
+    homogeneous: every row was measured under the same conditions, so the board can be
+    read as one experiment and no note is needed."""
+    return [axis for axis, values in condition_axes(pool).items() if len(values) > 1]
 
 
 # Orderings the scoreboard accepts (--sort). 'version' is not a metric: it groups the
@@ -115,6 +169,9 @@ def save_result(result):
     # The task set the row was measured with travels with the row (§C9): the version
     # label alone let three different sets live under "v3".
     result.setdefault("task_signature", task_signature(result))
+    # Same §C9/C10 idea for the baseline: the common flags are a condition too (ADR-0008
+    # changed them mid-pool), and `model_config_flags` only records the per-model profile.
+    result.setdefault("baseline_flags", baseline_flags())
     slug = _slug_of(result)
     key = _key_of(result)
     # Agent conversations ride out-of-band: the full episodes live in a sidecar
@@ -495,22 +552,32 @@ def render(pool, weights, title="Benchmark Results", level="default", show_tasks
         out += _render_by_lang(pool)
     if show_tasks or level == "info":
         out += _render_tasks(pool)
-    out += _render_task_sets(pool)
+    out += _render_conditions(pool)
     return "\n".join(out)
 
 
-def _render_task_sets(pool):
-    """Footer note (only when the pool mixes sets): the version label cannot tell rows
-    with different task counts apart, so the scoreboard says it out loud instead of
-    letting a 12-task 92% tools sit next to a 16-task 94% one as if they were the same
-    measurement (docs/MILLORA.md §C9)."""
-    sigs = signature_counts(pool)
-    if len(sigs) < 2:
+def _render_conditions(pool):
+    """Footer note (only when the pool mixes conditions): the version label cannot tell rows
+    with different task counts apart, and the engine build and the baseline flags were never
+    compared at all — so the scoreboard says it out loud instead of letting a 12-task 92%
+    tools sit next to a 16-task 94% one, or a q4_0 row next to a q8_0 one, as if they were
+    the same measurement (docs/MILLORA.md §C9/C10)."""
+    axes = condition_axes(pool)
+    mixed = [axis for axis in CONDITION_AXES if len(axes[axis]) > 1]
+    if not mixed:
         return []
-    out = ["", "NOTE: this pool mixes task sets — a score is comparable only within a set "
-               "(docs/MILLORA.md §C9)"]
-    counts = signature_counts(pool)
-    for sig in ordered_signatures(pool):
-        n = counts[sig]
-        out.append(f"  {sig} tasks — {n} row{'s' if n != 1 else ''}")
+    width = max(len(axis) for axis in mixed)
+    out = ["", "NOTE: this pool mixes conditions — a score is comparable only within one "
+               "set (docs/MILLORA.md §C9/C10)"]
+    for axis in mixed:
+        counts = axes[axis]
+        # One order everywhere: task sets biggest first (ordered_signatures, the same order
+        # the --sort version grouping and the report blocks use); the other axes most
+        # frequent first.
+        values = ordered_signatures(pool) if axis == "task set" else list(counts)
+        suffix = " tasks" if axis == "task set" else ""
+        for i, value in enumerate(values):
+            n = counts[value]
+            out.append(f"  {axis if i == 0 else '':{width}}   {value}{suffix} — "
+                       f"{n} row{'s' if n != 1 else ''}")
     return out

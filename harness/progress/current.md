@@ -3,14 +3,20 @@
 > This file is cleared on session close and moved to `history.md`.
 > Keep it updated in real time while you work — not at the end.
 
-- **Feature in progress:** _none_ (all 6 `done`; `lora_eval` = feature 7 `spec_ready`,
-  waiting on the human Spec Gate)
-- **Started:** _—_
-- **Agent:** _—_
+- **Feature in progress:** c10 — baseline conditions recorded per row + mixed-conditions
+  signal on the engine/baseline axes (MILLORA §C10, dispatched directly; batch 1 done,
+  awaiting review). `lora_eval` = feature 7 remains `spec_ready`, waiting on the human
+  Spec Gate.
+- **Started:** 2026-10-14
+- **Agent:** implementer (c10 batch 1)
 
 ## Plan
 
-_Pick the next job. Open items (2026-10-14):_
+**c10** (MILLORA §C10): tasks = the §C10 proposal items 1–3, implemented as one batch —
+see `harness/progress/impl_c10.md`. Review + human approval pending; item 4 (the frozen
+tuple) belongs to the C9 fleet re-measure below.
+
+Open items (2026-10-14):
 
 - **C9 option 1:** re-measure the active fleet (7 GGUF + Strata, OFF × runs 3) under the
   current 16/60/60 suite — the pool still mixes three task sets and only then is the
@@ -23,6 +29,13 @@ _Pick the next job. Open items (2026-10-14):_
 
 ## Log
 
+- **2026-10-14 · c10 batch 1 done (awaiting review).** Implemented MILLORA §C10 proposals
+  1–3: `config.baseline_argv()` recorded per row (`baseline_flags`, `report.save_result`);
+  `report.condition_axes`/`mixed_axes` (task set · engine build · baseline) now drive the CLI
+  footer note, the HTML chips/banner, the compare banner and the picker JS; per-row `<pre>`
+  shows `baseline <id>` (`?` = not recorded, never invented). Docs updated (SPEC §2, MILLORA
+  §C10 closed). Gates: 416 tests OK (skipped=2) → `harness/logs/c10/batch-1.log`; details +
+  traceability in `harness/progress/impl_c10.md`. Not committed.
 - **2026-10-14 · Finding recorded as MILLORA §C10 (open, human decision).** Auditing what
   the board actually compares turned up two more conditions that travel with a row and are
   never checked: the **engine build** (llama 0.4.0-dev ×7 vs 0.6.0-dev+4413a19 ×8 *inside*
@@ -32,7 +45,7 @@ _Pick the next job. Open items (2026-10-14):_
   nothing in the row records. Proposal in §C10: store a baseline digest per row, make the
   three surfaces (CLI note, HTML banner/chip, compare banner) fire on build+baseline as they
   now do on the task set, then run the fleet re-measure under one frozen tuple. ~½ day, no
-  GPU. Not implemented — awaiting the human decision.
+  GPU. → **Implemented the same day** (batch 1, entry above) after the human decision.
 
 ## Next step
 

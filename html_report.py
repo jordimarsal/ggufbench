@@ -174,6 +174,12 @@ def _n_tasks(rows, dim):
     return max((r["tasks"][dim] for r in rows), default=0)
 
 
+def _rows_phrase(n):
+    """Counting phrase for the notes: '1 row' / '2 rows' — a benchmark whose whole point is
+    reading numbers should not print '1 rows'."""
+    return f"{n} row" + ("" if n == 1 else "s")
+
+
 def _by_set_section(rows):
     """Static 'by task set' view (MILLORA §C9): one block per task set, its rows ordered by
     global inside the block, so a reader can pick a set and compare only inside it. It is
@@ -241,6 +247,9 @@ def _rows(pool):
             # every row and used to group/order the board by set.
             "set": R.set_label(r),
             "sig": R.task_signature(r),
+            # §C10: the other two conditions a row carries — the engine build (already
+            # displayed) and the baseline digest (never recorded before, '?' if legacy).
+            "base": R.baseline_id(r),
             "set_size": R._set_size(R.task_signature(r)),
             "by_lang": {d: (r.get(d) or {}).get("by_lang") or {} for d in ("code", "agent")},
             "code_by_level": (r.get("code") or {}).get("by_level") or {},
@@ -429,9 +438,12 @@ def render(pool, sort="global"):
     # C8 optimal thinking mode per model (needs wall_time_s on both rows of a
     # pair; rows from before it simply get no marker).
     optimal = R.optimal_by_slug(pool)
-    # Task sets in the pool (§C9): more than one means the rows are not comparable and
-    # the page must say so (header chip + banner); the version label cannot tell them apart.
-    sigs = R.signature_counts(pool)
+    # Conditions in the pool (§C9/C10): any axis with more than one value means the rows
+    # were not measured under the same conditions and the page must say so (header chip +
+    # banner). The version label cannot tell task sets apart, and the baseline was not
+    # recorded at all before 2026-10-14.
+    axes = R.condition_axes(pool)
+    mixed = R.mixed_axes(pool)
     set_section = _by_set_section(rows)
     gpus = _gpu_chips()
     w = config.WEIGHTS
@@ -450,10 +462,15 @@ def render(pool, sort="global"):
     chips.append('<a class="chip" href="compare.html">head-to-head compare →</a>')
     if any(r["retired"] for r in rows):
         chips.append('<span class="chip">gray = retired model (record only)</span>')
-    if len(sigs) > 1:
+    if "task set" in mixed:
         links = " · ".join(f'<a href="#set-{_esc(sig.replace("/", "-"))}">{_esc(sig)}</a>'
                            for sig in R.ordered_signatures(pool))
         chips.append(f'<span class="chip">task sets {links}</span>')
+    # §C10: the other two axes have no blocks to link to, so the chip names the values —
+    # a reader must see the mix before reading a single row of the table.
+    for axis, label in (("engine", "engines"), ("baseline", "baselines")):
+        if axis in mixed:
+            chips.append(f'<span class="chip">{label} <b>{_esc(" · ".join(axes[axis]))}</b></span>')
 
     kpis = [("Best overall", f"{rows[0]['global']:.2f}" if rows else "—"),
             ("Fastest (gen)", f"{max((r['sc']['gen_tps'] for r in rows), default=0):.0f} t/s"),
@@ -538,29 +555,48 @@ def render(pool, sort="global"):
             by_level_line = "code by level: " + " · ".join(
                 f"{k} {v:.0%}" for k, v in sorted(bl.items())) + "\n"
         think_line = (f"think: {r['thinking']}\n" if r["thinking"] != "—" else "")
+        # §C10: the baseline id, next to the per-model flags. The flags themselves are
+        # config.SERVER_FLAGS + config.CACHE_FLAGS (docs/SPEC.md §2); the id says which
+        # version of them the row ran under ('?' = the row predates the field).
+        base_line = f"baseline {r['base']}" + ("" if r["base"] != "?" else " (not recorded)")
         details.append(
             f'<details{" class=\"retired\"" if r["retired"] else ""}><summary>{_esc(r["name"])} <span class="badge{" strata" if r["engine"] == "strata" else ""}">'
             f'{_esc(r["engine"])} {_esc(r["build"])}</span>'
             f'{" <span class='badge strata'>★ optimal</span>" if optimal.get(r["slug"]) == r["thinking"] else ""}'
             f'{" <span class=\"badge\">retired</span>" if r["retired"] else ""}'
             f' <span class="miss">{_esc(r["ts"])}</span></summary>'
-            f'<pre>{by_level_line}{think_line}excluded code: {r["code_excluded"]}\n{flags}</pre></details>')
+            f'<pre>{by_level_line}{think_line}excluded code: {r["code_excluded"]}\n'
+            f'{base_line}\n{flags}</pre></details>')
 
     banner = ""
-    if len(dates) > 1 or len(sigs) > 1:
-        sets_note = ""
-        if len(sigs) > 1:
-            counts = R.signature_counts(pool)
-            sets_note = (" and/or on different <b>task sets</b> ("
-                         + _esc(", ".join(f"{sig}: {counts[sig]} rows"
+    if len(dates) > 1 or mixed:
+        # One clause per mixed axis (§C10): the page names WHICH conditions differ instead
+        # of only warning that something differs — the same axis list the CLI footer prints.
+        notes = []
+        if "task set" in mixed:
+            counts = axes["task set"]
+            notes.append('<b>task sets</b> ('
+                         + _esc(", ".join(f"{sig}: {_rows_phrase(counts[sig])}"
                                           for sig in R.ordered_signatures(pool)))
-                         + ") — the version label alone cannot tell them apart, so a score "
-                           "is comparable only inside a set")
+                         + ") — the version label alone cannot tell them apart")
+        if "engine" in mixed:
+            notes.append('<b>engine builds</b> ('
+                         + _esc(", ".join(f"{v}: {_rows_phrase(n)}"
+                                          for v, n in axes["engine"].items()))
+                         + ") — the server build is part of the measurement")
+        if "baseline" in mixed:
+            notes.append('<b>baseline flags</b> ('
+                         + _esc(", ".join(f"{v}: {_rows_phrase(n)}"
+                                          for v, n in axes["baseline"].items()))
+                         + ") — the harness' common flags changed (ADR-0008: KV q4_0 → q8_0); "
+                           "'?' is a row measured before the field existed")
+        diff = (" — what differs here: " + " · ".join(notes)) if notes else ""
         banner = ('<div class="banner"><b>Mixed conditions.</b> The entries in this pool were '
-                  'measured on different dates and the harness evolves (tasks fixed, second engine, '
-                  'per-model flags)' + sets_note + ': compare with care and check '
-                  '<code>docs/MILLORA.md §C7/C9</code> before drawing conclusions from the whole '
-                  'table.</div>')
+                  'measured on different dates and the harness evolves (tasks fixed, second '
+                  'engine, per-model flags)' + diff
+                  + ': a score is comparable only inside one set of conditions; compare with '
+                    'care and check <code>docs/MILLORA.md §C7/C9/C10</code> before drawing '
+                    'conclusions from the whole table.</div>')
 
     return f"""<!doctype html>
 <html lang="en">
@@ -752,6 +788,7 @@ def _pack(r, rank, total, min_speed):
         "f": _sanitize_public(r.get("model_config_flags") or ""),
         "v": str(r.get("tasks_version") or "?"),
         "sig": R.task_signature(r),
+        "base": R.baseline_id(r),   # §C10: the picker's banner compares it like `sig`
         "env": _sanitize_env(r.get("environment")) or "",
         "g": R._global_score(r, config.WEIGHTS, min_speed),
         "r": rank,
@@ -1092,15 +1129,33 @@ _PICKER_JS = """
       + '<div class="meta"><div class="l">model_config_flags</div><div class="mv">' + flags + "</div></div>"
       + '<div class="meta"><div class="l">environment</div><div class="mv">' + env + "</div></div></section>";
   }
+  function axisClauses(a, b) {
+    // Mirror of _cmp_axis_clauses in html_report.py — keep both in sync (§C9/C10).
+    var out = [];
+    if (a.sig !== b.sig) {
+      out.push("the task sets differ (" + esc(a.sig) + " vs " + esc(b.sig)
+        + " tasks), which the version label alone cannot tell apart");
+    }
+    if (a.e !== b.e || a.b !== b.b) {
+      out.push("the engine builds differ (" + esc(a.e) + " " + esc(a.b) + " vs "
+        + esc(b.e) + " " + esc(b.b) + ")");
+    }
+    if (a.base !== b.base) {
+      out.push("the baseline flags differ (" + esc(a.base) + " vs " + esc(b.base) + ")");
+    }
+    return out;
+  }
   function mixedBanner(a, b) {
-    if (a.d === b.d && a.v === b.v && a.sig === b.sig) return "";
-    var sets = a.sig === b.sig ? ""
-      : " — and the task sets differ (" + esc(a.sig) + " vs " + esc(b.sig)
-        + " tasks), which the version label alone cannot tell apart";
+    var clauses = axisClauses(a, b);
+    if (a.d === b.d && a.v === b.v && !clauses.length) return "";
+    var diff = "";
+    for (var i = 0; i < clauses.length; i++) {
+      diff += (i === 0 ? " — and " : ", and ") + clauses[i];
+    }
     return '<div class="banner"><b>Mixed conditions.</b> These two rows were not measured under '
       + "identical conditions (" + esc(a.d) + " · tasks " + esc(a.v) + " vs " + esc(b.d)
-      + " · tasks " + esc(b.v) + ")" + sets + ": the harness evolves, compare with care"
-      + " (docs/MILLORA.md §C7/C9).</div>";
+      + " · tasks " + esc(b.v) + ")" + diff + ": the harness evolves, compare with care"
+      + " (docs/MILLORA.md §C7/C9/C10).</div>";
   }
   function sections(A, B) {
     var out = "";
@@ -1213,6 +1268,24 @@ def _find_or_append(packs, p):
     return len(packs) - 1
 
 
+def _cmp_axis_clauses(pa, pb):
+    """Which condition axes differ between two packed rows (§C9/C10): the task set, the
+    engine build, the baseline flags. `mixedBanner` in _PICKER_JS mirrors this list — the
+    JS path must not lose a warning the static page gives, so keep both in sync."""
+    out = []
+    if pa["sig"] != pb["sig"]:
+        out.append('the task sets differ '
+                   f'({_esc(pa["sig"])} vs {_esc(pb["sig"])} tasks), which the version label '
+                   'alone cannot tell apart')
+    if (pa["e"], pa["b"]) != (pb["e"], pb["b"]):
+        out.append('the engine builds differ '
+                   f'({_esc(pa["e"])} {_esc(pa["b"])} vs {_esc(pb["e"])} {_esc(pb["b"])})')
+    if pa["base"] != pb["base"]:
+        out.append('the baseline flags differ '
+                   f'({_esc(pa["base"])} vs {_esc(pb["base"])})')
+    return out
+
+
 def render_compare(row_a, row_b, pool=None):
     """Head-to-head HTML (str) of two pool rows (MILLORA §4.4, UserBenchmark
     layout): two header cards, then sections where every metric shows both values
@@ -1253,16 +1326,15 @@ def render_compare(row_a, row_b, pool=None):
             for i, p in enumerate(packs))
 
     banner = ""
-    if pa["d"] != pb["d"] or pa["v"] != pb["v"] or pa["sig"] != pb["sig"]:
-        sets_clause = ""
-        if pa["sig"] != pb["sig"]:
-            sets_clause = (f' — and the task sets differ ({_esc(pa["sig"])} vs '
-                           f'{_esc(pb["sig"])} tasks), which the version label alone cannot '
-                           f'tell apart')
+    clauses = _cmp_axis_clauses(pa, pb)
+    if pa["d"] != pb["d"] or pa["v"] != pb["v"] or clauses:
+        diff = ""
+        for i, clause in enumerate(clauses):
+            diff += (" — and " if i == 0 else ", and ") + clause
         banner = (f'<div class="banner"><b>Mixed conditions.</b> These two rows were not '
                   f'measured under identical conditions ({_esc(pa["d"])} · tasks {_esc(pa["v"])} '
-                  f'vs {_esc(pb["d"])} · tasks {_esc(pb["v"])}){sets_clause}: the harness evolves, '
-                  f'compare with care (docs/MILLORA.md §C7/C9).</div>')
+                  f'vs {_esc(pb["d"])} · tasks {_esc(pb["v"])}){diff}: the harness evolves, '
+                  f'compare with care (docs/MILLORA.md §C7/C9/C10).</div>')
     cards = f'<div class="cards">{_cmp_card(pa)}{_cmp_card(pb)}</div>'
     sections_html = "".join(
         _cmp_section(title, metrics, pa, pb) for title, metrics in _COMPARE_SECTIONS)

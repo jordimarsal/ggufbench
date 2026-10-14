@@ -34,6 +34,14 @@ The end goal is picking the best model for **opencode** (coding agent).
   own: v3 ended up covering four different counts because the C3 additions never bumped
   it, so two rows could share a version and still be incomparable. The scoreboard and the
   compare page compare signatures and announce the mix (MILLORA §C9).
+- **Baseline (`baseline_flags`)**: the common flags above are a *condition*, and until
+  2026-10-14 no row recorded which one it ran with — ADR-0008 switched the KV cache
+  `q4_0`→`q8_0` mid-pool. `config.baseline_argv()` (`SERVER_FLAGS + CACHE_FLAGS`) is now
+  recorded in every result by `report.save_result`; the report shows it as a short id
+  (`report.baseline_id` = sha1[:8], `?` for rows that predate the field — a baseline is
+  never invented). Together with `task_signature` and `engine`/`server_build` it forms the
+  three **condition axes** (`report.condition_axes` / `mixed_axes`): the CLI note, the
+  HTML banner/chips and the compare banner fire when any of them mixes (MILLORA §C10).
 - **Per-model profile**: `models/<model>.txt` is applied LAST and can
   override the baseline (same convention as `start-dev-ai.sh`; `#` comments
   are skipped). Automatic dedup: if the `.txt` defines

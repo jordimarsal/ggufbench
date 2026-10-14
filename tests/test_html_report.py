@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from ggufbench import config, html_report
+from ggufbench import config, html_report, report
 
 
 def _mk(name="models/foo.gguf", engine="llama", code_score=0.9, tools_score=0.75,
@@ -162,7 +162,7 @@ class TestRender(unittest.TestCase):
         html = html_report.render([a, b])
         self.assertIn("Mixed conditions", html)
         self.assertIn("task sets", html)
-        self.assertIn("16/60/60: 1 rows", html)
+        self.assertIn("16/60/60: 1 row", html)
         self.assertIn('task sets <a href="#set-', html)   # header chip links to the blocks
 
     def test_uniform_task_sets_do_not_trigger_the_banner(self):
@@ -172,6 +172,46 @@ class TestRender(unittest.TestCase):
         html = html_report.render([a, b])
         self.assertNotIn("Mixed conditions", html)   # same day, same set
         self.assertNotIn('task sets <a href="#set-', html)
+
+    def test_banner_and_chip_when_only_the_baseline_differs(self):
+        """§C10: same day, same set, same build — but ADR-0008 changed the KV cache
+        halfway through the pool. The baseline is a condition like the task set, so the
+        page must announce it (chip + banner) even when nothing else differs."""
+        a, b = _mk(name="models/aaa.gguf"), _mk(name="models/bbb.gguf")
+        a["baseline_flags"] = report.baseline_flags()
+        b["baseline_flags"] = "--temp 0.2 --cache-type-k q4_0 --cache-type-v q4_0"
+        html = html_report.render([a, b])
+        self.assertIn("Mixed conditions", html)
+        self.assertIn("baselines <b>", html)                          # header chip
+        self.assertIn("<b>baseline flags</b>", html)                  # banner clause
+        self.assertIn(f"{report.baseline_id(a)}: 1 row", html)
+        self.assertIn(f"{report.baseline_id(b)}: 1 row", html)
+        self.assertNotIn("<b>task sets</b>", html)                    # the other axes are clean
+        self.assertNotIn("<b>engine builds</b>", html)
+
+    def test_chip_and_banner_name_the_engine_builds_when_only_the_build_differs(self):
+        """§C10 option 3: `server_build` was displayed per row but never compared. Two
+        builds inside one task set is a mix, and the values must be named — engine and
+        build are ONE value, the pair is what makes rows incomparable."""
+        a, b = _mk(name="models/aaa.gguf"), _mk(name="models/bbb.gguf")
+        for r in (a, b):
+            r["baseline_flags"] = report.baseline_flags()
+        b["server_build"] = "0.4.0-dev+b31b71f"
+        html = html_report.render([a, b])
+        self.assertIn("Mixed conditions", html)
+        self.assertIn("engines <b>llama 0.4.0-dev+b31b71f · llama b1234</b>", html)
+        self.assertIn("<b>engine builds</b> (llama 0.4.0-dev+b31b71f: 1 row, "
+                      "llama b1234: 1 row)", html)
+        self.assertNotIn("baselines <b>", html)
+
+    def test_conditions_per_model_state_the_baseline_id(self):
+        """The per-row block says which version of the common flags the row ran under;
+        a row from before the field says it was not recorded — an id is never invented."""
+        a = _mk()
+        a["baseline_flags"] = report.baseline_flags()
+        html = html_report.render([a, _mk(name="models/legacy.gguf")])
+        self.assertIn(f"baseline {report.baseline_id(a)}\n", html)
+        self.assertIn("baseline ? (not recorded)", html)
 
 
 class TestTaskSetDisplay(unittest.TestCase):
@@ -261,7 +301,7 @@ class TestTaskSetDisplay(unittest.TestCase):
         static = html_report.render([a, b])
         banner = static.split('<div class="banner">')[1].split("</div>")[0]
         self.assertIn("task sets", banner)
-        self.assertIn("16/60/60: 1 rows", banner)
+        self.assertIn("16/60/60: 1 row", banner)
 
 
 class TestMain(unittest.TestCase):
@@ -423,6 +463,49 @@ class TestCompare(unittest.TestCase):
         r = _mk()
         r["task_signature"] = "16/60/60"
         self.assertEqual(html_report._pack(r, 1, 1, 100)["sig"], "16/60/60")
+
+    def test_picker_pack_carries_the_baseline_id(self):
+        """§C10: same contract for the baseline — without `base` in the pack the JS
+        banner would never fire on the axis the static page warns about."""
+        r = _mk()
+        r["baseline_flags"] = report.baseline_flags()
+        self.assertEqual(html_report._pack(r, 1, 1, 100)["base"], report.baseline_id(r))
+        self.assertEqual(html_report._pack(_mk(), 1, 1, 100)["base"], "?")
+
+    def test_mixed_conditions_when_only_the_baseline_differs(self):
+        """§C10: same day, same set, same build — different baseline. The compare page
+        fires on it like it fires on the task set."""
+        a, b = self._pair()
+        a["baseline_flags"] = report.baseline_flags()
+        b["baseline_flags"] = "--temp 0.2 --cache-type-k q4_0 --cache-type-v q4_0"
+        static = self._static(html_report.render_compare(a, b, pool=[a, b]))
+        self.assertIn("Mixed conditions", static)
+        self.assertIn(f"the baseline flags differ ({report.baseline_id(a)} vs "
+                      f"{report.baseline_id(b)})", static)
+
+    def test_mixed_conditions_when_only_the_engine_build_differs(self):
+        a, b = self._pair()
+        for r in (a, b):
+            r["baseline_flags"] = report.baseline_flags()
+        b["server_build"] = "0.4.0-dev+b31b71f"
+        static = self._static(html_report.render_compare(a, b, pool=[a, b]))
+        self.assertIn("Mixed conditions", static)
+        self.assertIn("the engine builds differ (llama b1234 vs "
+                      "llama 0.4.0-dev+b31b71f)", static)
+
+    def test_picker_js_mirrors_the_axis_clauses(self):
+        """The JS path must not lose a warning the static page gives: every axis
+        _cmp_axis_clauses fires on has its counterpart in _PICKER_JS (§C9/C10)."""
+        a, b = self._pair()
+        a["task_signature"], b["task_signature"] = "16/60/60", "12/60/28"
+        b["server_build"] = "0.4.0-dev+b31b71f"
+        b["baseline_flags"] = "--temp 0.2 --cache-type-k q4_0"
+        clauses = html_report._cmp_axis_clauses(
+            html_report._pack(a, 1, 2, 100), html_report._pack(b, 2, 2, 100))
+        self.assertEqual(len(clauses), 3)          # all three axes differ
+        for needle in ("the task sets differ", "the engine builds differ",
+                       "the baseline flags differ"):
+            self.assertIn(needle, html_report._PICKER_JS)
 
     def test_header_cards_content(self):
         a, b = self._pair()

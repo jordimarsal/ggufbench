@@ -216,9 +216,12 @@ class TestReport(unittest.TestCase):
         pool[0]["task_signature"] = "16/60/60"
         pool[1]["task_signature"] = "12/60/28"
         out = report.render(pool, W)
-        self.assertIn("mixes task sets", out)
-        self.assertIn("16/60/60 tasks — 1 row", out)
+        self.assertIn("mixes conditions", out)
+        self.assertIn("task set   16/60/60 tasks — 1 row", out)
         self.assertIn("12/60/28 tasks — 1 row", out)
+        # The axes that do NOT differ are not printed: the note names the mix, not the menu.
+        self.assertNotIn("baseline", out.split("NOTE:")[1])
+        self.assertNotIn("engine", out.split("NOTE:")[1])
 
     def test_ordered_signatures_is_biggest_first(self):
         # One order for every artefact that groups by set (--sort version, the report
@@ -233,7 +236,101 @@ class TestReport(unittest.TestCase):
         report.save_result(mk("a", thinking="off"))
         report.save_result(mk("b", thinking="off"))
         out = report.render(report.load_pool(), W)
-        self.assertNotIn("mixes task sets", out)
+        self.assertNotIn("mixes conditions", out)
+
+    # --- Baseline + engine: the other two condition axes (§C10) ------------------------
+    def test_baseline_flags_is_the_common_baseline(self):
+        """What the harness gives every model before its profile — the KV type is the part
+        ADR-0008 changed, so it has to be inside the value the digest is taken of."""
+        flags = report.baseline_flags()
+        self.assertIsInstance(flags, str)
+        self.assertTrue(flags.startswith(" ".join(config.SERVER_FLAGS)))
+        self.assertIn("--cache-type-k q8_0", flags)
+
+    def test_baseline_id_is_stable_and_unknown_when_unrecorded(self):
+        r = mk("m")
+        self.assertEqual(report.baseline_id(r), "?")        # legacy row: never invent one
+        r["baseline_flags"] = report.baseline_flags()
+        same = report.baseline_id(r)
+        self.assertNotEqual(same, "?")
+        self.assertEqual(len(same), 8)
+        self.assertEqual(report.baseline_id(r), same)       # same flags -> same id
+        r["baseline_flags"] = "--cache-type-k q4_0 --cache-type-v q4_0"
+        self.assertNotEqual(report.baseline_id(r), same)    # another baseline -> another id
+
+    def test_save_result_records_the_baseline(self):
+        """§C10: the baseline travels with the row exactly like the task set does (§C9)."""
+        report.save_result(mk("m"))
+        self.assertEqual(report.load_pool()[0]["baseline_flags"], report.baseline_flags())
+
+    def test_condition_axes_counts_every_axis_in_a_fixed_order(self):
+        pool = [mk("a"), mk("b"), mk("c")]
+        pool[0]["task_signature"] = "16/60/60"
+        pool[1]["task_signature"] = pool[2]["task_signature"] = "12/60/28"
+        pool[2]["server_build"] = "0.4.0-dev"
+        axes = report.condition_axes(pool)
+        self.assertEqual(list(axes), ["task set", "engine", "baseline"])
+        self.assertEqual(list(axes["task set"]), ["12/60/28", "16/60/60"])   # most first
+        self.assertEqual(axes["task set"], {"12/60/28": 2, "16/60/60": 1})
+        self.assertEqual(axes["engine"], {"llama 10250": 2, "llama 0.4.0-dev": 1})
+        self.assertEqual(axes["baseline"], {"?": 3})        # no row recorded one
+
+    def test_mixed_axes_is_empty_for_a_homogeneous_pool(self):
+        pool = [mk("a"), mk("b")]
+        for r in pool:
+            r["task_signature"] = "16/60/60"
+            r["baseline_flags"] = report.baseline_flags()
+        self.assertEqual(report.mixed_axes(pool), [])
+
+    def test_mixed_axes_names_only_the_axis_that_differs(self):
+        """The ADR-0008 case: same tasks, same build, a different KV baseline. Nothing else
+        in the data says those two rows are not comparable."""
+        pool = [mk("a"), mk("b")]
+        for r in pool:
+            r["task_signature"] = "16/60/60"
+            r["baseline_flags"] = report.baseline_flags()
+        pool[1]["baseline_flags"] = "--cache-type-k q4_0 --cache-type-v q4_0"
+        self.assertEqual(report.mixed_axes(pool), ["baseline"])
+
+    def test_mixed_axes_names_the_task_set(self):
+        pool = [mk("a"), mk("b")]
+        pool[0]["task_signature"] = "16/60/60"
+        pool[1]["task_signature"] = "12/60/28"
+        self.assertEqual(report.mixed_axes(pool), ["task set"])
+
+    def test_mixed_axes_names_the_engine_build(self):
+        """§C10: llama 0.4.0-dev and 0.6.0-dev live inside the SAME task set today."""
+        pool = [mk("a"), mk("b")]
+        for r in pool:
+            r["task_signature"] = "16/60/60"
+            r["baseline_flags"] = report.baseline_flags()
+        pool[1]["server_build"] = "0.4.0-dev+b31b71f"
+        self.assertEqual(report.mixed_axes(pool), ["engine"])
+
+    def test_scoreboard_notes_a_baseline_only_mix(self):
+        pool = [mk("a"), mk("b")]
+        for r in pool:
+            r["task_signature"] = "16/60/60"
+            r["baseline_flags"] = report.baseline_flags()
+        pool[1]["baseline_flags"] = "--cache-type-k q4_0 --cache-type-v q4_0"
+        out = report.render(pool, W)
+        self.assertIn("mixes conditions", out)
+        # values sort by row count, then by value — both have 1 row here
+        first, second = sorted(report.baseline_id(r) for r in pool)
+        self.assertIn(f"baseline   {first} — 1 row", out)
+        self.assertIn(f"{second} — 1 row", out)
+        self.assertNotIn("task set", out.split("NOTE:")[1])
+
+    def test_scoreboard_lists_every_mixed_axis(self):
+        pool = [mk("a"), mk("b"), mk("c")]
+        pool[0]["task_signature"] = "16/60/60"
+        pool[1]["task_signature"] = pool[2]["task_signature"] = "12/60/28"
+        pool[0]["baseline_flags"] = report.baseline_flags()   # the other two predate it
+        out = report.render(pool, W)
+        self.assertIn("task set   16/60/60 tasks — 1 row", out)
+        self.assertIn("12/60/28 tasks — 2 rows", out)
+        self.assertIn("baseline   ? — 2 rows", out)
+        self.assertIn(f"{report.baseline_id(pool[0])} — 1 row", out)
 
     # --- Set label + --sort orderings (§C9 follow-up) ---------------------------------
     def test_set_label_carries_version_and_task_set(self):

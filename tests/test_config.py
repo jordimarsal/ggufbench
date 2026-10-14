@@ -39,6 +39,33 @@ class TestOverride(unittest.TestCase):
             self.assertEqual(config.PORT, 1234)
         self.assertEqual(config.PORT, original)
 
+
+class TestBaselineArgv(unittest.TestCase):
+    """MILLORA §C10: the harness-owned baseline (SERVER_FLAGS + CACHE_FLAGS) is a condition
+    the board must be able to name, so it has to be readable as one value."""
+
+    def test_is_the_common_flags_in_order(self):
+        # The order the server actually receives: baseline flags first, then the KV cache.
+        self.assertEqual(config.baseline_argv(),
+                         list(config.SERVER_FLAGS) + list(config.CACHE_FLAGS))
+
+    def test_carries_the_kv_cache_that_changed(self):
+        """ADR-0008 (KV q4_0 -> q8_0) is exactly the kind of change the digest exists for."""
+        argv = config.baseline_argv()
+        self.assertIn("--cache-type-k", argv)
+        self.assertIn("q8_0", argv)
+
+    def test_returns_a_fresh_list(self):
+        """A caller must not be able to edit the constants through it: the baseline is what
+        the digest is computed from, and a mutated constant would silently re-label history."""
+        argv = config.baseline_argv()
+        argv.append("-c")
+        argv[0] = "--tampered"
+        self.assertEqual(config.baseline_argv(),
+                         list(config.SERVER_FLAGS) + list(config.CACHE_FLAGS))
+        self.assertNotIn("-c", config.SERVER_FLAGS)
+        self.assertEqual(config.SERVER_FLAGS[0], "-ngl")
+
 if __name__ == "__main__":
     unittest.main()
 class TestTasksVersion(unittest.TestCase):

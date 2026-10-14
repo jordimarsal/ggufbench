@@ -81,6 +81,15 @@ SERVER_FLAGS = [
 # override it (then the flag must not be duplicated: llama-server warns).
 CACHE_FLAGS = ["--cache-type-k", "q8_0", "--cache-type-v", "q8_0"]
 
+
+def baseline_argv() -> list[str]:
+    """The harness-owned baseline: the common flags every model gets before its per-model
+    profile. Together with the engine build it is a CONDITION — a change here (ADR-0008:
+    KV q4_0 -> q8_0) makes rows measured before it incomparable with rows measured after,
+    so it is recorded per row (`baseline_flags`) and the board announces the mix instead of
+    relying on the git log."""
+    return list(SERVER_FLAGS) + list(CACHE_FLAGS)
+
 # Per-model profile flags that are allowed through from models/<model>.txt.
 # Values pass unvalidated EXCEPT: a value starting with "-" looks like a flag
 # mis-pairing → drop the pair with a warning.  Unknown flag names are also
