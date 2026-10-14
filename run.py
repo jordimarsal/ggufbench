@@ -80,10 +80,27 @@ def _resolve_strata_models(spec):
 def model_id(engine, model_path):
     """Model identifier in the pool (and for the scoreboard slug): the .gguf path
     as is for llama-server; for Strata, the config name without extension
-    ('strata-iq3_xxs') — which is what identifies model + quantization + configuration."""
+    ('strata-iq3_xxs') — which is what identifies model + quantization + configuration.
+
+    A .gguf path inside the workspace is stored relative to it: `--models` globs the
+    models directory and hands out absolute paths, while the same model passed by hand
+    ('models/x.gguf') stays relative. Identity must not depend on that — it put the same
+    model twice in the pool (qwen36, 2026-10-13). Models outside the workspace keep the
+    path as given, relative or absolute."""
     if engine == "strata":
         return Path(model_path).stem
-    return model_path
+    return _stable_model_path(model_path)
+
+
+def _stable_model_path(model_path):
+    """Absolute path inside the workspace -> relative to it; anything else, as given."""
+    p = Path(str(model_path))
+    if not p.is_absolute():
+        return str(model_path)
+    try:
+        return str(p.relative_to(config.BASE_DIR))
+    except ValueError:
+        return str(model_path)
 
 
 def warmup(client_mod, model_url, n=3, extra=None):

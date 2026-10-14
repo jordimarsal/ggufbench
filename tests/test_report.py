@@ -137,6 +137,22 @@ class TestReport(unittest.TestCase):
         report.save_result(mk("m", speed_ms=20, thinking="off"))
         self.assertEqual(len(report.load_pool()), 2)
 
+    def test_key_ignores_the_shape_of_the_model_path(self):
+        # Regression (qwen36, 2026-10-13): one model lived twice in the pool because
+        # --models globs the models directory (absolute path) while a hand-passed
+        # 'models/x.gguf' stays relative. Same model -> same key; the mode still splits it.
+        rel = mk("models/foo.gguf", thinking="off")
+        self.assertEqual(report._key_of(rel),
+                         report._key_of(mk("/home/jordi/ia/llama/models/foo.gguf", thinking="off")))
+        self.assertNotEqual(report._key_of(rel), report._key_of(mk("models/foo.gguf", thinking="on")))
+
+    def test_absolute_path_row_does_not_twin_the_relative_one(self):
+        report.save_result(mk("models/foo.gguf", speed_ms=10, thinking="off"))
+        report.save_result(mk(str(config.BASE_DIR / "models" / "foo.gguf"), speed_ms=20, thinking="off"))
+        pool = report.load_pool()
+        self.assertEqual(len(pool), 1)
+        self.assertEqual(pool[0]["speed"]["speed_ms"], 20)  # the most recent one wins
+
     def test_runs_filenames_distinguish_mode(self):
         runs = self.tmpdir / "runs"
         with config.override(RESULTS_RUNS=runs):

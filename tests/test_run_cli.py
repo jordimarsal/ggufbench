@@ -145,6 +145,16 @@ class TestModelId(unittest.TestCase):
     def test_llama_keeps_path(self):
         self.assertEqual(run.model_id("llama", "models/foo.gguf"), "models/foo.gguf")
 
+    def test_absolute_path_inside_the_workspace_becomes_relative(self):
+        # --models globs the models directory and hands out absolute paths; storing them
+        # as given gave one model two pool identities (qwen36, 2026-10-13).
+        self.assertEqual(run.model_id("llama", str(config.BASE_DIR / "models" / "foo.gguf")),
+                         "models/foo.gguf")
+
+    def test_path_outside_the_workspace_is_kept_as_given(self):
+        for p in ("/opt/gguf/foo.gguf", "/mnt/data/gguf/foo.gguf"):
+            self.assertEqual(run.model_id("llama", p), p)
+
     def test_strata_uses_config_stem(self):
         mid = run.model_id("strata", "/x/Strata/strata-iq3_xxs.json")
         self.assertEqual(mid, "strata-iq3_xxs")

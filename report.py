@@ -7,15 +7,30 @@ from typing import Any
 from . import config
 
 
+def _model_stem(model_field):
+    """Model file name without path or extension (.gguf/.GGUF).
+    'models/foo.gguf' -> 'foo'; 'foo' -> 'foo'. Robust against names with internal dots
+    ('Qwen3.8', 'Ornith-1.5'): only the model's extension is stripped, never a dot from
+    the name. Lets us identify the same model even though the 'model' field is stored as
+    a relative or absolute path, and to forget it by the bare name."""
+    base = os.path.basename(str(model_field))
+    for ext in (".gguf", ".GGUF"):
+        if base.endswith(ext):
+            return base[:-len(ext)]
+    return base
+
+
 def _slug_of(result):
     return config.slug(result["model"])
 
 
 def _key_of(result):
-    """Upsert key (R2 thinking_batches): (slug, thinking). Legacy rows without
-    `thinking` key under (slug, None) and do not collide with (slug, 'off'). The slug
-    alone still identifies the model (forget, visualization)."""
-    return (_slug_of(result), result.get("thinking"))
+    """Upsert key (R2 thinking_batches): (model, thinking), the model identified by its
+    file name — never by the shape of the path it was measured with. `--models` globs the
+    models directory (absolute paths) while a hand-passed 'models/x.gguf' stays relative:
+    a slug-only key kept one model twice in the pool (qwen36, 2026-10-13). Legacy rows
+    without `thinking` key under (model, None) and do not collide with (model, 'off')."""
+    return (config.slug(_model_stem(result["model"])), result.get("thinking"))
 
 
 def save_result(result):
@@ -56,19 +71,6 @@ def load_pool():
             r = json.loads(line)
             by_key[_key_of(r)] = r
     return list(by_key.values())
-
-
-def _model_stem(model_field):
-    """Model file name without path or extension (.gguf/.GGUF).
-    'models/foo.gguf' -> 'foo'; 'foo' -> 'foo'. Robust against names with internal dots
-    ('Qwen3.8', 'Ornith-1.5'): only the model's extension is stripped, never a dot from
-    the name. Lets us identify the same model even though the 'model' field is stored as
-    a relative or absolute path, and to forget it by the bare name."""
-    base = os.path.basename(str(model_field))
-    for ext in (".gguf", ".GGUF"):
-        if base.endswith(ext):
-            return base[:-len(ext)]
-    return base
 
 
 def _forget_matches(r, term):
