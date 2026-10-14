@@ -165,6 +165,14 @@ def load_model_config_args(model_path) -> list:
         args.extend(line.split())
     return args
 
+# Per-call generation caps (conditions, like the token budget of §C12): a tool call and an
+# agent turn are one request each, and a model that must reason before answering needs room to
+# do it. The fleet defaults are tuned for models that answer directly; a thinking batch wants
+# bigger ones. They travel in the result (`tools_max_tokens` / `agent_max_tokens`) and are
+# settable with --tools-max-tokens / --agent-max-tokens.
+TOOLS_MAX_TOKENS = 128
+AGENT_MAX_TOKENS = 512
+
 WEIGHTS = {"tools": 0.30, "code": 0.30, "agent": 0.25, "speed": 0.15}
 
 # Task suite version: bump when the set changes (hard_code_tier R7:

@@ -1,8 +1,10 @@
 from typing import Any
 
 import statistics
+import sys
 import urllib.error
 
+from . import config
 from . import agent as A, client as C, code_extract, executors, token_budget
 
 SPEED_MAX_TOKENS = 128
@@ -80,7 +82,8 @@ def _args_equal(got: Any, expected: Any) -> bool:
     return got == expected
 
 
-def grade_tools(client_mod, tasks, max_turns=6, on_task=None, runs=1):
+def grade_tools(client_mod, tasks, max_turns=6, on_task=None, runs=1,
+                max_tokens=None):
     """Grade tool-call tasks across N independent runs.
 
     Each run makes a fresh model call and grades the result independently.
@@ -92,6 +95,7 @@ def grade_tools(client_mod, tasks, max_turns=6, on_task=None, runs=1):
     a task with ALL runs excluded is excluded from the mean entirely.
     """
     section_runs = []
+    capped = 0
     for _run_idx in range(runs):
         if runs > 1:
             client_mod.run_index = _run_idx  # per-run seed injection; N==1 keeps it None
@@ -101,7 +105,8 @@ def grade_tools(client_mod, tasks, max_turns=6, on_task=None, runs=1):
         for t in tasks:
             try:
                 resp = client_mod.chat([{"role": "user", "content": t["prompt"]}],
-                                       tools=t.get("tools", []), max_tokens=128)
+                                       tools=t.get("tools", []),
+                                       max_tokens=max_tokens or config.TOOLS_MAX_TOKENS)
             except _TRANSIENT as e:
                 results.append({"id": t["id"], "passed": False, "detail": f"server error: {e}"[:160],
                                 "_excluded": True})
@@ -109,6 +114,11 @@ def grade_tools(client_mod, tasks, max_turns=6, on_task=None, runs=1):
                     on_task("tools", {"id": t["id"], "passed": False, "excluded": True})
                 continue
             got = C.extract_tool_call(resp)
+            fr = (resp.get("choices", [{}])[0]).get("finish_reason")
+            if fr == "length":
+                capped += 1
+                print(f"    ⚠️  cap: tool call for '{t['id']}' hit the {max_tokens or config.TOOLS_MAX_TOKENS}-token limit",
+                      file=sys.stderr, flush=True)
             exp = t.get("expected")
             if exp is None:
                 passed = got is None
@@ -138,6 +148,8 @@ def grade_tools(client_mod, tasks, max_turns=6, on_task=None, runs=1):
                   "score": score, "by_lang": {}}
         if total_excluded_tasks:
             result["excluded"] = total_excluded_tasks
+        result["tools_max_tokens"] = max_tokens or config.TOOLS_MAX_TOKENS
+        result["tools_capped"] = capped
         return result
 
     # Aggregate per-task across runs (N>1).
@@ -229,6 +241,7 @@ def grade_code(client_mod, tasks, max_turns=8, on_task=None, model_slug=None, ge
     # token_budgets artifact instead (legacy calibrations from the ladder era, honoured since
     # — MILLORA §C12). Before this, a row could not say what budget its tasks had.
     stored_caps = {}
+    budget_hits = 0
     for _run_idx in range(runs):
         if runs > 1:
             client_mod.run_index = _run_idx  # per-run seed injection; N==1 keeps it None
@@ -270,9 +283,16 @@ def grade_code(client_mod, tasks, max_turns=8, on_task=None, model_slug=None, ge
                                      "excluded": True, "detail": detail})
                 continue
             out_tokens = (resp.get("usage") or {}).get("completion_tokens")
+            # Probe (2026-10-14): a task that ends within a stone's throw of the cap is a
+            # measurement of the cap, not of the model — say it live, not in a post-mortem.
+            if out_tokens and out_tokens >= budget - 64:
+                budget_hits += 1
+                print(f"    ⚠️  cap: {t['lang']}/{t['id']} used {out_tokens}/{budget} tokens",
+                      file=sys.stderr, flush=True)
             if code is None:
                 snippet = " ".join(text.split())[:120]
-                detail = f"no code block ({t['lang']}, not counted); reply: {snippet}"[:160]
+                detail = (f"[cap {out_tokens}/{budget}] " if out_tokens and out_tokens >= budget - 64 else "") \
+                         + f"no code block ({t['lang']}, not counted); reply: {snippet}"[:160]
                 results.append({"id": t["id"], "lang": t["lang"], "level": t.get("level", "easy"),
                                 "passed": False, "_excluded": True, "detail": detail,
                                 "out_tokens": out_tokens})
@@ -348,13 +368,15 @@ def grade_code(client_mod, tasks, max_turns=8, on_task=None, model_slug=None, ge
               "by_level": {l: round(sum(ps)/len(ps), 2) for l, ps in by_level.items()},
               "score": score, "excluded": total_excluded_tasks,
               "code_budget": CODE_MAX_TOKENS,
+              "code_budget_hits": budget_hits,
               "code_budget_stored": {cap: len(ts) for cap, ts in sorted(stored_caps.items())}}
     if runs > 1:
         result["runs"] = runs
     return result
 
 
-def grade_agent(client_mod, tasks, max_turns=8, on_task=None, runs=1):
+def grade_agent(client_mod, tasks, max_turns=8, on_task=None, runs=1,
+                max_tokens=None):
     """Grade agent tasks across N independent runs.
 
     Each run makes fresh model calls and grades independently. Per-task trace entry gains
@@ -366,6 +388,7 @@ def grade_agent(client_mod, tasks, max_turns=8, on_task=None, runs=1):
     """
     section_runs = []
     conversations = {}
+    empty_total = 0
     for _run_idx in range(runs):
         if runs > 1:
             client_mod.run_index = _run_idx  # per-run seed injection; N==1 keeps it None
@@ -374,7 +397,8 @@ def grade_agent(client_mod, tasks, max_turns=8, on_task=None, runs=1):
         results, by_lang = [], {}
         for t in tasks:
             try:
-                r = A.run_agent(client_mod, t, max_turns=t.get("max_turns", max_turns))
+                r = A.run_agent(client_mod, t, max_turns=t.get("max_turns", max_turns),
+                                max_tokens=max_tokens or config.AGENT_MAX_TOKENS)
                 conversations.setdefault(t["id"], []).append(_trunc_history(r["history"]))
             except _TRANSIENT as e:
                 results.append({"id": t["id"], "lang": t["lang"], "passed": False, "turns": 0,
@@ -390,9 +414,19 @@ def grade_agent(client_mod, tasks, max_turns=8, on_task=None, runs=1):
             # `lang` travels in the trace: Table 3 prints it, and a receipt that does not say
             # which language produced it is half a receipt (missing since the multi-run
             # refactor, found 2026-10-14).
+            empty = r.get("empty_replies") or 0
+            if empty:
+                # The LFM2.5-24B-A2B signature (2026-10-14): the model reasons past the whole
+                # turn budget and answers nothing, so the episode dies without touching a tool.
+                empty_total += empty
+                print(f"    ⚠️  cap: {t['lang']}/{t['id']} answered empty in {empty} turn(s) "
+                      f"(likely the {max_tokens or config.AGENT_MAX_TOKENS}-token turn budget)",
+                      file=sys.stderr, flush=True)
             results.append({"id": t["id"], "lang": t["lang"], "passed": r["success"],
                             "turns": r["turns"], "_excluded": False,
-                            "detail": f"turns={r['turns']} tool_calls={r['tool_calls']}"})
+                            "empty_replies": empty,
+                            "detail": f"turns={r['turns']} tool_calls={r['tool_calls']}"
+                                      + (f" empty={empty}" if empty else "")})
             by_lang.setdefault(t["lang"], []).append(r["success"])
             if on_task:
                 on_task("agent", {"id": t["id"], "lang": t["lang"],
@@ -459,6 +493,8 @@ def grade_agent(client_mod, tasks, max_turns=8, on_task=None, runs=1):
     result = {"passed": score == 1.0, "turns": total_turns,
               "trace": trace, "score": score,
               "by_lang": {l: round(sum(v) / len(v), 2) for l, v in merged.items()},
+              "agent_max_tokens": max_tokens or config.AGENT_MAX_TOKENS,
+              "agent_empty_replies": empty_total,
               "conversations": conversations}
     if runs > 1:
         result["runs"] = runs

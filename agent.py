@@ -120,20 +120,27 @@ def _exec_tool(name, args, env):
     return f"error: unknown tool {name}"
 
 
-def run_agent(client_mod, task, max_turns=8):
+def run_agent(client_mod, task, max_turns=8, max_tokens=None):
     env = MockEnv(task["initial_files"], task["lang"], task.get("test_file", "test_solution.py"))
     history = [{"role": "system", "content":
                 "You solve coding tasks using tools. When done, reply with a short summary."},
                {"role": "user", "content": task["goal"]}]
     tool_calls = 0
     actual_turns = 0
+    empty_replies = 0
     for _turn in range(max_turns):
         actual_turns = _turn + 1
-        resp = client_mod.chat(history, tools=TOOLS, tool_choice="auto", max_tokens=512)
+        resp = client_mod.chat(history, tools=TOOLS, tool_choice="auto",
+                               max_tokens=max_tokens or config.AGENT_MAX_TOKENS)
         msg = (resp.get("choices", [{}])[0]).get("message", {})
         tcs = msg.get("tool_calls") or []
         history.append(msg)
         if not tcs:
+            # END of the episode. An assistant turn with neither content nor a tool call is the
+            # signature of a turn budget spent entirely on reasoning (probe, MILLORA §C13):
+            # counted here, warned about in grade_agent, recorded in the row.
+            if not str(msg.get("content") or "").strip():
+                empty_replies += 1
             break
         for tc in tcs:
             fn = tc.get("function", tc)
@@ -148,4 +155,4 @@ def run_agent(client_mod, task, max_turns=8):
             history.append({"role": "tool", "tool_call_id": tc.get("id", "x"), "content": result})
     ok, _ = env.run_tests()
     return {"success": ok, "turns": actual_turns, "tool_calls": tool_calls,
-            "history": history}
+            "empty_replies": empty_replies, "history": history}

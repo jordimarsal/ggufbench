@@ -691,3 +691,40 @@ class TestRunsCLI(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class TestThinkingOffProbe(unittest.TestCase):
+    """§C13: `--thinking off` travels as a chat-template argument and a template without the
+    switch ignores it silently. The harness reads /props and says so (LFM2.5-24B-A2B, whose
+    template always opens a <think> block, was measured as if OFF while it reasoned)."""
+
+    def _props(self, template):
+        import io
+        class R(io.BytesIO):
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+        return R(json.dumps({"chat_template": template}).encode())
+
+    def test_template_without_switch_is_reported_not_applied(self):
+        with mock.patch("urllib.request.urlopen", return_value=self._props("<think>")):
+            applied, note = run._check_thinking_applied("http://x", "llama", "off")
+        self.assertFalse(applied)
+        self.assertIn("enable_thinking", note)
+
+    def test_template_with_switch_is_applied(self):
+        with mock.patch("urllib.request.urlopen",
+                        return_value=self._props("{% if enable_thinking is false %}...{% endif %}")):
+            self.assertEqual(run._check_thinking_applied("http://x", "llama", "off"), (True, None))
+
+    def test_unknown_is_never_a_claim(self):
+        with mock.patch("urllib.request.urlopen", side_effect=OSError("no server")):
+            applied, note = run._check_thinking_applied("http://x", "llama", "off")
+        self.assertIsNone(applied)
+        self.assertIn("could not read", note)
+        self.assertEqual(run._check_thinking_applied("http://x", "llama", "on"), (None, None))
+
+    def test_the_cap_flags_are_exposed(self):
+        a = run._parse_args(["--tools-max-tokens", "256", "--agent-max-tokens", "1024"])
+        self.assertEqual((a.tools_max_tokens, a.agent_max_tokens), (256, 1024))
+        d = run._parse_args([])
+        self.assertEqual((d.tools_max_tokens, d.agent_max_tokens),
+                         (config.TOOLS_MAX_TOKENS, config.AGENT_MAX_TOKENS))

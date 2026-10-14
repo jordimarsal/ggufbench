@@ -607,3 +607,61 @@ class TestLegacyBudgetsAreInert(unittest.TestCase):
             with config.override(TOKEN_BUDGETS=path):
                 token_budget.reset_cache()
                 self.assertIsNone(token_budget.get("code", "m", "off", "python", "t1"))
+
+
+class TestCapProbes(unittest.TestCase):
+    """§C13: the harness probes its own ceilings during a run (a task at the token cap, a
+    tool call cut by it, an agent turn that answered nothing) and records what it saw, instead
+    of leaving the diagnosis to a post-mortem over receipts."""
+
+    def setUp(self):
+        token_budget.reset_cache()
+        self.addCleanup(token_budget.reset_cache)
+
+    def test_code_budget_hit_is_counted(self):
+        tasks = [{"id": "t1", "lang": "python", "level": "easy", "prompt": "p",
+                  "test_code": "from solution import *\nassert f() == 1\nprint('OK')\n"}]
+
+        class C:
+            run_index = None
+            def chat(self, msgs, **k):
+                return {"choices": [{"message": {"content": "```python\ndef f():\n    return 1\n```"}}],
+                        "usage": {"completion_tokens": graders.CODE_MAX_TOKENS}}   # exactly at the cap
+
+        r = graders.grade_code(C(), tasks, model_slug="m", thinking="off")
+        self.assertEqual(r["code_budget_hits"], 1)
+        self.assertEqual(r["code_budget"], graders.CODE_MAX_TOKENS)
+
+    def test_tool_call_cut_by_the_cap_is_counted(self):
+        tasks = [{"id": "t1", "prompt": "x", "tools": [], "expected": {"name": "f"}}]
+        resp = {"choices": [{"finish_reason": "length", "message": {"tool_calls": [
+            {"function": {"name": "f", "arguments": "{\"a\":"}}]}}]}      # truncated JSON
+        r = graders.grade_tools(FakeClient([resp]), tasks, max_tokens=128)
+        self.assertEqual(r["tools_capped"], 1)
+        self.assertEqual(r["tools_max_tokens"], 128)
+
+    def test_agent_turn_answered_empty_is_counted(self):
+        """The LFM2.5-24B-A2B signature: reasoning spends the whole turn budget and the model
+        answers neither content nor a tool call."""
+        class Empty:
+            run_index = None
+            def chat(self, msgs, **k):
+                return {"choices": [{"message": {"content": "", "tool_calls": []}}]}
+        tasks = [{"id": "t1", "lang": "python", "goal": "g", "max_turns": 3,
+                  "test_file": "test_solution.py",
+                  "initial_files": {"solution.py": "x = 1\n",
+                                    "test_solution.py": "from solution import *\nassert x == 1\n"}}]
+        r = graders.grade_agent(Empty(), tasks, max_tokens=512)
+        self.assertEqual(r["agent_empty_replies"], 1)
+        self.assertEqual(r["agent_max_tokens"], 512)
+        self.assertIn("empty=1", r["trace"][0]["detail"])
+
+    def test_a_clean_run_reports_no_probes(self):
+        class Ok:
+            run_index = None
+            def chat(self, msgs, **k):
+                return {"choices": [{"finish_reason": "stop", "message": {"content": "hi"}}],
+                        "usage": {"completion_tokens": 3}}
+        tasks = [{"id": "t1", "prompt": "x", "tools": [], "expected": None}]
+        r = graders.grade_tools(Ok(), tasks)
+        self.assertEqual(r["tools_capped"], 0)

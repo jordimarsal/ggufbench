@@ -214,6 +214,28 @@ class TestRender(unittest.TestCase):
         self.assertIn("baseline ? (not recorded)", html)
 
 
+class TestRunProbes(unittest.TestCase):
+    """§C13: the model card lists what the run hit (caps touched, turns answered empty,
+    thinking-off that could not be applied) — a diagnosis on the page, not in a receipt."""
+
+    def test_card_lists_the_probes(self):
+        r = _mk()
+        r["code"]["code_budget_hits"] = 2
+        r["agent"]["agent_empty_replies"] = 3
+        r["tools"]["tools_capped"] = 1
+        r["thinking_mode_applied"] = False
+        r["thinking_mode_note"] = "no switch"
+        html = html_report.render([r])
+        self.assertIn("probes:", html)
+        self.assertIn("2 code task(s) at the token cap", html)
+        self.assertIn("3 agent turn(s) answered empty", html)
+        self.assertIn("1 tool call(s) at the cap", html)
+        self.assertIn("thinking-off requested but the template has no switch", html)
+
+    def test_a_clean_row_has_no_probe_line(self):
+        self.assertNotIn("probes:", html_report.render([_mk()]))
+
+
 class TestCodeBudgetLine(unittest.TestCase):
     """§C12: the per-model card states the code token cap the row ran under (and the
     exception when a per-task calibration was in play). Rows from before the field simply

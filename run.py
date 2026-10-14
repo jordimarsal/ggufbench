@@ -1,5 +1,6 @@
 import argparse
 import datetime
+import urllib.request
 import difflib
 import json
 import platform
@@ -159,6 +160,31 @@ class ClientWrapper:
         return C.chat(*a, base_url=self.base_url, **k)
 
 
+def _check_thinking_applied(model_url, engine, thinking):
+    """Was the requested thinking mode actually applied? `off` travels as a chat-template
+    argument (`config.thinking_body`), and a template without that switch ignores it silently:
+    the row then says `think: off` while the model reasons (LFM2.5-24B-A2B, 2026-10-14: its
+    template always opens a <think> block, the model spent 1615 tokens of a 512-token agent
+    turn reasoning and answered empty — the run looked like a weak model instead of a broken
+    measurement). Read-only check against `/props`: the template must mention the switch.
+    Returns (True/False/None, note): None = could not tell (no template exposed, engine
+    unknown), never a claim."""
+    if thinking != "off":
+        return None, None
+    try:
+        with urllib.request.urlopen(f"{model_url}/props", timeout=5) as r:  # pragma: no cover
+            props = json.loads(r.read().decode("utf-8", "replace"))
+    except (OSError, ValueError):
+        return None, "could not read /props to verify the off switch"
+    tpl = props.get("chat_template") or ""
+    if not tpl:
+        return None, "server exposes no chat template to verify the off switch"
+    if "enable_thinking" in tpl:
+        return True, None
+    return False, ("chat template has no `enable_thinking` switch: the off request was ignored, "
+                   "the model may reason anyway (MILLORA §C13)")
+
+
 def _level_for_code(dims, level):
     """--level only affects the code dimension; if code is absent, warn and drop it."""
     if not level:
@@ -171,7 +197,8 @@ def _level_for_code(dims, level):
 
 
 def _bench_one(model_path, pool, dims, lang_filter, port, quick=False, engine="llama",
-               level=None, thinking=None, runs=1, context_mode="fixed"):
+               level=None, thinking=None, runs=1, context_mode="fixed",
+               tools_max_tokens=None, agent_max_tokens=None):
     if thinking is None:
         thinking = config.THINKING_DEFAULT
     # C5: hardware/OS snapshot captured once per model run, before anything else.
@@ -199,8 +226,10 @@ def _bench_one(model_path, pool, dims, lang_filter, port, quick=False, engine="l
 
         c = ClientWrapper(model_url, extra)
         times = warmup(c, model_url, n=3, extra=extra)
+        applied, note = _check_thinking_applied(model_url, engine, thinking)
         result = {"model": mid, "engine": engine, "thinking": thinking,
                   "ts": datetime.datetime.now().isoformat(timespec="seconds"),
+                  "thinking_mode_applied": applied, "thinking_mode_note": note,
                   "context_mode": context_mode,
                   "ctx_resolved": ctx, "ctx_source": ctx_source,
                   "tasks_version": config.TASKS_VERSION,
@@ -219,7 +248,7 @@ def _bench_one(model_path, pool, dims, lang_filter, port, quick=False, engine="l
         if "tools" in dims:
             t = time.monotonic()
             result["tools"] = G.grade_tools(c, _limit(T.load("tools"), quick), on_task=_print_task,
-                                            runs=runs)
+                                            runs=runs, max_tokens=tools_max_tokens)
             result["tools"]["wall_time_s"] = round(time.monotonic() - t, 1)
         if "code" in dims:
             code_tasks = _limit(T.load("code", lang_filter=lf, level=level), quick)
@@ -233,8 +262,9 @@ def _bench_one(model_path, pool, dims, lang_filter, port, quick=False, engine="l
             result["code"]["wall_time_s"] = round(time.monotonic() - t, 1)
         if "agent" in dims:
             t = time.monotonic()
-            result["agent"] = G.grade_agent(c, _limit(T.load("agent", lang_filter=lf), quick), on_task=_print_task,
-                                            runs=runs)
+            result["agent"] = G.grade_agent(c, _limit(T.load("agent", lang_filter=lf), quick),
+                                            on_task=_print_task, runs=runs,
+                                            max_tokens=agent_max_tokens)
             result["agent"]["wall_time_s"] = round(time.monotonic() - t, 1)
         result["wall_time_s"] = round(time.monotonic() - t0, 1)
         return result
@@ -361,6 +391,10 @@ def _parse_args(argv=None):
         return n
     ap.add_argument("--runs", type=_valid_runs, default=1, metavar="N",
                     help="repeat each task N times and aggregate results (default: 1)")
+    ap.add_argument("--tools-max-tokens", type=int, default=config.TOOLS_MAX_TOKENS, metavar="N",
+                    help="max tokens per tool-call request (a condition: recorded in the row)")
+    ap.add_argument("--agent-max-tokens", type=int, default=config.AGENT_MAX_TOKENS, metavar="N",
+                    help="max tokens per agent turn (a condition: recorded in the row)")
     ap.add_argument("-v", "--verbose", action="store_true",
                    help="granularity: Table 1 + per-language (Table 2); does NOT include tasks")
     ap.add_argument("--task", action="store_true",
@@ -495,7 +529,9 @@ def main(argv=None):
         try:
             res = _bench_one(mp, [], dims, lang_filter, port, quick=args.quick,
                              engine=args.engine, level=level, thinking=args.thinking,
-                             runs=args.runs, context_mode=args.context)
+                             runs=args.runs, context_mode=args.context,
+                             tools_max_tokens=args.tools_max_tokens,
+                             agent_max_tokens=args.agent_max_tokens)
             if res.get("serve_failed"):
                 print(f"✗ {mp}: failed to load", file=sys.stderr, flush=True); continue
             R.save_result(res)

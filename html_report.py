@@ -256,6 +256,13 @@ def _rows(pool):
             # §C12: the code token cap and any per-task calibration that was in play.
             "code_budget": (r.get("code") or {}).get("code_budget"),
             "code_budget_stored": (r.get("code") or {}).get("code_budget_stored") or {},
+            # §C13 run-time probes: ceilings that were touched, and whether the requested
+            # thinking mode could be applied at all.
+            "code_budget_hits": (r.get("code") or {}).get("code_budget_hits") or 0,
+            "agent_empty_replies": (r.get("agent") or {}).get("agent_empty_replies") or 0,
+            "tools_capped": (r.get("tools") or {}).get("tools_capped") or 0,
+            "thinking_applied": r.get("thinking_mode_applied"),
+            "thinking_note": r.get("thinking_mode_note"),
             "tasks": {d: len((r.get(d) or {}).get("trace") or [])
                       for d in ("tools", "code", "agent")},
             "flags": r.get("model_config_flags"),
@@ -570,6 +577,18 @@ def render(pool, sort="global"):
                      + ", ".join(f"{cap}" for cap in stored) + " (stored calibration)"
                      ) if stored else ""
             budget_line = f"\ncode budget {r['code_budget']}{extra}"
+        # §C13 probes: say out loud what the run hit, instead of leaving it in a receipt.
+        probes = []
+        if r["code_budget_hits"]:
+            probes.append(f"{r['code_budget_hits']} code task(s) at the token cap ({r['code_budget']})")
+        if r["agent_empty_replies"]:
+            probes.append(f"{r['agent_empty_replies']} agent turn(s) answered empty (turn cap?)")
+        if r["tools_capped"]:
+            probes.append(f"{r['tools_capped']} tool call(s) at the cap")
+        if r["thinking_applied"] is False:
+            probes.append("thinking-off requested but the template has no switch"
+                          + (f" — {r['thinking_note']}" if r["thinking_note"] else ""))
+        probe_line = ("\nprobes: " + " · ".join(probes)) if probes else ""
         details.append(
             f'<details{" class=\"retired\"" if r["retired"] else ""}><summary>{_esc(r["name"])} <span class="badge{" strata" if r["engine"] == "strata" else ""}">'
             f'{_esc(r["engine"])} {_esc(r["build"])}</span>'
@@ -577,7 +596,7 @@ def render(pool, sort="global"):
             f'{" <span class=\"badge\">retired</span>" if r["retired"] else ""}'
             f' <span class="miss">{_esc(r["ts"])}</span></summary>'
             f'<pre>{by_level_line}{think_line}excluded code: {r["code_excluded"]}\n'
-            f'{base_line}{budget_line}\n{flags}</pre></details>')
+            f'{base_line}{budget_line}{probe_line}\n{flags}</pre></details>')
 
     banner = ""
     if len(dates) > 1 or mixed:
