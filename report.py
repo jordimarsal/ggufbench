@@ -7,6 +7,33 @@ from typing import Any
 from . import config
 
 
+def task_signature(result):
+    """Task set a result was measured with: the graded counts per dimension
+    ('tools/code/agent', e.g. '16/60/60'), from the recorded field or derived from the
+    traces ('?' for a dimension that was not measured).
+
+    The suite version (config.TASKS_VERSION) is a label and cannot describe the set: v3
+    covered four different counts because the C3 additions never bumped it, so two rows
+    could share a version and still be incomparable. The signature comes from the data,
+    which is why the scoreboard and the compare page compare signatures."""
+    stored = result.get("task_signature")
+    if stored:
+        return str(stored)
+    counts = (len((result.get(d) or {}).get("trace") or [])
+              for d in ("tools", "code", "agent"))
+    return "/".join(str(n) if n else "?" for n in counts)
+
+
+def signature_counts(pool):
+    """{task_signature: number of rows}, most frequent first. More than one entry means
+    the pool mixes task sets — the drift the report must announce instead of hiding."""
+    counts = {}
+    for r in pool:
+        sig = task_signature(r)
+        counts[sig] = counts.get(sig, 0) + 1
+    return dict(sorted(counts.items(), key=lambda kv: (-kv[1], kv[0])))
+
+
 def _model_stem(model_field):
     """Model file name without path or extension (.gguf/.GGUF).
     'models/foo.gguf' -> 'foo'; 'foo' -> 'foo'. Robust against names with internal dots
@@ -36,6 +63,9 @@ def _key_of(result):
 def save_result(result):
     config.RESULTS_MODELS.mkdir(parents=True, exist_ok=True)
     config.RESULTS_RUNS.mkdir(parents=True, exist_ok=True)
+    # The task set the row was measured with travels with the row (§C9): the version
+    # label alone let three different sets live under "v3".
+    result.setdefault("task_signature", task_signature(result))
     slug = _slug_of(result)
     key = _key_of(result)
     # Agent conversations ride out-of-band: the full episodes live in a sidecar
@@ -400,4 +430,20 @@ def render(pool, weights, title="Benchmark Results", level="default", show_tasks
         out += _render_by_lang(pool)
     if show_tasks or level == "info":
         out += _render_tasks(pool)
+    out += _render_task_sets(pool)
     return "\n".join(out)
+
+
+def _render_task_sets(pool):
+    """Footer note (only when the pool mixes sets): the version label cannot tell rows
+    with different task counts apart, so the scoreboard says it out loud instead of
+    letting a 12-task 92% tools sit next to a 16-task 94% one as if they were the same
+    measurement (docs/MILLORA.md §C9)."""
+    sigs = signature_counts(pool)
+    if len(sigs) < 2:
+        return []
+    out = ["", "NOTE: this pool mixes task sets — a score is comparable only within a set "
+               "(docs/MILLORA.md §C9)"]
+    for sig, n in sigs.items():
+        out.append(f"  {sig} tasks — {n} row{'s' if n != 1 else ''}")
+    return out

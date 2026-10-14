@@ -153,6 +153,58 @@ class TestReport(unittest.TestCase):
         self.assertEqual(len(pool), 1)
         self.assertEqual(pool[0]["speed"]["speed_ms"], 20)  # the most recent one wins
 
+    # --- Task set signature: the pool must be able to tell sets apart (§C9) -----------
+    def test_task_signature_derives_from_the_traces(self):
+        r = mk("m")
+        r["tools"]["trace"] = [{"id": f"t{i}"} for i in range(16)]
+        r["code"]["trace"] = [{"id": f"c{i}"} for i in range(60)]
+        r["agent"]["trace"] = [{"id": f"a{i}"} for i in range(60)]
+        self.assertEqual(report.task_signature(r), "16/60/60")
+
+    def test_task_signature_marks_missing_dimensions(self):
+        # A partial run must not read as a full set: '?' for what was not measured.
+        r = mk("m")
+        r["code"]["trace"] = [{"id": "c"}]
+        self.assertEqual(report.task_signature(r), "?/1/?")
+
+    def test_stored_signature_wins_over_the_traces(self):
+        # The row keeps the set it was measured with even if traces are re-derived later.
+        r = mk("m")
+        r["task_signature"] = "12/60/28"
+        r["code"]["trace"] = [{"id": "c"}]
+        self.assertEqual(report.task_signature(r), "12/60/28")
+
+    def test_save_result_records_the_signature(self):
+        r = mk("m")
+        r["tools"]["trace"] = [{"id": "t"}]
+        report.save_result(r)
+        self.assertEqual(report.load_pool()[0]["task_signature"], "1/?/?")
+
+    def test_signature_counts_orders_by_frequency(self):
+        pool = [mk("a"), mk("b"), mk("c")]
+        pool[0]["task_signature"] = "16/60/60"
+        pool[1]["task_signature"] = "12/60/28"
+        pool[2]["task_signature"] = "12/60/28"
+        self.assertEqual(list(report.signature_counts(pool)), ["12/60/28", "16/60/60"])
+
+    def test_scoreboard_notes_mixed_task_sets(self):
+        # The version label hid three sets; a score is only comparable inside a set.
+        report.save_result(mk("a", thinking="off"))
+        report.save_result(mk("b", thinking="off"))
+        pool = report.load_pool()
+        pool[0]["task_signature"] = "16/60/60"
+        pool[1]["task_signature"] = "12/60/28"
+        out = report.render(pool, W)
+        self.assertIn("mixes task sets", out)
+        self.assertIn("16/60/60 tasks — 1 row", out)
+        self.assertIn("12/60/28 tasks — 1 row", out)
+
+    def test_scoreboard_stays_quiet_when_the_set_is_uniform(self):
+        report.save_result(mk("a", thinking="off"))
+        report.save_result(mk("b", thinking="off"))
+        out = report.render(report.load_pool(), W)
+        self.assertNotIn("mixes task sets", out)
+
     def test_runs_filenames_distinguish_mode(self):
         runs = self.tmpdir / "runs"
         with config.override(RESULTS_RUNS=runs):

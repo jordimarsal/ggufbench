@@ -145,8 +145,14 @@ def load_model_config_args(model_path) -> list:
 WEIGHTS = {"tools": 0.30, "code": 0.30, "agent": 0.25, "speed": 0.15}
 
 # Task suite version: bump when the set changes (hard_code_tier R7:
-# v2 = +16 hard tasks). The pool stores it to tell pre/post conditions apart.
-TASKS_VERSION = "v3"
+# v2 = +16 hard tasks; discriminative_tasks R4: v3 = +12 expert tasks; v4 = the C3
+# counts, tools 16 / code 60 / agent 60). The pool stores it to tell pre/post
+# conditions apart — but a version is a LABEL and does not describe the set: v3 ended up
+# covering four different task counts (8/60/24, 12/60/28, 12/60/36, 16/60/60) because the
+# C3 additions never bumped it. The authoritative per-row marker is `task_signature`,
+# derived from the graded traces (report.task_signature) since 2026-10-14: two rows are
+# comparable only when their signatures match (docs/MILLORA.md §C9).
+TASKS_VERSION = "v4"
 
 LANG_OK_THRESHOLD = 0.75
 

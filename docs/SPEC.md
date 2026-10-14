@@ -25,8 +25,15 @@ The end goal is picking the best model for **opencode** (coding agent).
 - **Sampling (n=1)**: one graded attempt per task (`temp 0.2`, `seed 42`).
   Single-sample noise is real: the scoreboard is a *ranking on this
   harness*, not a certification — close rows (±0.01 global) are ties in
-  practice. Aggregating repeated runs (`--runs N`, mean ± spread) is the
-  planned fix.
+  practice. `--runs N` (seed 42+idx per run) aggregates repeated runs as mean ± spread,
+  and every row carries the ± it was measured with.
+- **Task set (`task_signature`)**: the graded counts per dimension
+  (`tools/code/agent`, e.g. `16/60/60`), derived from the traces, recorded in every
+  result since 2026-10-14 and shown by the report. `tasks_version` is a suite *label*
+  (v1 base, v2 hard, v3 expert, v4 the C3 counts) and cannot describe the set on its
+  own: v3 ended up covering four different counts because the C3 additions never bumped
+  it, so two rows could share a version and still be incomparable. The scoreboard and the
+  compare page compare signatures and announce the mix (MILLORA §C9).
 - **Per-model profile**: `models/<model>.txt` is applied LAST and can
   override the baseline (same convention as `start-dev-ai.sh`; `#` comments
   are skipped). Automatic dedup: if the `.txt` defines
@@ -258,9 +265,11 @@ re-running the others. Two layers:
 
 Every result carries condition metadata to mix runs fairly:
 `context_mode`, `ctx_resolved` + `ctx_source` (the context the server really got and
-where it came from: `profile` / `baseline` / `audit` — §2), `tasks_version` (suite label: "v1" base, "v2" with the
-hard level, "v3" with the expert level), `thinking` (`on`/`off`: thinking chain,
-pool key together with the slug), `weights`, `ts`,
+where it came from: `profile` / `baseline` / `audit` — §2), `tasks_version` (suite label:
+"v1" base, "v2" with the hard level, "v3" with the expert level, "v4" the current C3
+counts) together with `task_signature` (the graded counts the row really ran: the label
+alone let three sets live under "v3" — §2, MILLORA §C9), `thinking` (`on`/`off`: thinking
+chain, pool key together with the slug), `weights`, `ts`,
 `server_build` (llama.cpp version) and `model_config_flags` (flags extracted from
 `models/<model>.txt`, or null — remember that since 2026-10 every model runs
 with its profile). The scoreboard warns (or filters) when results with
@@ -275,7 +284,8 @@ The per-model JSON is:
   "ctx_resolved": 32768,
   "ctx_source": "baseline",
   "thinking": "off",
-  "tasks_version": "v3",
+  "tasks_version": "v4",
+  "task_signature": "16/60/60",
   "server_build": "10250",
   "global": 0.91,
   "speed": {"gen_tps": 48.0, "prompt_tps": 2600.0, "ttft_ms": 220},

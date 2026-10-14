@@ -147,6 +147,27 @@ class TestRender(unittest.TestCase):
         other["ts"] = "2026-09-01T10:00:00"
         self.assertIn("Mixed conditions", html_report.render([_mk(), other]))
 
+    def test_banner_and_chip_when_the_pool_mixes_task_sets(self):
+        """§C9: same date, same version — still two different measurements. The page has
+        to say so (chip in the header + banner), not let 12-task and 16-task rows look
+        like one experiment."""
+        a, b = _mk(name="models/aaa.gguf"), _mk(name="models/bbb.gguf")
+        a["task_signature"] = "16/60/60"
+        b["task_signature"] = "12/60/28"
+        html = html_report.render([a, b])
+        self.assertIn("Mixed conditions", html)
+        self.assertIn("task sets", html)
+        self.assertIn("16/60/60: 1 rows", html)
+        self.assertIn('task sets <b>', html)          # header chip
+
+    def test_uniform_task_sets_do_not_trigger_the_banner(self):
+        a, b = _mk(name="models/aaa.gguf"), _mk(name="models/bbb.gguf")
+        for r in (a, b):
+            r["task_signature"] = "16/60/60"
+        html = html_report.render([a, b])
+        self.assertNotIn("Mixed conditions", html)   # same day, same set
+        self.assertNotIn('task sets <b>', html)
+
 
 class TestMain(unittest.TestCase):
     def test_writes_report_html(self):
@@ -285,6 +306,28 @@ class TestCompare(unittest.TestCase):
         b2["tasks_version"] = "v2"                    # same day, older tasks -> also mixed
         self.assertIn("Mixed conditions",
                       self._static(html_report.render_compare(a2, b2, pool=[a2, b2])))
+
+    def test_mixed_conditions_when_only_the_task_set_differs(self):
+        """§C9: same day, same version label, different task counts. The label cannot
+        tell them apart; the signature can, and the page must say it."""
+        a, b = self._pair()
+        a["task_signature"], b["task_signature"] = "16/60/60", "12/60/28"
+        static = self._static(html_report.render_compare(a, b, pool=[a, b]))
+        self.assertIn("Mixed conditions", static)
+        self.assertIn("the task sets differ (16/60/60 vs 12/60/28 tasks)", static)
+
+    def test_same_set_and_day_no_banner(self):
+        a, b = self._pair()
+        a["task_signature"] = b["task_signature"] = "16/60/60"
+        self.assertNotIn("Mixed conditions",
+                         self._static(html_report.render_compare(a, b, pool=[a, b])))
+
+    def test_picker_pack_carries_the_task_signature(self):
+        """The client-side banner re-renders from the embedded packs: a signature they
+        do not carry would silently disable the §C9 warning on the JS path."""
+        r = _mk()
+        r["task_signature"] = "16/60/60"
+        self.assertEqual(html_report._pack(r, 1, 1, 100)["sig"], "16/60/60")
 
     def test_header_cards_content(self):
         a, b = self._pair()

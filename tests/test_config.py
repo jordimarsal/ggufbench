@@ -42,10 +42,12 @@ class TestOverride(unittest.TestCase):
 if __name__ == "__main__":
     unittest.main()
 class TestTasksVersion(unittest.TestCase):
-    def test_v3_marks_expert_tier(self):
-        # discriminative_tasks R4: the expert set (+12 tasks, EXTRA_FILES)
-        # must bump the version; the pool uses it to tell conditions apart.
-        self.assertEqual(config.TASKS_VERSION, "v3")
+    def test_class_marks_the_task_generation(self):
+        # discriminative_tasks R4 bumped it to v3 for the expert set; v4 marks the C3
+        # counts (tools 16 / code 60 / agent 60) — a version is a label, and the C3
+        # additions proved it cannot describe a task set (three sets lived under v3):
+        # the per-row marker is task_signature (report.task_signature, MILLORA §C9).
+        self.assertEqual(config.TASKS_VERSION, "v4")
 
 class TestWeightsUnchanged(unittest.TestCase):
     def test_weights_unchanged(self):

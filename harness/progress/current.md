@@ -57,7 +57,17 @@
   (solid background by luminance, no alpha) + think badge in the 8 per-model sections.
   Suite 189 passed. Commit `d486a5d`. report.html regenerated (22 badges/mode).
 
-- **2026-10-14 · fix(html_report) — retired rows were no longer gray.** The only source
+- **2026-10-14 · feat(report) — the pool can now tell task sets apart (§C9, human decision).**
+  `report.task_signature(row)` derives `tools/code/agent` counts from the traces (`?` for
+  an unmeasured dimension), `save_result` stores it in the row (legacy rows get it
+  derived on read, so the whole pool is labelled retroactively), and the drift is
+  announced instead of hidden: CLI footer note, HTML chip + banner, compare-page banner
+  when two rows differ *only* by signature, and `sig` in the picker packs so the JS path
+  warns too. `config.TASKS_VERSION` → **v4** (a version is a label; the comment says what
+  it can and cannot do). +12 tests, 373 total. The fleet re-measure at the current suite
+  (C9 option 1) stays open.
+
+- **2026-10-14 · fix(html_report) — retired rows were no longer gray (D7).** The only source
   of "retired" was `models/retired/*.txt`; that directory lives outside the repo and its
   profiles were deleted as duplicated information → the 9 models pruned on 2026-10-13
   rendered as live fleet (chip, badges and their exclusion from Recommendations gone).
@@ -83,16 +93,15 @@
   ambiguous (matches the `.gguf` and the `.txt`) and the resolver correctly refused it.
   Report regenerated: 30 models, 9 gray (retired), no `_home_jordi` leakage.
 
-- **2026-10-14 · Finding (needs a human decision) — the pool holds three task sets.**
+- **2026-10-14 · Finding — the pool holds three task sets (decided: §C9 option 2).**
   The qwen36 row came out with 16/60/60 tasks while its neighbours have 12/60/28, and
   the `tasks_version` field is "v3" for all of them: 8/60/24 (11 rows, 2026-10-10 ON
   batch), 12/60/28 (17 rows, 2026-10-12/13 C1 batch), 16/60/60 (2 rows, 2026-10-14
   strata-swift + qwen36). The C3 commits added the tasks *after* the pool was measured
-  and did not bump the version, so the drift is invisible to metadata (trace length
-  only) and the report's mixed-conditions banner keys on dates. Written up as MILLORA
-  §2c/C9 with options (re-measure the fleet / derive the signature from the trace /
-  both); README + the 3 write-ups still state the C1-era condition. No action taken —
-  it is the user's call.
+  and did not bump the version, so the drift was invisible to metadata (trace length
+  only) and the report's mixed-conditions banner keyed on dates. Human decision:
+  implement the signature now (done above), re-measure the fleet on a GPU night
+  (open). README + the 3 write-ups still state the C1-era condition.
 
 - **2026-10-14 · chore(bench) — loader baselines re-recorded.** The strict gate was red
   on `test_load_agent` (2.33x, critical) and `test_load_tools` (1.91x) while the code
@@ -103,9 +112,17 @@
   (`m-na.json`, `solo-na.json`…) into the real `results/runs/` — test isolation leaks
   there (the pool itself is safe, POOL_FILE is overridden); candidate fix, not taken.
 
-- Suite after both fixes: 361 tests OK (1 skipped) —
-  `python3 -m unittest discover -s ggufbench/tests -t .`
+- Suite: **373 tests OK (1 skipped)** —
+  `python3 -m unittest discover -s ggufbench/tests -t .`; bench gate: no regression.
 
 ## Next step
+
+- **Open:** re-measure the active fleet (7 GGUF + Strata, OFF × runs 3) under the current
+  16/60/60 suite (C9 option 1) — only then is the published table homogeneous again.
+- **Open:** README scoreboard (states the C1 condition and "harness v3") and the three
+  write-ups (say "42 multi-step agent tasks"; the ties conclusion leans on qwen36's old
+  0.84) need the same pass.
+- **Open:** the test suite writes junk receipts (`m-na.json`, `solo-na.json`…) into the
+  real `results/runs/`: override `RESULTS_RUNS` in the affected tests.
 
 _If a new session opens: read AGENTS.md + current.md + feature_list.json._

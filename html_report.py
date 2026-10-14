@@ -335,6 +335,9 @@ def render(pool):
     # C8 optimal thinking mode per model (needs wall_time_s on both rows of a
     # pair; rows from before it simply get no marker).
     optimal = R.optimal_by_slug(pool)
+    # Task sets in the pool (§C9): more than one means the rows are not comparable and
+    # the page must say so (header chip + banner); the version label cannot tell them apart.
+    sigs = R.signature_counts(pool)
     gpus = _gpu_chips()
     w = config.WEIGHTS
     dates = sorted({r["ts"] for r in rows if r["ts"]})
@@ -353,6 +356,8 @@ def render(pool):
     chips.append('<a class="chip" href="compare.html">head-to-head compare →</a>')
     if any(r["retired"] for r in rows):
         chips.append('<span class="chip">gray = retired model (record only)</span>')
+    if len(sigs) > 1:
+        chips.append('<span class="chip">task sets <b>' + _esc(" · ".join(sigs)) + '</b></span>')
 
     kpis = [("Best overall", f"{rows[0]['global']:.2f}" if rows else "—"),
             ("Fastest (gen)", f"{max((r['sc']['gen_tps'] for r in rows), default=0):.0f} t/s"),
@@ -427,11 +432,18 @@ def render(pool):
             f'<pre>{by_level_line}{think_line}excluded code: {r["code_excluded"]}\n{flags}</pre></details>')
 
     banner = ""
-    if len(dates) > 1:
+    if len(dates) > 1 or len(sigs) > 1:
+        sets_note = ""
+        if len(sigs) > 1:
+            sets_note = (" and/or on different <b>task sets</b> ("
+                         + _esc(", ".join(f"{sig}: {n} rows" for sig, n in sigs.items()))
+                         + ") — the version label alone cannot tell them apart, so a score "
+                           "is comparable only inside a set")
         banner = ('<div class="banner"><b>Mixed conditions.</b> The entries in this pool were '
                   'measured on different dates and the harness evolves (tasks fixed, second engine, '
-                  'per-model flags): compare with care and check <code>docs/MILLORA.md §C7</code> before '
-                  'drawing conclusions from the whole table.</div>')
+                  'per-model flags)' + sets_note + ': compare with care and check '
+                  '<code>docs/MILLORA.md §C7/C9</code> before drawing conclusions from the whole '
+                  'table.</div>')
 
     return f"""<!doctype html>
 <html lang="en">
@@ -616,6 +628,7 @@ def _pack(r, rank, total, min_speed):
         "d": (r.get("ts") or "")[:10],
         "f": _sanitize_public(r.get("model_config_flags") or ""),
         "v": str(r.get("tasks_version") or "?"),
+        "sig": R.task_signature(r),
         "env": _sanitize_env(r.get("environment")) or "",
         "g": R._global_score(r, config.WEIGHTS, min_speed),
         "r": rank,
@@ -894,10 +907,14 @@ _PICKER_JS = """
       + '<div class="meta"><div class="l">environment</div><div class="mv">' + env + "</div></div></section>";
   }
   function mixedBanner(a, b) {
-    if (a.d === b.d && a.v === b.v) return "";
+    if (a.d === b.d && a.v === b.v && a.sig === b.sig) return "";
+    var sets = a.sig === b.sig ? ""
+      : " — and the task sets differ (" + esc(a.sig) + " vs " + esc(b.sig)
+        + " tasks), which the version label alone cannot tell apart";
     return '<div class="banner"><b>Mixed conditions.</b> These two rows were not measured under '
       + "identical conditions (" + esc(a.d) + " · tasks " + esc(a.v) + " vs " + esc(b.d)
-      + " · tasks " + esc(b.v) + "): the harness evolves, compare with care (docs/MILLORA.md §C7).</div>";
+      + " · tasks " + esc(b.v) + ")" + sets + ": the harness evolves, compare with care"
+      + " (docs/MILLORA.md §C7/C9).</div>";
   }
   function sections(A, B) {
     var out = "";
@@ -1050,11 +1067,16 @@ def render_compare(row_a, row_b, pool=None):
             for i, p in enumerate(packs))
 
     banner = ""
-    if pa["d"] != pb["d"] or pa["v"] != pb["v"]:
+    if pa["d"] != pb["d"] or pa["v"] != pb["v"] or pa["sig"] != pb["sig"]:
+        sets_clause = ""
+        if pa["sig"] != pb["sig"]:
+            sets_clause = (f' — and the task sets differ ({_esc(pa["sig"])} vs '
+                           f'{_esc(pb["sig"])} tasks), which the version label alone cannot '
+                           f'tell apart')
         banner = (f'<div class="banner"><b>Mixed conditions.</b> These two rows were not '
                   f'measured under identical conditions ({_esc(pa["d"])} · tasks {_esc(pa["v"])} '
-                  f'vs {_esc(pb["d"])} · tasks {_esc(pb["v"])}): the harness evolves, compare '
-                  f'with care (docs/MILLORA.md §C7).</div>')
+                  f'vs {_esc(pb["d"])} · tasks {_esc(pb["v"])}){sets_clause}: the harness evolves, '
+                  f'compare with care (docs/MILLORA.md §C7/C9).</div>')
     cards = f'<div class="cards">{_cmp_card(pa)}{_cmp_card(pb)}</div>'
     sections_html = "".join(
         _cmp_section(title, metrics, pa, pb) for title, metrics in _COMPARE_SECTIONS)
