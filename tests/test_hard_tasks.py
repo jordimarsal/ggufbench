@@ -4,14 +4,23 @@ from ggufbench import tasks_loader
 
 
 class TestHardTasks(unittest.TestCase):
-    """T10 de hard_code_tier: estructura de les 16 tasques hard (4 per llengua)."""
+    """T10 de hard_code_tier (16 tasques, 4 per llengua) + C3 fill 2026-10-14 (+1 per
+    llengua: la cel·la de codi arriba a 8 easy + 5 hard + 5 expert = 18 per llengua)."""
 
-    def test_sixteen_tasks_four_per_lang(self):
+    def test_twenty_tasks_five_per_lang(self):
         hard = tasks_loader.load("code", level="hard")
-        self.assertEqual(len(hard), 16)
+        self.assertEqual(len(hard), 20)
         for lang in ("python", "bash", "java", "typescript"):
             n = sum(1 for t in hard if t["lang"] == lang)
-            self.assertEqual(n, 4, lang)
+            self.assertEqual(n, 5, lang)
+
+    def test_each_cell_has_the_same_shape(self):
+        """C3: the four languages carry the same counts (8 easy + 5 hard + 5 expert), so a
+        by_lang difference is the model's, not the dataset's."""
+        for lang in ("python", "bash", "java", "typescript"):
+            counts = {lvl: len(tasks_loader.load("code", level=lvl, lang_filter=lang))
+                      for lvl in ("easy", "hard", "expert")}
+            self.assertEqual(counts, {"easy": 8, "hard": 5, "expert": 5}, lang)
 
     def test_ids_end_with_hard(self):
         for t in tasks_loader.load("code", level="hard"):

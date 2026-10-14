@@ -70,11 +70,12 @@ if __name__ == "__main__":
     unittest.main()
 class TestTasksVersion(unittest.TestCase):
     def test_class_marks_the_task_generation(self):
-        # discriminative_tasks R4 bumped it to v3 for the expert set; v4 marks the C3
-        # counts (tools 16 / code 60 / agent 60) — a version is a label, and the C3
-        # additions proved it cannot describe a task set (three sets lived under v3):
-        # the per-row marker is task_signature (report.task_signature, MILLORA §C9).
-        self.assertEqual(config.TASKS_VERSION, "v4")
+        # discriminative_tasks R4 bumped it to v3 for the expert set; v4 marked the C3
+        # counts (16/60/60) and v5 marks the C3+C4 fill (tools 18 / code 72 / agent 68,
+        # multi-file agent projects) — a version is a label, and the C3 additions proved it
+        # cannot describe a task set (three sets lived under v3): the per-row marker is
+        # task_signature (report.task_signature, MILLORA §C9).
+        self.assertEqual(config.TASKS_VERSION, "v5")
 
 class TestWeightsUnchanged(unittest.TestCase):
     def test_weights_unchanged(self):
