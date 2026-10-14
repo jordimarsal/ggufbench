@@ -1,0 +1,14 @@
+{
+  "note": "Models pruned from the fleet (2026-10-13): the .gguf and its profile are gone, so the model cannot be run again — its pool rows stay as a measurement record and render gray in report.html. This file is the registry: models/ lives outside the repo and the archived profiles under models/retired/ were later deleted (they were duplicated information, see models/retired/README.md), which silently un-grayed the record. Stems match the .gguf file name without extension (what the pool row carries).",
+  "retired": [
+    {"stem": "Qwen3-Coder-30B-A3B-Instruct-UD-Q4_K_XL", "date": "2026-10-13", "reason": "invalid code row: server death at ~50th generation, never re-measured"},
+    {"stem": "NVIDIA-Nemotron-3.5-Lightning-30B-A3B-IQ4_XS", "date": "2026-10-13", "reason": "answers bash tasks with python fences (bash by_lang 0.28)"},
+    {"stem": "Muse-Glimmer-30B-KQuant-Dynamic-Q4_K_XL", "date": "2026-10-13", "reason": "borderline tool-calling, tools 33%"},
+    {"stem": "Qwen3.8-27B-UD-Q5_K_M", "date": "2026-10-13", "reason": "family pruning: UD-Q3_K_XL + TurboFCFusion + Heretic keep the family's numbers"},
+    {"stem": "Qwen3.8-27B-UD-Q4_K_XL", "date": "2026-10-13", "reason": "family pruning (same)"},
+    {"stem": "Qwen3.8-27B-UD-Q4_K_M", "date": "2026-10-13", "reason": "family pruning (same)"},
+    {"stem": "Qwen3.8-27B-Coder390-EfficientThink-Q4LynnStyle-MTP", "date": "2026-10-13", "reason": "family pruning (same)"},
+    {"stem": "Huihui-Ornith-1.5-35B-A3B-abliterated.i1-IQ3_S", "date": "2026-10-13", "reason": "redundant with Ornith-APEX (same family)"},
+    {"stem": "Ornith-1.5-35B-A3B-Abliterated-MTPv2-UD-IQ4_XS", "date": "2026-10-13", "reason": "redundant with Ornith-APEX (same family)"}
+  ]
+}

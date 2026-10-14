@@ -34,16 +34,39 @@ _RETIRED_STEMS = None
 
 
 def _retired_stems():
-    """Stems of the model profiles archived in models/retired/ — the pruned
-    fleet. Their pool rows stay as a record but render gray. Cached; tests
-    patch this function for determinism."""
+    """Stems of the pruned fleet. Their pool rows stay as a record but render gray.
+    Two sources, unioned: the tracked registry (config.RETIRED_FILE — survives the
+    profiles being deleted outside the repo) and any profile still parked under
+    models/retired/ (parking a profile there retires it by convention). Cached; tests
+    reset html_report._RETIRED_STEMS or patch this function for determinism."""
     global _RETIRED_STEMS
     if _RETIRED_STEMS is None:
-        try:
-            _RETIRED_STEMS = {p.stem for p in (config.MODELS_DIR / "retired").glob("*.txt")}
-        except OSError:
-            _RETIRED_STEMS = set()
+        _RETIRED_STEMS = _registry_stems() | _archived_profile_stems()
     return _RETIRED_STEMS
+
+
+def _registry_stems():
+    """Stems listed in the retired registry. A missing/corrupt file degrades to empty
+    (the report is regenerated on machines that may not have it), never raises."""
+    try:
+        data = json.loads(config.RETIRED_FILE.read_text())
+    except (OSError, ValueError):
+        return set()
+    stems = set()
+    for entry in data.get("retired") or []:
+        stem = entry.get("stem") if isinstance(entry, dict) else entry
+        if stem:
+            stems.add(str(stem))
+    return stems
+
+
+def _archived_profile_stems():
+    """Stems of the profiles archived under models/retired/ (outside the repo: absent
+    on CI checkouts, so this degrades to empty rather than failing)."""
+    try:
+        return {p.stem for p in (config.MODELS_DIR / "retired").glob("*.txt")}
+    except OSError:
+        return set()
 
 
 def _is_retired(model):

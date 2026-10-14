@@ -12,6 +12,11 @@ RESULTS_MODELS = RESULTS_DIR / "models"
 RESULTS_RUNS = RESULTS_DIR / "runs"
 TOKEN_BUDGETS = RESULTS_DIR / "token_budgets.json"
 POOL_FILE = RESULTS_MODELS / "pool.jsonl"
+# Retired-fleet registry (tracked, unlike results/ and models/): stems of the models
+# pruned from models/ — their pool rows stay as a record and render gray in the report.
+# A tracked file because the profiles archived under models/retired/ are outside the repo
+# and were deleted (2026-10-13), which silently un-grayed those rows.
+RETIRED_FILE = BENCH_DIR / "harness" / "retired.json"
 # Context audit artifact (written by harness/tools/context-audit.py): what `--context
 # adapted` reads. Shape: {"<slug>": {"ctx_max": int, ...}} keyed by audit_key().
 AUDIT_FILE = RESULTS_MODELS / "context.json"

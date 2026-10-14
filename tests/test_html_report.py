@@ -486,8 +486,8 @@ class TestRunSpreadCells(unittest.TestCase):
 
 
 class TestRetiredGray(unittest.TestCase):
-    """Retired models (stems in models/retired/) render gray as a record and
-    never appear in Recommendations (by use)."""
+    """Retired models (stems in the tracked registry or in models/retired/) render gray
+    as a record and never appear in Recommendations (by use)."""
 
     def _render_foo_retired(self, **kw):
         with mock.patch.object(html_report, "_retired_stems", return_value={"foo"}):
@@ -514,14 +514,67 @@ class TestRetiredGray(unittest.TestCase):
         self.assertIn("Recommendations (by use)", html)
 
     def test_retired_dir_missing_is_empty(self):
-        # models/retired/ lives outside the repo: absent on CI checkouts.
-        # The lookup must degrade to "nothing retired", never crash.
-        with mock.patch.object(config, "MODELS_DIR", Path("/nonexistent-xyz")):
-            html_report._RETIRED_STEMS = None
-            try:
+        # models/retired/ and the registry live outside the repo (absent on CI
+        # checkouts). The lookup must degrade to "nothing retired", never crash.
+        self._isolated(models_dir=Path("/nonexistent-xyz"),
+                       retired_file=Path("/nonexistent-xyz/retired.json"))
+        self.assertEqual(html_report._retired_stems(), set())
+
+    def test_registry_greys_rows_without_archived_profiles(self):
+        """The regression this fixes: the profiles under models/retired/ were deleted
+        (they duplicated the registry), and the gray marking vanished with them."""
+        with tempfile.TemporaryDirectory() as d:
+            reg = Path(d) / "retired.json"
+            reg.write_text('{"retired": [{"stem": "foo", "date": "2026-10-13"}]}')
+            self._isolated(models_dir=Path(d), retired_file=reg)
+            self.assertEqual(html_report._retired_stems(), {"foo"})
+            html = html_report.render([_mk()])
+        self.assertIn('<div class="trow retired">', html)
+        self.assertIn("gray = retired model (record only)", html)
+
+    def test_registry_and_archived_profiles_are_unioned(self):
+        with tempfile.TemporaryDirectory() as d:
+            reg = Path(d) / "retired.json"
+            reg.write_text('{"retired": [{"stem": "foo"}]}')
+            (Path(d) / "retired").mkdir()
+            (Path(d) / "retired" / "bar.txt").write_text("-c 4096")
+            self._isolated(models_dir=Path(d), retired_file=reg)
+            self.assertEqual(html_report._retired_stems(), {"foo", "bar"})
+
+    def test_broken_registry_degrades_to_empty(self):
+        for payload in ("{not json", '{"retired": []}', '{"retired": null}'):
+            with tempfile.TemporaryDirectory() as d:
+                reg = Path(d) / "retired.json"
+                reg.write_text(payload)
+                self._isolated(models_dir=Path(d), retired_file=reg)
                 self.assertEqual(html_report._retired_stems(), set())
-            finally:
-                html_report._RETIRED_STEMS = None
+
+    def test_bare_string_registry_entries_accepted(self):
+        with tempfile.TemporaryDirectory() as d:
+            reg = Path(d) / "retired.json"
+            reg.write_text('{"retired": ["foo"]}')
+            self._isolated(models_dir=Path(d), retired_file=reg)
+            self.assertEqual(html_report._retired_stems(), {"foo"})
+
+    def test_shipped_registry_is_wellformed(self):
+        """The registry that ships with the repo parses and greys by file stem (the
+        pool row's identity), so models/ can be re-pruned without touching the code."""
+        self.addCleanup(setattr, html_report, "_RETIRED_STEMS", None)
+        html_report._RETIRED_STEMS = None
+        stems = html_report._retired_stems()
+        self.assertIn("Qwen3-Coder-30B-A3B-Instruct-UD-Q4_K_XL", stems)
+        self.assertIn("NVIDIA-Nemotron-3.5-Lightning-30B-A3B-IQ4_XS", stems)
+        self.assertTrue(html_report._is_retired(
+            "models/Qwen3-Coder-30B-A3B-Instruct-UD-Q4_K_XL.gguf"))
+        self.assertFalse(html_report._is_retired("models/qwen36-35b-distill-mxfp4_moe.gguf"))
+
+    def _isolated(self, models_dir, retired_file):
+        """Points the two paths the registry reads at test data (config.override, the
+        D1 pattern) and resets the stems cache — the cache is deliberate: the report
+        asks for the same set once per row."""
+        html_report._RETIRED_STEMS = None
+        self.addCleanup(setattr, html_report, "_RETIRED_STEMS", None)
+        self.enterContext(config.override(MODELS_DIR=models_dir, RETIRED_FILE=retired_file))
 
 
 class TestComparePicker(unittest.TestCase):
