@@ -43,6 +43,20 @@ GPU, not the dataset:_
   32768 code budget must fit with the prompt; sampling stays the harness baseline).
   Run: `--models models/MiniCPM-V-4_7-35B-A3B-Q4_K_M.gguf --runs 3` (thinking OFF, the pool
   protocol), log in `harness/logs/minicpm_v47/`.
+- **2026-10-14 · First run done (24 min) — and it found a grader bug, not a model trait.** The
+  row came out `tools 1.000 ±0 · code 0.571 ±4 · agent 0.895 ±1 · 18→23 ms · global 0.826 ±1`
+  with a nonsense level breakdown (`easy 0.44 < hard 0.75`) and a bash-only language pattern.
+  Reading the trace showed java/python/typescript tasks recorded as `bash` entries: the
+  multi-run aggregation looked entries up by `id`, and ids are unique per *dimension*, not per
+  language (the easy tier mirrors `bubble_sort` etc. across the four) — so every shared id took
+  bash's outcome. The same refactor had also hardcoded `grade_agent`'s `by_lang` to `{}` and
+  dropped `lang` from the agent trace. Fixed (MILLORA §D10, commit 53779ba) with 5 regression
+  tests; SPEC §4.4 + AGENTS §3 now state the identity rule. **Consequence: every existing row's
+  code/agent score is skewed — the C9 re-measure is the only way to valid numbers**, and the
+  MiniCPM row was re-measured right after the fix (log `batch-off-runs3-fixed.log`).
+  Tweets aside, the interesting part: the model itself looks strong on tools/agent and weak on
+  bash (it answers bash prompts with rust/python fences → exclusions), which the fixed grader
+  will now attribute to the right language.
 
 ## Next step
 
