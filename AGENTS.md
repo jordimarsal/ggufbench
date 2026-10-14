@@ -146,14 +146,21 @@ python3 -m ggufbench.html_report                        # writes ggufbench/resul
 3. **One task = one file** in `tasks/<dim>/...` (UPPERCASE constants; the loader reads
    `ID`/`PROMPT` uppercase). `EXPECTED` without `arguments` = tool name only;
    `arguments: {}` = empty call. The agent resolves files case-insensitively (java:
-   `Solution.java`).
+   `Solution.java`). **Agent tasks** (`GOAL`, `INITIAL_FILES`, `TEST_FILE`, `MAX_TURNS`)
+   run on a small project: the model has `list_files` + `read_file` + `write_file` +
+   `run_tests`, every file except the solution/test travels to the executor (so a fix in a
+   module the test never names counts), the sandbox is flat (no directories) and the test
+   file is read-only.
    **Code levels:** `ID` ending in `_hard` → hard level; ending in `_expert` →
    expert level (multi-file: they can declare `EXTRA_FILES`, a dict of support files
    written into the sandbox before the solution and the test; plain names, no paths).
    `--level easy|hard|expert` filters them; without `--level` all run and the code
-   score stays folded. `tasks_version` = "v3" since the expert level exists
-   (v2 = hard, v1 = base). Reference solutions for hard and expert are NOT
-   committed (do not leak them to the models).
+   score stays folded. `tasks_version` labels the suite generation — "v1" base, "v2" hard,
+   "v3" expert, "v4" the C3 counts (16/60/60), "v5" the C3+C4 fill (tools 18, code 72,
+   agent 68) — but the label does not describe the set: every row
+   records its real `task_signature` (MILLORA §C9), and `--sort version` groups by it.
+   Reference solutions for hard and expert are NOT committed (do not leak them to the
+   models).
    **Thinking:** `--thinking on|off` (default `off`, via `chat_template_kwargs` for both
    engines; no `.txt` overrides it). Recorded in every result and the pool keys
    by `(slug, thinking)` — both modes coexist; the scoreboard splits them into rows

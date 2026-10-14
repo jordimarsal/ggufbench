@@ -208,24 +208,34 @@ Table 2 and the per-language profile.
 
 ### 4.5 agent.py — multi-step agent loop
 In-memory mini code environment. An agent task defines:
-`{lang, goal, initial_files, max_turns}`.
+`{lang, goal, initial_files, max_turns}` (`MAX_TURNS` is per task: the task files set it,
+the loader maps it and the grader honours it).
 
-Tools available to the model: `read_file(path)`, `write_file(path, content)`,
+Tools available to the model: `list_files()`, `read_file(path)`, `write_file(path, content)`,
 `run_tests()`. The loop:
 ```
 env = dict(initial_files)
 history = [user(goal)]
 for turn in 1..max_turns:
-    resp = client.chat(history, tools=[read_file, write_file, run_tests])
+    resp = client.chat(history, tools=[list_files, read_file, write_file, run_tests])
     if no tool_calls: break
     for each tool_call:
         result = execute_tool(tool_call, env, lang)   # mutates env / runs tests
         history.append(tool(result))
 success = check_goal(env, lang)   # final run_tests passes?
 ```
-`run_tests()` uses `executors.py` with the task language: writes the
-current files of `env` to the tempdir, runs the test, returns pass/fail + output.
+`run_tests()` uses `executors.py` with the task language: it writes the **whole project**
+(the solution, the test and every other file in `env`, passed as `extra_files`) to the
+tempdir, runs the test, returns pass/fail + output. That is what makes a multi-file task
+measurable: the bug can live in a module the test never names, and editing it changes the
+verdict (`java` compiles every `.java`, so support classes travel too). The sandbox is
+**flat**: `write_file` rejects names with a directory part or `..`.
 `check_goal` = final `run_tests()` with exit 0.
+
+The test file is **read-only** and grading always uses the pristine copy: several tasks say
+in their goal "fix the code without touching the tests", and before 2026-10-14 nothing
+enforced it (a model could rewrite the test and pass). Files with a directory part are
+refused for the same reason the loader refuses `EXTRA_FILES` paths.
 
 ### 4.6 report.py — scoreboard and detail
 Reporting has **3 granularity levels**:

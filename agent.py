@@ -16,51 +16,94 @@ TOOLS = [
                                       "content": {"type": "string"}},
                        "required": ["path", "content"]}}},
     {"type": "function", "function": {
+        "name": "list_files", "description": "List the project's files (one name per line).",
+        "parameters": {"type": "object", "properties": {}, "required": []}}},
+    {"type": "function", "function": {
         "name": "run_tests", "description": "Run the project's tests.",
         "parameters": {"type": "object", "properties": {},
                        "required": []}}},
 ]
 
 
-def _get_file(files, name, default=""):
-    """Searches 'name' in files; if not exact, tries case-insensitively:
-    java names its files Solution.java/Test.java (javac requires the file
-    to be named after the public class) and an exact 'solution.java' lookup
-    left the solution empty: no java agent task had ever passed."""
+def _resolve_name(files, name):
+    """The key in 'files' that 'name' resolves to, or None: exact first, then
+    case-insensitive — java names its files Solution.java/Test.java (javac requires the file
+    to be named after the public class) and an exact 'solution.java' lookup left the solution
+    empty, so no java agent task had ever passed. The agent needs the NAME (to keep the
+    runner's files out of the project it hands to the executor); `read_file` needs the content."""
     if name in files:
-        return files[name]
-    low = name.lower()
-    for k, v in files.items():
+        return name
+    low = str(name).lower()
+    for k in files:
         if k.lower() == low:
-            return v
-    return default
+            return k
+    return None
 
 
 class MockEnv:
+    """The sandbox the agent works on: the task's files in memory.
+
+    Two files are the runner's (`solution.<ext>` and the task's TEST_FILE): the solution is
+    what the model edits, the test is what grades. Every OTHER file is a project file — the
+    model may read and edit it, and `run_tests` hands all of them to the executor, so a fix
+    that spans files (a module the test imports) changes the verdict: that is what makes the
+    multi-file tasks (MILLORA §C4) measurable.
+
+    The test file is READ-ONLY, and grading always uses the pristine copy. Several tasks
+    state it in their goal ("fix solution.py ... without ever modifying the test file") and
+    nothing enforced it: a model could rewrite the test and turn "make the tests pass" into
+    "delete the tests".
+    """
+
     def __init__(self, files, lang, test_file="test_solution.py"):
         self.files = dict(files)
+        self.initial = dict(files)      # pristine: what the test file is resolved against
         self.lang = lang
         self.test_file = test_file
+
+    def _names(self):
+        """(solution, test) as the executor will name them: exact, then case-insensitive
+        (java: Solution.java/Test.java), then the task's TEST_FILE. None when absent."""
+        ext = config.Lang.exts()[self.lang]
+        sol = _resolve_name(self.files, f"solution{ext}") or _resolve_name(self.initial, f"solution{ext}")
+        tst = (_resolve_name(self.initial, f"test_solution{ext}")
+               or _resolve_name(self.initial, self.test_file)
+               or _resolve_name(self.files, f"test_solution{ext}")
+               or _resolve_name(self.files, self.test_file))
+        return sol, tst
 
     def read_file(self, path):
         if path in self.files:
             return self.files[path]
         return f"error: no such file: {path}"
 
+    def list_files(self):
+        """The project's file names, sorted — the cheap first move of a real agent before
+        reading anything, and the reason a task can ask for a fix without naming the file."""
+        return "\n".join(sorted(self.files)) if self.files else "(no files)"
+
     def write_file(self, path, content):
-        self.files[path] = content
-        return f"wrote {len(content)} bytes to {path}"
+        name = str(path or "").strip()
+        if not name or "/" in name or "\\" in name or name in (".", ".."):
+            return (f"error: '{path}' is not a plain file name — the sandbox is flat, "
+                    f"write e.g. 'utils.py'")
+        _sol, tst = self._names()
+        if tst and name.lower() == str(tst).lower():
+            return f"error: {name} is read-only (the task's tests cannot be modified)"
+        self.files[name] = content
+        return f"wrote {len(content)} bytes to {name}"
 
     def run_tests(self):
         # Unified convention across languages: solution.<ext> + test_solution.<ext>
         # (with fallback to self.test_file). Python used to be special-cased; now
         # everything goes through the same path because the convention is consistent.
-        # The lookup is case-insensitive (see _get_file: java tasks use Solution.java/Test.java).
-        ext = config.Lang.exts()[self.lang]
-        sol = _get_file(self.files, f"solution{ext}")
-        tst = _get_file(self.files, f"test_solution{ext}",
-                        _get_file(self.files, self.test_file))
-        r = executors.run(self.lang, sol, tst)
+        # The lookup is case-insensitive (see _resolve_name: java uses Solution.java/Test.java).
+        sol, tst = self._names()
+        # The PRISTINE test grades (self.initial): an edit the model made to it is ignored,
+        # never silently used. The rest of the project travels with its current content.
+        test = self.initial.get(tst, "") if tst else ""
+        project = {k: v for k, v in self.files.items() if k not in (sol, tst)}
+        r = executors.run(self.lang, self.files.get(sol), test, extra_files=project)
         return (r["passed"], r["output"])
 
 
@@ -69,6 +112,8 @@ def _exec_tool(name, args, env):
         return env.read_file(args.get("path", ""))
     if name == "write_file":
         return env.write_file(args.get("path", ""), args.get("content", ""))
+    if name == "list_files":
+        return env.list_files()
     if name == "run_tests":
         ok, out = env.run_tests()
         return ("TESTS PASS" if ok else "TESTS FAIL") + f"\n{out[-1500:]}"
