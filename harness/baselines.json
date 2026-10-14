@@ -36,7 +36,8 @@
     }
   },
   "test_load_tools": {
-    "mean_ms": 0.145,
+    "mean_ms": 0.277,
+    "note": "re-recorded 2026-10-14: the C3 batch took tools from 8 to 16 task files (2026-10-13), so the loader costs ~2x; the code loader (unchanged task count) stays at 1.01x",
     "thresholds": {
       "mean_ms": {
         "warning": 1.5,
@@ -63,7 +64,8 @@
     }
   },
   "test_load_agent": {
-    "mean_ms": 0.407,
+    "mean_ms": 0.948,
+    "note": "re-recorded 2026-10-14: the three C3 commits took agent from 24 to 60 task files (2026-10-13), so the loader costs ~2.5x — the measured 2.33x matches the file ratio; the code loader (unchanged task count) stays at 1.01x",
     "thresholds": {
       "mean_ms": {
         "warning": 1.5,
