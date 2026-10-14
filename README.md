@@ -25,9 +25,19 @@ Common to every row: thinking OFF unless stated, llama-server 0.6.0-dev+4413a19,
 more), 2× RTX 5080. `excl.` = excluded with a recorded reason. 9 models were retired on
 2026-10-13: their rows stay in the full report, grayed, as a record.
 
-**Current set — 18 tools · 72 code · 72 agent** (v5, 2026-10-14): **no rows measured yet.**
-The fleet re-measure runs at this set (one frozen tuple), and until it does, every row in
-the pool below belongs to a superseded set.
+**Current set — 18 tools · 72 code · 72 agent** (v5, 2026-10-14)
+
+| model | think | tools | code | agent | speed | global |
+|---|---|---|---|---|---|---|
+| minicpm-v-4.7-35b-a3b q4_k_m | off | 100% ±0 | 83% ±1 *(2 excl.)* | 90% ±2 | 26ms | **0.85 ±0** |
+
+One row so far (2× RTX 5080, ctx 131072, 24 min for the three rounds). Its weak spot is the
+expert code tier (0.67 vs 0.91 easy / 0.87 hard) and bash (it answers bash prompts with
+fences in other languages, which the harness records as exclusions, never as silent
+failures). The rest of the pool below is **superseded**, and it was also measured before the
+grader fix of 2026-10-14 (§D10 in `docs/MILLORA.md`: shared task ids were attributed across
+languages), so its code/agent numbers are skewed: the fleet re-measure at this set is the
+next step.
 
 **Superseded — 16 tools · 60 code · 60 agent** (v4: the two rows of 2026-10-14)
 
