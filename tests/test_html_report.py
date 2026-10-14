@@ -37,10 +37,14 @@ class TestRender(unittest.TestCase):
         # global = .3*.75 + .3*.9 + .25*.5 + .15*1.0 = 0.77 (speed: it is the minimum -> 1.0)
         self.assertIn("0.77", html)
 
-    def test_self_contained_no_js_no_network(self):
-        """The promise of the module: double click and it works. No script, no external resource."""
+    def test_self_contained_no_external_resources(self):
+        """The promise of the module: double click and it works — offline, no dependency.
+        It may carry the one inline script that orders the ranking, but nothing fetched:
+        no src=, no external URL."""
         html = html_report.render([_mk()])
-        self.assertNotIn("<script", html)
+        self.assertLessEqual(html.count("<script"), 1)            # the order control
+        self.assertIn('<script>', html)
+        self.assertNotIn("<script src", html)
         self.assertNotIn("http://", html)
         self.assertNotIn("https://", html)
 
@@ -96,8 +100,9 @@ class TestRender(unittest.TestCase):
         html = html_report.render([_mk(thinking="off"), _mk("models/bar.gguf",
                                                              thinking="on")])
         base, _, rec = html.partition("Recommendations (by use)")
-        self.assertEqual(base.count("think:off"), 8)  # ranking + 6 rows + matrix
-        self.assertEqual(base.count("think:on"), 8)
+        # ranking + 6 dimension rows + matrix + the "by task set" block (§C9)
+        self.assertEqual(base.count("think:off"), 9)
+        self.assertEqual(base.count("think:on"), 9)
         self.assertIn('<span class="badge">think:off</span> foo', base)
         self.assertIn('title="foo"', base)
         self.assertIn("think:off", rec)  # also in the cards
@@ -158,7 +163,7 @@ class TestRender(unittest.TestCase):
         self.assertIn("Mixed conditions", html)
         self.assertIn("task sets", html)
         self.assertIn("16/60/60: 1 rows", html)
-        self.assertIn('task sets <b>', html)          # header chip
+        self.assertIn('task sets <a href="#set-', html)   # header chip links to the blocks
 
     def test_uniform_task_sets_do_not_trigger_the_banner(self):
         a, b = _mk(name="models/aaa.gguf"), _mk(name="models/bbb.gguf")
@@ -166,7 +171,86 @@ class TestRender(unittest.TestCase):
             r["task_signature"] = "16/60/60"
         html = html_report.render([a, b])
         self.assertNotIn("Mixed conditions", html)   # same day, same set
-        self.assertNotIn('task sets <b>', html)
+        self.assertNotIn('task sets <a href="#set-', html)
+
+
+class TestTaskSetDisplay(unittest.TestCase):
+    """§C9 follow-up: every row states the test version it was measured with, the board
+    can be ordered by set (static blocks + the in-page control), and the section titles
+    take their task counts from the data instead of a hardcoded number."""
+
+    def _rows(self):
+        a = _mk(name="models/big-set.gguf", code_score=0.9, tools_score=0.9)
+        a["task_signature"] = "16/60/60"
+        a["tasks_version"] = "v3"
+        a["tools"]["trace"] = [{"id": "t"}] * 16
+        a["code"]["trace"] = [{"id": "c"}] * 60
+        a["agent"]["trace"] = [{"id": "g"}] * 60
+        b = _mk(name="models/old-set.gguf", code_score=0.5, tools_score=0.5)
+        b["task_signature"] = "8/60/24"
+        b["tasks_version"] = "v3"
+        b["tools"]["trace"] = [{"id": "t"}] * 8
+        return a, b
+
+    def test_every_row_carries_its_test_version(self):
+        a, b = self._rows()
+        html = html_report.render([a, b])
+        self.assertIn('<span class="badge set">v3·16/60/60</span>', html)
+        self.assertIn('<span class="badge set">v3·8/60/24</span>', html)
+        self.assertIn("version v3·16/60/60", html)     # also in the row's detail line
+
+    def test_static_by_set_section_and_anchors(self):
+        a, b = self._rows()
+        html = html_report.render([a, b])
+        self.assertIn("By task set", html)
+        self.assertEqual(html.count('<div class="setblock"'), 2)
+        # The header chip links to the blocks, and the ids match.
+        self.assertIn('href="#set-16-60-60"', html)
+        self.assertIn('id="set-16-60-60"', html)
+        self.assertIn("8/60/24 tasks", html)
+        self.assertIn("1 row ", html)                  # each block counts its rows
+
+    def test_order_control_lists_every_sort_and_marks_the_static_one(self):
+        a, b = self._rows()
+        html = html_report.render([a, b], sort="version")
+        self.assertIn('id="sortkey"', html)
+        for key in ("global", "tools", "code", "agent", "speed", "version"):
+            self.assertIn(f'<option value="{key}"', html)
+        self.assertIn('<option value="version" selected>version</option>', html)
+
+    def test_rows_carry_the_data_for_client_side_ordering(self):
+        a, b = self._rows()
+        row = [l for l in html_report.render([a, b]).splitlines()
+               if 'data-set="v3·16/60/60"' in l][0]
+        for attr in ('data-g=', 'data-tools=', 'data-code=', 'data-agent=', 'data-speed=',
+                     'data-setsize="136"', 'data-set="v3·16/60/60"'):
+            self.assertIn(attr, row)
+
+    def test_static_order_follows_the_requested_sort(self):
+        a, b = self._rows()
+        by_global = html_report.render([a, b])                    # a wins on global
+        self.assertLess(by_global.index("big-set"), by_global.index("old-set"))
+        # ordered by set: the bigger set (16/60/60) comes first even if the other row's
+        # own set is older — never interleaving two conditions (that is the point).
+        by_set = html_report.render([b, a], sort="version")
+        self.assertLess(by_set.index("big-set"), by_set.index("old-set"))
+        by_code = html_report.render([b, a], sort="code")
+        self.assertLess(by_code.index("big-set"), by_code.index("old-set"))
+
+    def test_section_titles_take_task_counts_from_the_data(self):
+        a, b = self._rows()
+        html = html_report.render([a, b])
+        self.assertIn("Code (60 tasks · 4 languages)", html)
+        self.assertIn("Multi-step agent (60 tasks)", html)
+        self.assertIn("Tool-calling (16 tasks)", html)
+        self.assertNotIn("Tool-calling (8 tasks)", html)   # the old hardcoded number
+
+    def test_set_named_in_the_mixed_conditions_banner(self):
+        a, b = self._rows()
+        static = html_report.render([a, b])
+        banner = static.split('<div class="banner">')[1].split("</div>")[0]
+        self.assertIn("task sets", banner)
+        self.assertIn("16/60/60: 1 rows", banner)
 
 
 class TestMain(unittest.TestCase):

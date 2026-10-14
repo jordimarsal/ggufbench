@@ -14,30 +14,75 @@ No cloud, no APIs, no puzzles. The scoreboard answers one question:
 
 ## Scoreboard
 
-7 models, thinking OFF, harness v3 (12 tools · 60 code · 28 agent tasks), ctx 32K,
-llama-server 0.6.0-dev+4413a19, **3 runs per task, seeds 42/43/44** (mean ± stdev),
-measured 2026-10-13/14 on 2× RTX 5080. `excl.` = excluded with a recorded reason.
-9 models retired 2026-10-13 (flota prima — vegeu `models/retired/`); their rows
-stay in the full report as a record. Strata dual complete on engine 0.1.43.1
-(off 0.80 ±2 ★ optimal, on 0.76 ±0 — thinking hurts here, 5.7× the wall clock).
-Llama ON rows pending their own pass.
+**Three task sets live in the pool** — the suite grew and the fleet re-measure under the
+current one is still pending. A score is comparable **only inside a set**, so every table
+below is one set and the full report marks each row with its `SET` badge
+(`label·task-set`, e.g. `v3·16/60/60`). Read columns down a table, never rows across
+tables.
 
-Live rendered report: <https://jordimarsal.github.io/ggufbench/> ·
-regenerate locally with `harness/tools/publish-report.sh` after a re-measure.: <https://jordimarsal.github.io/ggufbench/> ·
-regenerate locally with `harness/tools/publish-report.sh` after a re-measure.
+Common to every row: thinking OFF unless stated, llama-server 0.6.0-dev+4413a19,
+**3 runs per task, seeds 42/43/44** (mean ± stdev), ctx 32K (unless the profile pins
+more), 2× RTX 5080. `excl.` = excluded with a recorded reason. 9 models were retired on
+2026-10-13: their rows stay in the full report, grayed, as a record.
+
+**Current set — 16 tools · 60 code · 60 agent** (13 scored tasks per language, easy+hard+expert)
+
+| model | think | tools | code | agent | speed | global |
+|---|---|---|---|---|---|---|
+| qwen36-35b-distill-mxfp4_moe | off | 94% ±0 | 76% ±2 | 77% ±3 | 18ms | 0.81 ±0 |
+| strata-swift-iq3_xxs | off | 84% ±9 | 77% ±2 | 78% ±5 | 42ms | 0.73 ±4 |
+
+**Superseded — 12 tools · 60 code · 28 agent** (the OFF batch, 2026-10-12/13 — re-measure pending)
 
 | model | think | tools | code | agent | speed | global |
 |---|---|---|---|---|---|---|
 | gemma-4-26b-a4b-it-ud-q5_k_xl | off | 92% ±0 | 91% ±3 | 93% ±0 | 32ms | 0.84 ±1 |
-| qwen36-35b-distill-mxfp4_moe | off | 92% ±0 | 80% ±2 | 82% ±0 | 17ms | 0.84 ±1 |
 | qwen3_8-27b-turbofcfusion-...-mtp-q4_k_s | off | 92% ±0 | 84% ±4 | 96% ±0 | 45ms | 0.81 ±1 |
+| strata-iq3_xxs | off | 86% ±5 | 88% ±4 | 96% ±0 | 50ms | 0.80 ±2 ★ |
 | qwen3_8-27b-heretic-q4_k_m | off | 92% ±0 | 87% ±4 | 92% ±8 | 67ms | 0.79 ±3 |
 | qwen3_8-27b-ud-q3_k_xl | off | 92% ±0 | 76% ±1 | 92% ±8 | 36ms | 0.78 ±2 |
 | ornith-1_5-35b-a3b-apex-mtp-quality | off | 92% ±0 | 73% ±0 | 87% ±8 | 29ms | 0.78 ±2 |
 | qwen3-vl-8b-instruct-1m-q6_k | off | 92% ±0 | 76% ±1 | 87% ±8 | 36ms | 0.77 ±2 |
-| strata-iq3_xxs | off | 86% ±5 | 88% ±4 | 96% ±0 | 50ms | 0.80 ±2 |
-| strata-swift-iq3_xxs | off | 84% ±9 | 77% ±2 | 78% ±5 | 42ms | 0.73 ±4 |
 
+**Older — 8 tools · 60 code · 24 agent** (the thinking-ON batch, 2026-10-10). Not
+reproduced here: a thinking-ON run costs 5-6× the wall clock for worse-or-equal quality
+(Strata measured both modes on the same engine), so the fleet default is OFF and no ON
+re-pass is planned. The rows stay in the full report.
+
+`★` = optimal thinking mode by data (not worse quality within 0.02 and no more wall
+clock; docs/MILLORA.md §C8).
+
+### Task-set lineage
+
+| label | set | what changed |
+|---|---|---|
+| v1 | base | 8 tools · 36 code (easy) · 24 agent |
+| v2 | hard tier | +16 `_hard` code tasks |
+| v3 | expert tier | +12 `_expert` code tasks, `EXTRA_FILES` sandbox |
+| v4 | **current** | the C3 additions: tools 8→16, agent 24→60 |
+
+The label is a name, not the condition: **v3 shipped four different counts**
+(8/60/24, 12/60/28, 12/60/36, 16/60/60) because the additions never bumped it. That is
+why every row now carries its real set (`task_signature`, derived from the graded traces)
+and the report groups and sorts by it:
+
+```sh
+python3 -m ggufbench.run --scoreboard --sort version   # CLI: grouped by task set
+python3 -m ggufbench.run --scoreboard --html           # report: SET badge + "By task set"
+```
+
+Live rendered report: <https://jordimarsal.github.io/ggufbench/> · regenerate locally
+with `harness/tools/publish-report.sh` after a re-measure.
+
+## Quickstart
+
+The harness is imported as a package, so every command runs from the **workspace root**
+— the directory that holds `ggufbench/` and your `models/`:
+
+```sh
+# 1. clone it next to the folder with your GGUFs
+git clone https://github.com/jordimarsal/ggufbench.git
+cd ggufbench
 
 # 2. put your GGUF models next to it (../models/*.gguf)
 
@@ -57,14 +102,15 @@ python3 -m ggufbench.run --compare "qwen3_8-27b-ud-q5_k_m,off" "qwen3_8-27b-ud-q
 | dim | what it measures | how |
 |---|---|---|
 | **speed** | prompt processing + generation tok/s | real server timings, 3 samples |
-| **tools** | 8 tool-call tasks (arguments, multi-call, error handling) | graded in a sandbox |
-| **code** | 36 coding tasks across python/bash/java/typescript (easy + hard + expert) | tests must pass, `excl.` recorded |
-| **agent** | multi-step work: fix bugs, build features, use folder context | turn + tool-call accounting |
+| **tools** | 16 tool-call tasks (arguments, multi-call, error handling) | graded in a sandbox |
+| **code** | 60 coding tasks across python/bash/java/typescript (32 easy + 16 hard + 12 expert) | tests must pass, `excl.` recorded |
+| **agent** | 60 multi-step tasks: fix bugs, build features, use folder context | turn + tool-call accounting |
 
 ## One harness, receipts included
 
 - same flags, temperature and seed for every model — the scoreboard is only valid
-  because every model runs the exact same harness (v3)
+  because every model runs the exact same harness, and every row states the task set it
+  really ran (`SET`: label·task-set; a score is comparable only inside a set)
 - single reasoning budget (32768 tokens); exclusions are recorded with a reason,
   never silent
 - every call leaves a receipt: timings, tool calls, per-task traces

@@ -34,6 +34,48 @@ def signature_counts(pool):
     return dict(sorted(counts.items(), key=lambda kv: (-kv[1], kv[0])))
 
 
+# Orderings the scoreboard accepts (--sort). 'version' is not a metric: it groups the
+# pool by task set (biggest set first, global inside each group), which is how a reader
+# avoids comparing scores that were not measured on the same tasks.
+SORTS = ("global", "tools", "code", "agent", "speed", "version")
+
+
+def _set_size(sig):
+    """Graded task-runs in a signature: '16/60/60' -> 136. -1 when a dimension is not
+    measured ('?'), so an incomplete row sorts last instead of pretending to be big."""
+    try:
+        parts = [int(p) for p in sig.split("/")]
+    except ValueError:
+        return -1
+    return sum(parts) if all(p > 0 for p in parts) else -1
+
+
+def sort_key(sort, weights, min_speed):
+    """Key function for the scoreboard (ascending, so the best/informative comes first).
+    Unknown keys fall back to 'global' — the caller validates, this never raises."""
+    def key(r):
+        sc = _scores(r)
+        if sort == "version":
+            return (-_set_size(task_signature(r)), -_global_score(r, weights, min_speed))
+        if sort == "tools":
+            return (-(sc["tools"] or 0), -_global_score(r, weights, min_speed))
+        if sort == "code":
+            return (-(sc["code"] or 0), -_global_score(r, weights, min_speed))
+        if sort == "agent":
+            return (-(sc["agent"] or 0), -_global_score(r, weights, min_speed))
+        if sort == "speed":
+            return (sc["speed_ms"] or 1e9, -_global_score(r, weights, min_speed))
+        return (-_global_score(r, weights, min_speed),)
+    return key
+
+
+def set_label(row):
+    """How a row states its test version: the recorded label plus the real task set
+    ('v3·16/60/60'). Both are shown because they disagree exactly where it matters — the
+    label collided across four sets (MILLORA §C9), and the signature is the condition."""
+    return f"{row.get('tasks_version') or '?'}·{task_signature(row)}"
+
+
 def _model_stem(model_field):
     """Model file name without path or extension (.gguf/.GGUF).
     'models/foo.gguf' -> 'foo'; 'foo' -> 'foo'. Robust against names with internal dots
@@ -309,9 +351,13 @@ def optimal_by_slug(pool):
     return out
 
 
-def _render_global_rows(pool, weights, title):
+def _render_global_rows(pool, weights, title, sort="global"):
     """Table 1 + tokens section (SPEC 4.6). One row per model with the score of each
-    dimension and a weighted global, sorted from best to worst.
+    dimension, its test version (`SET`: label·task-set) and a weighted global.
+
+    `sort` (--sort, report.SORTS) orders the table: by the weighted global (default), by
+    one dimension, or by task set — 'version' groups the pool by set so scores measured on
+    different tasks are never interleaved (MILLORA §C9).
 
     A multi-run row (--runs N, traces carrying the per-run outcomes) shows its spread
     next to the mean: '83% ±29' and '0.84 ±26' (see run_spread). Single-run rows —
@@ -319,6 +365,7 @@ def _render_global_rows(pool, weights, title):
     # Coerce None -> 0 so a model without speed (partial run) does not break the render.
     speed_values = [int((r.get("speed") or {}).get("speed_ms") or 0) for r in pool]
     min_speed = min((v for v in speed_values if v > 0), default=0)
+    key = sort_key(sort if sort in SORTS else "global", weights, min_speed)
     rows = []
     for r in pool:
         sc = _scores(r)
@@ -333,34 +380,40 @@ def _render_global_rows(pool, weights, title):
                          + (f" ({excl} excl.)" if excl else ""),
                  "agent": f"{sc['agent']:>5.0%}" + suffixes["agent"],
                  "global": f"{g:.2f}" + suffixes["global"]}
-        rows.append((config.slug(r["model"]), _think_mark(r), excl, sc, g, cells, suffixes))
-    rows.sort(key=lambda x: x[4], reverse=True)
-    nw = max((len(r[0]) for r in rows), default=5)
+        rows.append({"name": config.slug(r["model"]), "mode": _think_mark(r), "excl": excl,
+                     "sc": sc, "g": g, "cells": cells, "suffixes": suffixes,
+                     "set": set_label(r), "key": key(r)})
+    rows.sort(key=lambda row: row["key"])
+    nw = max((len(row["name"]) for row in rows), default=5)
+    sw = max([len("SET")] + [len(row["set"]) for row in rows])
     widths = dict(_CELLS)
-    for _name, _mode, _excl, _sc, _g, _cells, suffixes in rows:
-        for k, sfx in suffixes.items():
+    for row in rows:
+        for k, sfx in row["suffixes"].items():
             widths[k] = max(widths[k], _CELLS[k] + len(sfx))
     optimal = optimal_by_slug(pool)
-    header = (f"{'MODEL':{nw}} {'THINK':>5} {'tools':>{widths['tools'] + 1}} "
+    header = (f"{'MODEL':{nw}} {'THINK':>5} {'SET':{sw}} {'tools':>{widths['tools'] + 1}} "
               f"{'code':>{widths['code']}} {'agent':>{widths['agent'] + 1}} "
               f"{'speed':>9} {'GLOBAL':>{widths['global']}}")
     out = [f"=== {title} ===", header, "-" * len(header)]
-    for name, mode, _excl, sc, _g, cells, _sfx in rows:
+    for row in rows:
+        sc = row["sc"]
         sp = f"{sc['speed_ms']}ms" if sc["speed_ms"] else "—"
-        think = f"{mode:>4} ★" if optimal.get(name) == mode else f"{mode:>5}"
-        out.append(f"{name:{nw}} {think:>5} {cells['tools']:>{widths['tools']}} "
-                   f"{cells['code']:>{widths['code']}} {cells['agent']:>{widths['agent']}} "
-                   f"{sp:>9} {cells['global']:>{widths['global']}}")
+        think = f"{row['mode']:>4} ★" if optimal.get(row["name"]) == row["mode"] else f"{row['mode']:>5}"
+        out.append(f"{row['name']:{nw}} {think:>5} {row['set']:{sw}} "
+                   f"{row['cells']['tools']:>{widths['tools']}} "
+                   f"{row['cells']['code']:>{widths['code']}} "
+                   f"{row['cells']['agent']:>{widths['agent']}} "
+                   f"{sp:>9} {row['cells']['global']:>{widths['global']}}")
     # Tokens-per-second heading (output and input).
     out.append("")
     out.append("=== Tokens per second (t/s) ===")
     theader = f"{'MODEL':{nw}} {'gen (out)':>10} {'prompt (in)':>12}"
     out.append(theader)
     out.append("-" * len(theader))
-    for name, _mode, _excl, sc, _g, _cells, _sfx in rows:
-        gen = f"{sc['gen_tps']:.1f}" if sc["gen_tps"] else "—"
-        prom = f"{sc['prompt_tps']:.1f}" if sc["prompt_tps"] else "—"
-        out.append(f"{name:40.40} {gen:>10} {prom:>12}")
+    for row in rows:
+        gen = f"{row['sc']['gen_tps']:.1f}" if row["sc"]["gen_tps"] else "—"
+        prom = f"{row['sc']['prompt_tps']:.1f}" if row["sc"]["prompt_tps"] else "—"
+        out.append(f"{row['name']:40.40} {gen:>10} {prom:>12}")
     return out
 
 
@@ -408,7 +461,8 @@ def _render_by_lang(pool):
     return out
 
 
-def render(pool, weights, title="Benchmark Results", level="default", show_tasks=False):
+def render(pool, weights, title="Benchmark Results", level="default", show_tasks=False,
+           sort="global"):
     """Scoreboard per model with granularity decomposed into independent axes (SPEC 4.6):
 
     - ``level='default'`` : Table 1 (global scores) + tokens section.
@@ -416,6 +470,10 @@ def render(pool, weights, title="Benchmark Results", level="default", show_tasks
       model good/bad at".
     - ``level='verbose'`` : Table 1 + Table 2 (per language). Does NOT include the task
       detail; it is the finest level without per-task.
+    - ``sort``            : Table 1 ordering — ``global`` (default), a dimension
+      (``tools``/``code``/``agent``/``speed``) or ``version`` (grouped by task set, so
+      scores measured on different tasks are never interleaved; MILLORA §C9). Every row
+      always shows its ``SET`` (label·task-set).
 
     The task detail (Table 3) is shown when `show_tasks=True` (via `--task`) or when the
     level already includes it (`info`). That way `--verbose` never shows it on its own
@@ -425,7 +483,7 @@ def render(pool, weights, title="Benchmark Results", level="default", show_tasks
     computed with default values."""
     if not pool:
         return "(no results in pool)"
-    out = _render_global_rows(pool, weights, title)
+    out = _render_global_rows(pool, weights, title, sort=sort)
     if level == "verbose":
         out += _render_by_lang(pool)
     if show_tasks or level == "info":

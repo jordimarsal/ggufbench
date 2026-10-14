@@ -166,8 +166,57 @@ class TestModelId(unittest.TestCase):
         self.assertEqual(run.config.slug(mid), "strata-iq3_xxs")
 
 
+class TestSortCli(unittest.TestCase):
+    """§C9 follow-up: --sort orders the scoreboard by a metric or by task set, and it is
+    the same flag the HTML page takes (there it sets the static order of the ranking)."""
+
+    def setUp(self):
+        self.tmpdir = Path(tempfile.mkdtemp())
+        self.enterContext(config.override(POOL_FILE=self.tmpdir / "pool.jsonl",
+                                          RESULTS_RUNS=self.tmpdir / "runs"))
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir)
+
+    def _run(self, argv):
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            run.main(argv)
+        return out.getvalue() + err.getvalue()
+
+    def _two_models(self):
+        a, b = _mk("aaa"), _mk("bbb")
+        a["tools"]["score"], a["code"]["score"], a["agent"]["score"] = 0.2, 0.9, 0.5
+        b["tools"]["score"], b["code"]["score"], b["agent"]["score"] = 0.9, 0.2, 0.5
+        report.save_result(a)
+        report.save_result(b)
+
+    def test_default_is_global(self):
+        self.assertEqual(run._parse_args(["--scoreboard"]).sort, "global")
+
+    def test_accepts_every_key(self):
+        for key in ("global", "tools", "code", "agent", "speed", "version"):
+            self.assertEqual(run._parse_args(["--scoreboard", "--sort", key]).sort, key)
+
+    def test_rejects_an_unknown_key(self):
+        with self.assertRaises(SystemExit):
+            run._parse_args(["--scoreboard", "--sort", "vibes"])
+
+    def test_scoreboard_renders_the_requested_order(self):
+        self._two_models()
+        by_tools = self._run(["--scoreboard", "--sort", "tools"]).split("=== Tokens per second")[0]
+        self.assertLess(by_tools.index("bbb"), by_tools.index("aaa"))   # tools 0.9 first
+        by_code = self._run(["--scoreboard", "--sort", "code"]).split("=== Tokens per second")[0]
+        self.assertLess(by_code.index("aaa"), by_code.index("bbb"))    # code 0.9 first
+
+    def test_scoreboard_rows_carry_the_set_column(self):
+        self._two_models()
+        out = self._run(["--scoreboard"]).split("=== Tokens per second")[0]
+        self.assertIn("SET", out)
+        self.assertIn("x·?/?/?", out)     # label from the fixture + derived task set
+
+
 class TestThinkingCli(unittest.TestCase):
-    """R1 thinking_batches: --thinking on|off (default off); R6: the mode does not touch the protocol."""
 
     def test_thinking_defaults_off(self):
         self.assertEqual(run._parse_args(["--forget", "zz"]).thinking, "off")

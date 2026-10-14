@@ -222,11 +222,13 @@ current files of `env` to the tempdir, runs the test, returns pass/fail + output
 ### 4.6 report.py — scoreboard and detail
 Reporting has **3 granularity levels**:
 
-**Table 1 — Global** (always, sorted by global score):
+**Table 1 — Global** (always; `--sort` orders it — `global` by default, a dimension, or
+`version`: grouped by task set, biggest first, global inside each group). Every row states
+its test version in `SET` (label·task-set, §2):
 ```
-MODEL                          gen_tps   tools   code   agent   GLOBAL
-qwen3-vl-8b                      97.7    88%     75%    67%     0.76
-qwen3-14b                        48.0    100%    88%    83%     0.91
+MODEL                    THINK SET          tools   code   agent   speed   GLOBAL
+qwen36-35b-distill-moe    off  v4·16/60/60   94% ±0  76% ±2  77% ±3   18ms   0.81 ±0
+gemma-4-26b-a4b-it        off  v3·12/60/28   92% ±0  91% ±3  93% ±0   32ms   0.84 ±1
 ```
 
 **Table 2 — Per language** (always; code and agent broken down):
@@ -360,6 +362,8 @@ ggufbench/run.py [options]
    --task                       # Table 3 (task detail): shows where each model succeeds/fails; composes with --verbose
    --info                       # Table 1 + Table 3 (task detail)
   --scoreboard                 # ONLY shows the accumulated tables (runs nothing)
+  --sort KEY                   # Table 1 ordering: global (default) | tools | code | agent
+                               # | speed | version (grouped by task set — §2, MILLORA §C9)
   --forget <model>             # removes a model from the pool
   --json                       # only dumps the final JSON (for scripts)
   --port N                     # default 8999

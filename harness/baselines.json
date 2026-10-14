@@ -18,7 +18,8 @@
     }
   },
   "test_render_pool_24": {
-    "mean_ms": 19.211,
+    "mean_ms": 28.299,
+    "note": "re-recorded 2026-10-14: the page gained the per-row SET badge, the static 'by task set' section (one extra row per model, one block per set) and the order control's data attributes, so rendering a 24-row pool costs ~1.5x. The machine is also noisy here (same code measured 19-33 ms across idle runs) — the 1.5x warning threshold is what to watch, not the exact mean",
     "thresholds": {
       "mean_ms": {
         "warning": 1.5,

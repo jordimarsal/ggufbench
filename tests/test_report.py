@@ -226,6 +226,67 @@ class TestReport(unittest.TestCase):
         out = report.render(report.load_pool(), W)
         self.assertNotIn("mixes task sets", out)
 
+    # --- Set label + --sort orderings (§C9 follow-up) ---------------------------------
+    def test_set_label_carries_version_and_task_set(self):
+        r = mk("m")
+        r["tasks_version"] = "v3"
+        r["task_signature"] = "16/60/60"
+        self.assertEqual(report.set_label(r), "v3·16/60/60")
+
+    def test_set_label_tolerates_a_row_without_version(self):
+        r = mk("m")
+        r.pop("tasks_version", None)
+        self.assertEqual(report.set_label(r), "?·?/?/?")
+
+    def test_set_size_sums_the_counts_and_flags_incomplete_rows(self):
+        self.assertEqual(report._set_size("16/60/60"), 136)
+        self.assertEqual(report._set_size("8/60/24"), 92)
+        self.assertEqual(report._set_size("?/60/60"), -1)   # a dimension not measured
+
+    def _pool_for_sorting(self):
+        a = mk("a", speed_ms=100, tools=0.5, code=1.0, agent=0.5)
+        b = mk("b", speed_ms=10, tools=1.0, code=0.5, agent=1.0)
+        c = mk("c", speed_ms=50, tools=0.9, code=0.9, agent=0.9)
+        a["task_signature"], b["task_signature"], c["task_signature"] = "16/60/60", "12/60/28", "16/60/60"
+        return [a, b, c]
+
+    def test_sort_by_each_key(self):
+        pool = self._pool_for_sorting()
+
+        def first(sort):
+            return next(n.split()[0] for n in report.render(pool, W, sort=sort).splitlines()
+                        if n and n[0] in "abc" and " " in n[:4])
+
+        self.assertEqual(first("tools"), "b")     # tools 1.0
+        self.assertEqual(first("code"), "a")      # code 1.0
+        self.assertEqual(first("agent"), "b")     # agent 1.0
+        self.assertEqual(first("speed"), "b")     # 10 ms (lower is better)
+        self.assertEqual(first("global"), "b")    # 0.85
+
+    def test_sort_by_version_groups_the_sets(self):
+        # 'version' is not a metric: the biggest set comes first and the global orders
+        # inside each group (a/c = 16/60/60 with global 0.59/0.795, b = 12/60/28 at 0.85).
+        pool = self._pool_for_sorting()
+        table1 = report.render(pool, W, sort="version").split("=== Tokens per second")[0]
+        rows = [n for n in table1.splitlines() if n and n[0] in "abc" and " " in n[:4]]
+        self.assertEqual([r.split()[0] for r in rows], ["c", "a", "b"])
+        self.assertIn("16/60/60", rows[0])
+        self.assertIn("16/60/60", rows[1])
+        self.assertIn("12/60/28", rows[2])
+
+    def test_sort_falls_back_to_global_on_an_unknown_key(self):
+        pool = self._pool_for_sorting()
+        self.assertEqual(report.render(pool, W, sort="nope"),
+                         report.render(pool, W, sort="global"))
+
+    def test_table1_shows_the_set_column(self):
+        r = mk("m", thinking="off")
+        r["tasks_version"] = "v4"
+        r["task_signature"] = "16/60/60"
+        out = report.render([r], W)
+        self.assertIn("SET", out)
+        self.assertIn("v4·16/60/60", out)
+
     def test_runs_filenames_distinguish_mode(self):
         runs = self.tmpdir / "runs"
         with config.override(RESULTS_RUNS=runs):
@@ -427,7 +488,10 @@ class TestRunSpread(unittest.TestCase):
         self.assertIn("78% ±19", row)    # code: mean 7/9
         self.assertIn("83% ±58", row)    # agent: mean 5/6
         self.assertIn("0.84 ±26", row)   # weighted global, per-index globals
-        self.assertEqual(row, "multi     —   83% ±29           78% ±19   83% ±58     100ms    0.84 ±26")
+        # SET column (§C9 follow-up): label·task-set, right after THINK. The exact
+        # alignment is pinned by test_mixed_pool_keeps_the_columns_aligned.
+        self.assertIn("— x·2/3/2 ", row)
+        self.assertTrue(row.endswith("100ms    0.84 ±26"), row)
 
     def test_single_run_row_has_no_spread(self):
         # Today's pool: no section carries 'runs' -> run_spread is None and no cell changes.
@@ -436,8 +500,10 @@ class TestRunSpread(unittest.TestCase):
         report.save_result(r)
         out = report.render(report.load_pool(), W)
         self.assertNotIn("±", out)
-        self.assertEqual([l for l in out.splitlines() if l.startswith("solo")][0],
-                         "solo     —   50%           50%   50%     100ms    0.57")
+        solo = [l for l in out.splitlines() if l.startswith("solo")][0]
+        self.assertIn("x·?/?/?", solo)
+        self.assertIn("50%", solo)
+        self.assertIn("0.57", solo)
 
     def test_mixed_pool_keeps_the_columns_aligned(self):
         # A single-run row in the same table keeps its own text; only the columns widen.

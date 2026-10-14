@@ -368,6 +368,9 @@ def _parse_args(argv=None):
     ap.add_argument("--info", action="store_true",
                    help="Table 1 + Table 3 (per-task detail)")
     ap.add_argument("--scoreboard", action="store_true")
+    ap.add_argument("--sort", choices=R.SORTS, default="global", metavar="KEY",
+                    help="scoreboard ordering: global (default) | tools | code | agent | "
+                         "speed | version (grouped by task set; see MILLORA §C9)")
     ap.add_argument("--html", action="store_true",
                     help="after the run (or together with --scoreboard), regenerate "
                          "the HTML report from the accumulated pool")
@@ -382,11 +385,13 @@ def _parse_args(argv=None):
     return ap.parse_args(argv)
 
 
-def _write_html_report(pool=None):
+def _write_html_report(pool=None, sort="global"):
     """--html: regenerate the HTML report from the accumulated pool (the same
     source --scoreboard reads, not just this run's rows). One line of feedback on
-    stderr either way, so --json keeps stdout parseable."""
-    out = html_report.write_default_report(pool)
+    stderr either way, so --json keeps stdout parseable. `sort` is only the ordering
+    the static ranking (and the no-JS fallback) uses: the page's own control reorders
+    it client-side."""
+    out = html_report.write_default_report(pool, sort=sort)
     if out is None:
         print("pool is empty: no HTML report written", file=sys.stderr, flush=True)
     else:
@@ -471,11 +476,12 @@ def main(argv=None):
         return
     if args.scoreboard:
         pool = R.load_pool()
-        print(R.render(pool, weights, title="Scoreboard", level=level, show_tasks=args.task))
+        print(R.render(pool, weights, title="Scoreboard", level=level, show_tasks=args.task,
+                       sort=args.sort))
         # --scoreboard --html = "refresh everything": read-only render + report
         # regenerated from the same accumulated pool.
         if args.html:
-            _write_html_report(pool)
+            _write_html_report(pool, sort=args.sort)
         return
 
     dims = [d.strip() for d in args.dims.split(",") if d.strip()]

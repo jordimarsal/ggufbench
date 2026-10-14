@@ -1,15 +1,19 @@
 """HTML report of the scoreboard -> results/report.html.
 
-Single-page SELF-CONTAINED: inline CSS, zero JS, zero dependencies, zero network
-(can be opened with a double click or `xdg-open` offline). The scores are computed
-by the real harness functions (report._scores / report._global_score with
-config.WEIGHTS) so that this page and the CLI always say the same thing.
+Single-page SELF-CONTAINED: inline CSS, zero dependencies, zero network (can be opened
+with a double click or `xdg-open` offline). The scores are computed by the real harness
+functions (report._scores / report._global_score with config.WEIGHTS) so that this page
+and the CLI always say the same thing.
+
+The scoreboard carries one small inline script: the ranking's order control (by global,
+by a dimension, or by task set — MILLORA §C9). Without it the page reads correctly in the
+server-side order (--sort), and every row states its test version (SET: label·task-set).
 
 Also owns the model-vs-model compare page (MILLORA §4.4-4.5) -> results/compare.html:
 same self-contained contract (inline CSS, zero deps, double click) plus a SMALL
 inline JS picker (two selects + swap) that re-renders any pair client-side from the
 embedded compact pool JSON (?a=slug,think&b=slug,think). Without JS the page still
-shows the server-rendered pair; the scoreboard page keeps its zero-JS contract.
+shows the server-rendered pair.
 
 Usage:  python3 -m ggufbench.html_report   (writes results/report.html and prints the path)
         or, after any run, python3 -m ggufbench.run --html (same output, one flag)
@@ -140,6 +144,74 @@ def _display_slug(slug):
     return slug
 
 
+def _order_rows(rows, sort):
+    """Rows in the requested order (the same semantics as the CLI --sort). 'global' is the
+    order _rows already produced; 'version' groups by task set — biggest set first, global
+    inside each group — so scores measured on different tasks are never interleaved
+    (MILLORA §C9)."""
+    if sort == "tools":
+        return sorted(rows, key=lambda r: (-(r["sc"]["tools"] or 0), -r["global"]))
+    if sort == "code":
+        return sorted(rows, key=lambda r: (-(r["sc"]["code"] or 0), -r["global"]))
+    if sort == "agent":
+        return sorted(rows, key=lambda r: (-(r["sc"]["agent"] or 0), -r["global"]))
+    if sort == "speed":
+        return sorted(rows, key=lambda r: (r["sc"]["speed_ms"] or 1e9, -r["global"]))
+    if sort == "version":
+        return sorted(rows, key=lambda r: (-r["set_size"], -r["global"]))
+    return sorted(rows, key=lambda r: -r["global"])
+
+
+def _set_badge(r):
+    """The test version as a badge: label + real task set ('v3·16/60/60'), in every row."""
+    return f'<span class="badge set">{_esc(r["set"])}</span>'
+
+
+def _n_tasks(rows, dim):
+    """Tasks graded in a dimension, for a section title. Data-driven, never hardcoded:
+    the pool holds rows from different task sets, so a fixed number would be a lie for
+    some of them (the row itself states its exact SET)."""
+    return max((r["tasks"][dim] for r in rows), default=0)
+
+
+def _by_set_section(rows):
+    """Static 'by task set' view (MILLORA §C9): one block per task set, its rows ordered by
+    global inside the block, so a reader can pick a set and compare only inside it. It is
+    the no-JS answer to 'order by test version' — the ranking control does it in place."""
+    groups = {}
+    for r in rows:
+        groups.setdefault(r["sig"], []).append(r)
+    if not groups:
+        return ""
+    out = ['<section>\n  <h2>By task set</h2>',
+           '  <p class="miss">A score is comparable only inside a set: the pool may hold rows '
+           'measured with different task counts (the <code>SET</code> badge). '
+           'See <code>docs/MILLORA.md §C9</code>.</p>']
+    for sig, group in sorted(groups.items(), key=lambda kv: (-R._set_size(kv[0]), kv[0])):
+        group = sorted(group, key=lambda r: -r["global"])
+        dates = sorted({r["ts"] for r in group if r["ts"]})
+        span = f'{dates[0]} → {dates[-1]}' if len(dates) > 1 else (dates[0] if dates else "—")
+        labels = sorted({r["set"].split("·")[0] for r in group})
+        out.append(f'  <div class="setblock" id="set-{_esc(sig.replace("/", "-"))}">'
+                   f'<h3>{_esc(sig)} tasks '
+                   f'<span class="miss">· label {" / ".join(_esc(l) for l in labels)} · '
+                   f'{len(group)} row{"s" if len(group) != 1 else ""} · measured {_esc(span)}</span></h3>')
+        for r in group:
+            think = (f' <span class="badge">think:{_esc(r["thinking"])}</span>'
+                     if r["thinking"] != "—" else "")
+            if r["retired"]:
+                think += ' <span class="badge">retired</span>'
+            out.append(
+                f'    <div class="trow{" retired" if r["retired"] else ""}">'
+                f'<div class="name" title="{_esc(r["name"])}">{_esc(r["name"])}'
+                f'<small>{_esc(r["ts"])} · tools {r["sc"]["tools"]:.0%} · code {r["sc"]["code"]:.0%} · '
+                f'agent {r["sc"]["agent"]:.0%}</small></div>'
+                f'<div class="gval">{r["global"]:.2f}{think}{_set_badge(r)}</div></div>')
+        out.append("  </div>")
+    out.append("</section>")
+    return "\n".join(out)
+
+
 def _spread_html(spread):
     """' <small>±26</small>' — '' when the row is a single-run measurement (every row
     of a pool measured without --runs): the page renders exactly as before. Same math
@@ -165,6 +237,11 @@ def _rows(pool):
             "code_excluded": int((r.get("code") or {}).get("excluded") or 0),  # R5
             "build": str(r.get("server_build") or "?"),
             "ts": (r.get("ts") or "")[:10],
+            # §C9: the test version, label and real task set ('v3·16/60/60'), shown in
+            # every row and used to group/order the board by set.
+            "set": R.set_label(r),
+            "sig": R.task_signature(r),
+            "set_size": R._set_size(R.task_signature(r)),
             "by_lang": {d: (r.get(d) or {}).get("by_lang") or {} for d in ("code", "agent")},
             "code_by_level": (r.get("code") or {}).get("by_level") or {},
             "tasks": {d: len((r.get(d) or {}).get("trace") or [])
@@ -301,6 +378,14 @@ tr:hover td{background:rgba(59,130,246,.07)}
 .retired .heat{background:#232f45!important;color:var(--muted)!important}
 .retired .badge{background:transparent!important;color:var(--muted)!important;border-color:var(--border)!important;font-weight:400}
 .badge.strata{color:#0b1220;background:var(--accent);border-color:var(--accent);font-weight:700}
+.badge.set{color:var(--primary2);border-color:#2b4a7a}
+.sortbar{display:flex;gap:8px;align-items:center;margin:0 0 8px;font-size:12px;color:var(--muted)}
+.sortbar select{background:var(--card2);color:var(--text);border:1px solid var(--border);
+  border-radius:7px;padding:4px 6px;font:12px var(--mono)}
+.sortbar select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.setblock{border:1px solid var(--border);border-radius:9px;background:var(--card2);
+  padding:8px 10px;margin-bottom:8px}
+.setblock h3{margin:0 0 6px;font:600 12px var(--mono);letter-spacing:.3px}
 .gval{font:600 15px var(--mono);text-align:right;color:var(--primary2)}
 .gval.top{color:var(--accent)}
 .gval small,.kpi .v small{color:var(--muted);font-weight:400;font-size:11px}
@@ -327,9 +412,13 @@ code{font-family:var(--mono);color:var(--primary2)}
 """
 
 
-def render(pool):
-    """Complete HTML (str) for the given pool. No JS, no external resources."""
-    rows = _rows(pool)
+def render(pool, sort="global"):
+    """Complete HTML (str) for the given pool. Self-contained: inline CSS + one small
+    inline script (the ranking's order control), no external resource, no network.
+
+    `sort` is the order the static ranking is rendered in (report.SORTS): the page reads
+    correctly without JS from that order, and the control reorders it in place."""
+    rows = _order_rows(_rows(pool), sort)
     now = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
     rec_section = _rec_section(rows)
     # C8 optimal thinking mode per model (needs wall_time_s on both rows of a
@@ -338,6 +427,7 @@ def render(pool):
     # Task sets in the pool (§C9): more than one means the rows are not comparable and
     # the page must say so (header chip + banner); the version label cannot tell them apart.
     sigs = R.signature_counts(pool)
+    set_section = _by_set_section(rows)
     gpus = _gpu_chips()
     w = config.WEIGHTS
     dates = sorted({r["ts"] for r in rows if r["ts"]})
@@ -351,13 +441,14 @@ def render(pool):
     if len(dates) > 1:
         chips.append(f'<span class="chip">measured <b>{_esc(dates[0])} → {_esc(dates[-1])}</b></span>')
     # Pointer to the sibling compare page (results/compare.html, same dir both
-    # locally and on gh-pages): the report keeps its zero-JS contract, the link
-    # is the whole integration.
+    # locally and on gh-pages): one link, no embed — the page stays offline-first.
     chips.append('<a class="chip" href="compare.html">head-to-head compare →</a>')
     if any(r["retired"] for r in rows):
         chips.append('<span class="chip">gray = retired model (record only)</span>')
     if len(sigs) > 1:
-        chips.append('<span class="chip">task sets <b>' + _esc(" · ".join(sigs)) + '</b></span>')
+        links = " · ".join(f'<a href="#set-{_esc(sig.replace("/", "-"))}">{_esc(sig)}</a>'
+                           for sig in sigs)
+        chips.append(f'<span class="chip">task sets {links}</span>')
 
     kpis = [("Best overall", f"{rows[0]['global']:.2f}" if rows else "—"),
             ("Fastest (gen)", f"{max((r['sc']['gen_tps'] for r in rows), default=0):.0f} t/s"),
@@ -373,13 +464,32 @@ def render(pool):
             think += ' <span class="badge strata">★ optimal</span>'
         if r["retired"]:
             think += ' <span class="badge">retired</span>'
+        # data-* feeds the in-page order control (no server round trip): the same values
+        # the static order uses. Values, not text, so the JS never parses the display.
+        data = (f' data-g="{r["global"]:.4f}" data-tools="{r["sc"]["tools"] or 0:.4f}"'
+                f' data-code="{r["sc"]["code"] or 0:.4f}" data-agent="{r["sc"]["agent"] or 0:.4f}"'
+                f' data-speed="{r["sc"]["speed_ms"] or 0}" data-setsize="{r["set_size"]}"'
+                f' data-set="{_esc(r["set"])}"')
         ranking.append(
-            f'<div class="trow{" retired" if r["retired"] else ""}"><div class="pos{cls}">{i + 1}</div>'
-            f'<div class="name" title="{_esc(r["name"])}">{_esc(r["name"])}<small>{_esc(r["ts"])} · {r["tasks"]["tools"]}+'
-            f'{r["tasks"]["code"]}+{r["tasks"]["agent"]} tasks · excluded code: {r["code_excluded"]}</small></div>'
+            f'<div class="trow{" retired" if r["retired"] else ""}"{data}>'
+            f'<div class="pos{cls}">{i + 1}</div>'
+            f'<div class="name" title="{_esc(r["name"])}">{_esc(r["name"])}<small>{_esc(r["ts"])} · '
+            f'{r["tasks"]["tools"]}+{r["tasks"]["code"]}+{r["tasks"]["agent"]} tasks · '
+            f'version {_esc(r["set"])} · excluded code: {r["code_excluded"]}</small></div>'
             f'<div class="gval{cls}">{r["global"]:.2f}{_spread_html((r["spread"] or {}).get("global"))} '
+            f'{_set_badge(r)} '
             f'<span class="badge{" strata" if r["engine"] == "strata" else ""}">'
             f'{_esc(r["engine"])} {_esc(r["build"])}</span>{think}</div></div>')
+
+    sortbar = ('<div class="sortbar">'
+               '<label for="sortkey">order by</label>'
+               f'<select id="sortkey" aria-label="ranking order">'
+               + "".join(f'<option value="{k}"{" selected" if k == sort else ""}>{k}</option>'
+                         for k in R.SORTS)
+               + '</select>'
+               '<span class="miss" id="sorted">'
+               + _esc("static order: " + sort + " — the control reorders in place, no network")
+               + '</span></div>')
 
     def dim_bars(key, fmt):
         out = []
@@ -458,20 +568,24 @@ def render(pool):
   <h1>Bench Board <small>· local model benchmark for opencode</small></h1>
   <div class="sub">Generated {_esc(now)} · scores computed with the harness functions (same math as the CLI)</div>
   <div class="chips">{''.join(chips)}</div>
-</header>
-<main>
+</header><main>
 {banner}
 <div class="kpis">{''.join(f'<div class="kpi"><div class="v">{v}</div><div class="l">{_esc(l)}</div></div>' for l, v in kpis)}</div>
 
 <section>
   <h2>Weighted global</h2>
+  {sortbar}
+  <div id="ranking">
   {chr(10).join(ranking)}
+  </div>
 </section>
 
+{set_section}
+
 <div class="grid2">
-<section><h2>Code (32 tasks · 4 languages)</h2>{dim_bars("code", lambda v: f"{v:.0%}")}</section>
-<section><h2>Multi-step agent (24 tasks)</h2>{dim_bars("agent", lambda v: f"{v:.0%}")}</section>
-<section><h2>Tool-calling (8 tasks)</h2>{dim_bars("tools", lambda v: f"{v:.0%}")}</section>
+<section><h2>Code ({_n_tasks(rows, "code")} tasks · 4 languages)</h2>{dim_bars("code", lambda v: f"{v:.0%}")}</section>
+<section><h2>Multi-step agent ({_n_tasks(rows, "agent")} tasks)</h2>{dim_bars("agent", lambda v: f"{v:.0%}")}</section>
+<section><h2>Tool-calling ({_n_tasks(rows, "tools")} tasks)</h2>{dim_bars("tools", lambda v: f"{v:.0%}")}</section>
 <section><h2>Speed (generation ms · lower is better)</h2>{dim_bars("speed_ms", lambda v: f"{v} ms")}</section>
 </div>
 
@@ -495,6 +609,7 @@ def render(pool):
 </section>
 {rec_section}
 </main>
+<script>{_SORT_JS}</script>
 <footer>
   Regenerate with <code>python3 -m ggufbench.run --scoreboard --html</code> (or
   <code>python3 -m ggufbench.html_report</code>) from the workspace root.
@@ -507,11 +622,12 @@ def render(pool):
 """
 
 
-def write_default_report(pool=None):
+def write_default_report(pool=None, sort="global"):
     """Render the pool to results/report.html (config.RESULTS_DIR) and return the
     path written. Single owner of the render+path logic: run.py --html calls this
     instead of duplicating it. The pool is read at call time via report.load_pool()
-    (the same accumulated source --scoreboard uses) unless one is passed in.
+    (the same accumulated source --scoreboard uses) unless one is passed in; `sort`
+    is the static order the ranking is rendered in (report.SORTS).
     Returns None when the pool is empty: nothing to render, no file touched."""
     if pool is None:
         pool = R.load_pool()
@@ -519,7 +635,7 @@ def write_default_report(pool=None):
         return None
     out = config.RESULTS_DIR / "report.html"
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(render(pool), encoding="utf-8")
+    out.write_text(render(pool, sort=sort), encoding="utf-8")
     return out
 
 
@@ -785,7 +901,8 @@ def _cmp_card(p):
     flags = _esc(p["f"]) if p["f"] else "harness default flags"
     return (f'<section class="card"><h2>{_esc(p["s"])}{think}{eng}</h2>'
             f'<div class="kpi"><div class="v">{p["g"]:.2f}{_spread_html(p.get("gs"))}</div>'
-            f'<div class="l">global · {rank} · measured {_esc(p["d"])}</div></div>'
+            f'<div class="l">global · {rank} · measured {_esc(p["d"])} · '
+            f'set {_esc(p["sig"])}</div></div>'
             f'<div class="meta"><div class="l">model_config_flags</div>'
             f'<div class="mv">{flags}</div></div>'
             f'<div class="meta"><div class="l">environment</div>'
@@ -831,6 +948,67 @@ _COMPARE_CSS = """
   .mrow .verdict{grid-column:1/-1}}
 """
 
+
+_SORT_JS = """
+/* Ranking order control (MILLORA §C9). Reorders the rows already in the page: no fetch,
+   no storage, no third party — the page still reads correctly with JS off, from the
+   server-side order. Same semantics as the CLI --sort: scores descending, speed
+   ascending, 'version' groups by task set (biggest set first) and orders by global
+   inside each group. */
+(function () {
+  var sel = document.getElementById("sortkey");
+  var box = document.getElementById("ranking");
+  var note = document.getElementById("sorted");
+  if (!sel || !box) { return; }
+  function num(el, key) {
+    var v = el.getAttribute("data-" + key);
+    if (v === null || v === "") { return null; }
+    var n = parseFloat(v);
+    return isNaN(n) ? null : n;
+  }
+  function key(el, k) {
+    var g = num(el, "g");
+    g = (g === null ? -1 : g);
+    if (k === "speed") {
+      var s = num(el, "speed");
+      return [s === null || s === 0 ? Infinity : s, -g];
+    }
+    if (k === "version") {
+      var n = num(el, "setsize");
+      return [-(n === null ? -1 : n), -g];
+    }
+    if (k === "global") { return [-g]; }
+    var v = num(el, k);
+    return [-(v === null ? -1 : v), -g];
+  }
+  function cmp(a, b, k) {
+    var ka = key(a, k), kb = key(b, k);
+    for (var i = 0; i < ka.length; i++) {
+      if (ka[i] !== kb[i]) { return ka[i] - kb[i]; }
+    }
+    return 0;
+  }
+  sel.addEventListener("change", function () {
+    var k = sel.value;
+    var list = Array.prototype.slice.call(box.querySelectorAll(".trow"));
+    list.sort(function (a, b) { return cmp(a, b, k); });
+    list.forEach(function (el, i) {
+      var pos = el.querySelector(".pos");
+      if (pos) {
+        pos.textContent = String(i + 1);
+        pos.className = "pos" + (i === 0 ? " top" : "");
+      }
+      var gv = el.querySelector(".gval");
+      if (gv) { gv.className = "gval" + (i === 0 ? " top" : ""); }
+      box.appendChild(el);
+    });
+    if (note) {
+      note.textContent = "ordered by " + k + " (client-side; the exported page keeps its "
+        + "static order)";
+    }
+  });
+})();
+"""
 
 _PICKER_JS = """
 (function () {
@@ -902,7 +1080,8 @@ _PICKER_JS = """
     return '<section class="card"><h2>' + esc(p.s) + think + eng + "</h2>"
       + '<div class="kpi"><div class="v">' + p.g.toFixed(2)
       + (p.gs == null ? "" : " <small>±" + Math.round(p.gs * 100) + "</small>") + "</div>"
-      + '<div class="l">global · ' + rank + " · measured " + esc(p.d) + "</div></div>"
+      + '<div class="l">global · ' + rank + " · measured " + esc(p.d)
+      + " · set " + esc(p.sig) + "</div></div>"
       + '<div class="meta"><div class="l">model_config_flags</div><div class="mv">' + flags + "</div></div>"
       + '<div class="meta"><div class="l">environment</div><div class="mv">' + env + "</div></div></section>";
   }
