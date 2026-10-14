@@ -204,7 +204,18 @@ against the best tps in the set (fastest → 1.0).
 the global dimension score, `by_lang` = score per present language
 (`python|bash|java|typescript`). The `tools` and `speed` dimensions are not
 per-language (they are language-agnostic). `report.py` uses this `by_lang` for
-Table 2 and the per-language profile.
+Table 2 and the per-language profile. An *excluded* run (server error, no code
+block) is not an attempt: it never enters `by_lang`/`by_level` and it does not
+count as a failure.
+
+**Task identity is `(dimension, language, id)`**: ids are unique *per dimension*,
+not per language — the easy code tier deliberately mirrors the same id across the
+four languages (`bubble_sort`, `fibonacci`…) and so do most agent ids (`debug`,
+`refactor`, `fix_bug`…). Every consumer must key on the pair: the multi-run
+aggregation walks the per-run results **by position** (one entry per task, in task
+order) precisely because looking an entry up by `id` alone attributed a bash task's
+outcome to the python task with the same id (found and fixed 2026-10-14, MILLORA
+§D10 — it skewed every multi-language row measured before that date).
 
 ### 4.5 agent.py — multi-step agent loop
 In-memory mini code environment. An agent task defines:

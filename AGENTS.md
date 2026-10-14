@@ -144,7 +144,10 @@ python3 -m ggufbench.html_report                        # writes ggufbench/resul
 2. **No task, weight or base-flag changes without a pool re-measure** (upsert per
    slug in `results/models/pool.jsonl`; history in `results/runs/`).
 3. **One task = one file** in `tasks/<dim>/...` (UPPERCASE constants; the loader reads
-   `ID`/`PROMPT` uppercase). `EXPECTED` without `arguments` = tool name only;
+   `ID`/`PROMPT` uppercase). **Ids are unique per dimension, not per language**: the
+   easy code tier mirrors the same id across the four languages and so do most agent
+   ids — every consumer keys on `(dimension, lang, id)`, never on `id` alone.
+   `EXPECTED` without `arguments` = tool name only;
    `arguments: {}` = empty call. The agent resolves files case-insensitively (java:
    `Solution.java`). **Agent tasks** (`GOAL`, `INITIAL_FILES`, `TEST_FILE`, `MAX_TURNS`)
    run on a small project: the model has `list_files` + `read_file` + `write_file` +

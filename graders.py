@@ -145,11 +145,11 @@ def grade_tools(client_mod, tasks, max_turns=6, on_task=None, runs=1):
     by_lang = {}  # tools has no by_lang; kept for API compat
     total_excluded_tasks = 0
     scored_tasks = []
-    for t in tasks:
+    for i, t in enumerate(tasks):
         run_outcomes = []
         all_excluded = True
         for sr in section_runs:
-            entry = next((e for e in sr if e["id"] == t["id"]), None)
+            entry = sr[i] if i < len(sr) else None
             if entry is None:
                 continue
             excluded = entry.pop("_excluded", False)
@@ -291,11 +291,17 @@ def grade_code(client_mod, tasks, max_turns=8, on_task=None, model_slug=None, ge
     scored_tasks = []
     by_level = {}
     by_lang = {}
-    for t in tasks:
+    # Index into the per-run results, never search by id: each run appends exactly one
+    # entry per task, in `tasks` order, and ids are unique per DIMENSION, not per language
+    # (`bubble_sort` exists in the four languages). Searching by id handed every shared id
+    # the outcome of the first language in loader order — a python task was graded as passed
+    # or failed on a bash task's outcome, and its receipt said `bash` (found 2026-10-14,
+    # fixed before the v5 re-measure).
+    for i, t in enumerate(tasks):
         run_outcomes = []
         all_excluded = True
         for sr_results, _sr_by_lang in section_runs:
-            entry = next((e for e in sr_results if e["id"] == t["id"]), None)
+            entry = sr_results[i] if i < len(sr_results) else None
             if entry is None:
                 continue
             excluded = entry.pop("_excluded", False)
@@ -362,16 +368,21 @@ def grade_agent(client_mod, tasks, max_turns=8, on_task=None, runs=1):
                 r = A.run_agent(client_mod, t, max_turns=t.get("max_turns", max_turns))
                 conversations.setdefault(t["id"], []).append(_trunc_history(r["history"]))
             except _TRANSIENT as e:
-                results.append({"id": t["id"], "passed": False, "turns": 0,
+                results.append({"id": t["id"], "lang": t["lang"], "passed": False, "turns": 0,
                                 "_excluded": True,
                                 "detail": f"server error: {e}"[:160]})
-                by_lang.setdefault(t["lang"], []).append(False)
+                # no by_lang entry: an excluded run is not an attempt (rule shared with
+                # grade_code) — counting it here would report a server error as a language
+                # weakness.
                 if on_task:
                     on_task("agent", {"id": t["id"], "lang": t["lang"], "passed": False, "turns": 0,
                                       "excluded": True})
                 continue
-            results.append({"id": t["id"], "passed": r["success"], "turns": r["turns"],
-                            "_excluded": False,
+            # `lang` travels in the trace: Table 3 prints it, and a receipt that does not say
+            # which language produced it is half a receipt (missing since the multi-run
+            # refactor, found 2026-10-14).
+            results.append({"id": t["id"], "lang": t["lang"], "passed": r["success"],
+                            "turns": r["turns"], "_excluded": False,
                             "detail": f"turns={r['turns']} tool_calls={r['tool_calls']}"})
             by_lang.setdefault(t["lang"], []).append(r["success"])
             if on_task:
@@ -383,11 +394,17 @@ def grade_agent(client_mod, tasks, max_turns=8, on_task=None, runs=1):
     trace = []
     total_excluded_tasks = 0
     scored_tasks = []
-    for t in tasks:
+    # Index into the per-run results, never search by id: each run appends exactly one
+    # entry per task, in `tasks` order, and ids are unique per DIMENSION, not per language
+    # (`bubble_sort` exists in the four languages). Searching by id handed every shared id
+    # the outcome of the first language in loader order — a python task was graded as passed
+    # or failed on a bash task's outcome, and its receipt said `bash` (found 2026-10-14,
+    # fixed before the v5 re-measure).
+    for i, t in enumerate(tasks):
         run_outcomes = []
         all_excluded = True
         for sr_results, _sr_by_lang in section_runs:
-            entry = next((e for e in sr_results if e["id"] == t["id"]), None)
+            entry = sr_results[i] if i < len(sr_results) else None
             if entry is None:
                 continue
             excluded = entry.pop("_excluded", False)
@@ -422,8 +439,17 @@ def grade_agent(client_mod, tasks, max_turns=8, on_task=None, runs=1):
         sum(r["turns"] for r in sr_results)
         for sr_results, _sr_by_lang in section_runs
     ) if section_runs else 0
+    # by_lang: average the per-run dictionaries, the same rule grade_code uses (a language
+    # with no graded task in a run simply contributes fewer outcomes). The multi-run refactor
+    # returned a hardcoded {} here, so the agent columns of the report went empty from
+    # 2026-10-12 until this fix (found 2026-10-14).
+    merged = {}
+    for _sr_results, sr_by_lang in section_runs:
+        for lang, outcomes in sr_by_lang.items():
+            merged.setdefault(lang, []).extend(outcomes)
     result = {"passed": score == 1.0, "turns": total_turns,
-              "trace": trace, "by_lang": {}, "score": score,
+              "trace": trace, "score": score,
+              "by_lang": {l: round(sum(v) / len(v), 2) for l, v in merged.items()},
               "conversations": conversations}
     if runs > 1:
         result["runs"] = runs

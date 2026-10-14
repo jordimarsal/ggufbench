@@ -28,6 +28,22 @@ GPU, not the dataset:_
 
 ## Log
 
+- **2026-10-14 · New model preview: MiniCPM-V 4.7 35B-A3B (OpenBMB, human order).** The tweet
+  (2026-10-12) announces the MiniCPM-V 4.7 series; the 35B-A3B is the first MoE of the family
+  (on-device MLLM, LES lookahead expert scheduling, Apache-2.0). Checked before downloading:
+  the GGUF declares arch **`qwen35moe`**, which this repo's llama.cpp (0.6.0-dev+4413a1924)
+  supports — `llama_model_qwen35moe` + `src/models/qwen35moe.cpp` are in libllama.so, MTP
+  branch included. Header read over HTTP range (no download): ctx 262144, 40 blocks with
+  `full_attention_interval 4` (hybrid SSM/attention), GQA 2/16 with key/value length 256 →
+  KV is cheap (~1.5 GB at 128k, q8_0), 256 experts / 8 active, **no MTP tensors** (their
+  speculative path is the separate DSpark draft + LES fork), and the chat template honours
+  `enable_thinking: false` → the harness's OFF mode is a clean instruct run.
+  Downloaded `MiniCPM-V-4_7-35B-A3B-Q4_K_M.gguf` (21.2 GB) with `hf download` into
+  `models/`, plus the profile `models/MiniCPM-V-4_7-35B-A3B-Q4_K_M.txt` (`-c 131072`: the
+  32768 code budget must fit with the prompt; sampling stays the harness baseline).
+  Run: `--models models/MiniCPM-V-4_7-35B-A3B-Q4_K_M.gguf --runs 3` (thinking OFF, the pool
+  protocol), log in `harness/logs/minicpm_v47/`.
+
 ## Next step
 
 _If a new session opens: read AGENTS.md + current.md + feature_list.json._

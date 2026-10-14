@@ -461,3 +461,86 @@ class TestAgentConversations(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+@unittest.skipUnless(HAS_SANDBOX, "host cannot create isolated namespaces (unshare -Urn)")
+class TestSharedIdsAcrossLanguages(unittest.TestCase):
+    """Regression (found 2026-10-14, fixed before the v5 re-measure): the per-run aggregation
+    looked the entry up by `id`, but ids are unique per DIMENSION, not per language —
+    `bubble_sort` exists in the four languages, and so do the shared agent ids (debug,
+    fix_bug, refactor...). Every shared id therefore took the outcome of the first language
+    in loader order (bash), so a python task could be recorded as failed on a bash task's
+    failure, its receipt could say `bash`, and `by_lang`/`by_level` lost those tasks.
+
+    The fix indexes the per-run results (one entry per task, in task order) instead."""
+    PY_SOL = "def f():\n    return 1\n"
+
+    class _LangClient:
+        """Passes python, fails bash: the two tasks must not be able to swap outcomes."""
+        run_index = None
+        def chat(self, msgs, **k):
+            lang = "python" if "python" in msgs[0]["content"] else "bash"
+            body = TestSharedIdsAcrossLanguages.PY_SOL if lang == "python" else "nope()\n"
+            return {"choices": [{"message": {"content": f"```{lang}\n{body}```"}}],
+                    "usage": {"completion_tokens": 3}}
+
+    def _code_tasks(self):
+        return [
+            {"id": "same_id", "lang": "bash", "level": "easy", "prompt": "bash one",
+             "test_code": "echo 'should not run' >&2\nexit 1\n"},
+            {"id": "same_id", "lang": "python", "level": "easy", "prompt": "python one",
+             "test_code": "from solution import *\nassert f() == 1\nprint('OK')\n"},
+        ]
+
+    def test_code_shared_id_keeps_both_outcomes(self):
+        r = graders.grade_code(self._LangClient(), self._code_tasks())
+        self.assertEqual(r["score"], 0.5)                      # was 0.0 before the fix
+        self.assertEqual(r["by_lang"], {"bash": 0.0, "python": 1.0})
+        self.assertEqual([t["lang"] for t in r["trace"]], ["bash", "python"])  # was bash, bash
+        self.assertEqual([t["runs"] for t in r["trace"]], [[0], [1]])
+
+    def test_code_shared_id_with_runs_3(self):
+        r = graders.grade_code(self._LangClient(), self._code_tasks(), runs=3)
+        self.assertEqual(r["score"], 0.5)
+        self.assertEqual([t["runs"] for t in r["trace"]], [[0, 0, 0], [1, 1, 1]])
+
+    def test_agent_shared_id_keeps_both_outcomes(self):
+        """The agent dimension shares ids too (debug, refactor, add_feature...)."""
+        tasks = [
+            {"id": "same_id", "lang": "bash", "goal": "bash goal", "max_turns": 1,
+             "test_file": "test_solution.sh",
+             "initial_files": {"solution.sh": "exit 1\n", "test_solution.sh": "exit 1\n"}},
+            {"id": "same_id", "lang": "python", "goal": "python goal", "max_turns": 1,
+             "test_file": "test_solution.py",
+             "initial_files": {"solution.py": "def f():\n    return 1\n",
+                               "test_solution.py": "from solution import *\nassert f() == 1\nprint('OK')\n"}},
+        ]
+        r = graders.grade_agent(self._LangClient(), tasks)
+        self.assertEqual(r["score"], 0.5)
+        self.assertEqual(r["by_lang"], {"bash": 0.0, "python": 1.0})
+        self.assertEqual([t["lang"] for t in r["trace"]], ["bash", "python"])
+
+    def test_tools_shared_id_keeps_both_outcomes(self):
+        """Tools ids are unique today, but the lookup was the same: keep it honest."""
+        tasks = [
+            {"id": "same_id", "prompt": "bash one", "tools": [], "expected": {"name": "a"}},
+            {"id": "same_id", "prompt": "python one", "tools": [], "expected": {"name": "b"}},
+        ]
+        resp_a = {"choices": [{"finish_reason": "tool_calls", "message": {"tool_calls": [
+            {"function": {"name": "a", "arguments": "{}"}}]}}]}
+        resp_b = {"choices": [{"finish_reason": "tool_calls", "message": {"tool_calls": [
+            {"function": {"name": "b", "arguments": "{}"}}]}}]}
+        r = graders.grade_tools(FakeClient([resp_a, resp_b]), tasks)
+        self.assertEqual(r["score"], 1.0)
+        self.assertEqual(len(r["trace"]), 2)
+
+    def test_the_real_dataset_has_shared_ids_and_no_duplicates(self):
+        """Why this matters here: the shipped code tasks DO share ids across languages."""
+        from ggufbench import tasks_loader
+        code = tasks_loader.load("code")
+        ids = {}
+        for t in code:
+            ids.setdefault(t["id"], set()).add(t["lang"])
+        shared = {i: langs for i, langs in ids.items() if len(langs) > 1}
+        self.assertIn("bubble_sort", shared)
+        self.assertEqual(shared["bubble_sort"], {"bash", "java", "python", "typescript"})
+        self.assertEqual(len(code), len({(t["lang"], t["id"]) for t in code}))
