@@ -16,7 +16,7 @@ No cloud, no APIs, no puzzles. The scoreboard answers one question:
 
 7 models, thinking OFF, harness v3 (12 tools · 60 code · 28 agent tasks), ctx 32K,
 llama-server 0.6.0-dev+4413a19, **3 runs per task, seeds 42/43/44** (mean ± stdev),
-measured 2026-10-13 on 2× RTX 5080. `excl.` = excluded with a recorded reason.
+measured 2026-10-13/14 on 2× RTX 5080. `excl.` = excluded with a recorded reason.
 9 models retired 2026-10-13 (flota prima — vegeu `models/retired/`); their rows
 stay in the full report as a record. Strata dual complete on engine 0.1.43.1
 (off 0.80 ±2 ★ optimal, on 0.76 ±0 — thinking hurts here, 5.7× the wall clock).
@@ -36,6 +36,7 @@ regenerate locally with `harness/tools/publish-report.sh` after a re-measure.
 | ornith-1_5-35b-a3b-apex-mtp-quality | off | 92% ±0 | 73% ±0 | 87% ±8 | 29ms | 0.78 ±2 |
 | qwen3-vl-8b-instruct-1m-q6_k | off | 92% ±0 | 76% ±1 | 87% ±8 | 36ms | 0.77 ±2 |
 | strata-iq3_xxs | off | 86% ±5 | 88% ±4 | 96% ±0 | 50ms | 0.80 ±2 |
+| strata-swift-iq3_xxs | off | 84% ±9 | 77% ±2 | 78% ±5 | 42ms | 0.73 ±4 |
 
 
 # 2. put your GGUF models next to it (../models/*.gguf)
