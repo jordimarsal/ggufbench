@@ -103,7 +103,22 @@
   implement the signature now (done above), re-measure the fleet on a GPU night
   (open). README + the 3 write-ups still state the C1-era condition.
 
-- **2026-10-14 · chore(bench) — loader baselines re-recorded.** The strict gate was red
+- **2026-10-14 · fix(tests) — the suite no longer writes into the real results/ (D9).**
+  `report.save_result` writes the pool *and* the receipt under `RESULTS_RUNS`; three test
+  setUps (test_report ×2, test_run_cli ×1) overrode only `POOL_FILE`, so **4419 junk
+  receipts** (78% of `results/runs/`, back to 2026-08-03) had accumulated — `m-na.json`,
+  `solo-na.json`, `partial1-…`. Fixed the overrides, wrote the rule into
+  `docs/conventions.md §Testing` ("isolate every path a writer touches") and added the
+  test that would have caught it (snapshot the real dir around two saves). The junk is
+  parked in `results/runs/_test-junk/` with a README, not deleted. 1268 real receipts
+  remain; verified the full suite leaves the directory untouched.
+
+- **2026-10-14 · Report published (human order).** `--scoreboard --html` + `--compare`
+  (strata off/on, refreshed with the §C9 code) + `harness/tools/publish-report.sh` →
+  `gh-pages` `b6a7c57` (main 0dd372e). Verified in the branch: 30 models, 9 grey rows, no
+  `_home_jordi` twin, task-sets chip `12/60/28 · 8/60/24 · 16/60/60`. The public page
+  still served the previous copy at first fetch (GitHub Pages CDN caches HTML ~10 min).
+ The strict gate was red
   on `test_load_agent` (2.33x, critical) and `test_load_tools` (1.91x) while the code
   loader stayed at 1.01x: the C3 growth (tools 8→16, agent 24→60 files) is the cause and
   the ratios match the file ratios. New means + a note in each entry; verdict is

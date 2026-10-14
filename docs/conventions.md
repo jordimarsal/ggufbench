@@ -58,6 +58,13 @@ without learning a new style.
 - **stdlib unittest** (no pytest in this project). Tests must not touch the GPU or the
   network: fake services (`FakeClient`), and `config.override()`-style with
   `setUp`/`tearDown` until one exists (MILLORA §D1).
+- **Isolate every path a writer touches.** `report.save_result` writes the pool
+  (`POOL_FILE`) **and** the receipt under `RESULTS_RUNS` (plus the agent sidecar):
+  overriding only the pool drops junk receipts into the real `results/runs/` — which is
+  exactly what happened until 2026-10-14. Test classes that save or run the pipeline
+  override `POOL_FILE`, `RESULTS_RUNS` (and `RESULTS_MODELS` when the code reads the
+  model dir) together, and `tests/test_report.py` pins the contract with a test that
+  asserts the real results dir is untouched.
 - Every bug fix includes the test that would have caught it.
 - A test that only checks nothing throws is not a test.
 

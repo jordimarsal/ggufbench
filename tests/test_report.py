@@ -25,10 +25,31 @@ def mk(model, speed_ms=None, gen_tps=None, prompt_tps=None,
 class TestReport(unittest.TestCase):
     def setUp(self):
         self.tmpdir = Path(tempfile.mkdtemp())
-        self.enterContext(config.override(POOL_FILE=self.tmpdir / "pool.jsonl"))
+        # RESULTS_RUNS too: save_result writes the receipt (and the agent sidecar)
+        # there, and overriding only POOL_FILE dropped junk receipts into the real
+        # results/runs/ (docs/conventions.md §Testing).
+        self.enterContext(config.override(POOL_FILE=self.tmpdir / "pool.jsonl",
+                                          RESULTS_RUNS=self.tmpdir / "runs"))
 
     def tearDown(self):
         shutil.rmtree(self.tmpdir)
+
+    def test_receipts_land_in_the_isolated_results_dir(self):
+        """The isolation contract (docs/conventions.md §Testing): POOL_FILE alone is not
+        enough — save_result also writes the receipt under RESULTS_RUNS."""
+        report.save_result(mk("m", thinking="off"))
+        self.assertEqual(len(list((self.tmpdir / "runs").glob("*-m-off.json"))), 1)
+
+    def test_save_result_does_not_touch_the_real_results_dir(self):
+        """Regression guard: the suite used to drop junk receipts (m-na.json,
+        solo-na.json…) into the real results/runs/, because those tests overrode
+        POOL_FILE but not RESULTS_RUNS. This is the test that would have caught it."""
+        real = config.RESULTS_DIR / "runs"
+        before = sorted(p.name for p in real.glob("*.json")) if real.is_dir() else []
+        report.save_result(mk("m", thinking="off"))
+        report.save_result(mk("multi", thinking="on"))
+        after = sorted(p.name for p in real.glob("*.json")) if real.is_dir() else []
+        self.assertEqual(before, after)
 
     def test_save_and_load(self):
         r = mk("m", speed_ms=100)
@@ -360,7 +381,11 @@ class TestRunSpread(unittest.TestCase):
 
     def setUp(self):
         self.tmpdir = Path(tempfile.mkdtemp())
-        self.enterContext(config.override(POOL_FILE=self.tmpdir / "pool.jsonl"))
+        # RESULTS_RUNS too: save_result writes the receipt (and the agent sidecar)
+        # there, and overriding only POOL_FILE dropped junk receipts into the real
+        # results/runs/ (docs/conventions.md §Testing).
+        self.enterContext(config.override(POOL_FILE=self.tmpdir / "pool.jsonl",
+                                          RESULTS_RUNS=self.tmpdir / "runs"))
 
     def tearDown(self):
         shutil.rmtree(self.tmpdir)

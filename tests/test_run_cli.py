@@ -25,7 +25,11 @@ class TestForgetCLI(unittest.TestCase):
 
     def setUp(self):
         self.tmpdir = Path(tempfile.mkdtemp())
-        self.enterContext(config.override(POOL_FILE=self.tmpdir / "pool.jsonl"))
+        # RESULTS_RUNS too: save_result writes the receipt there, and overriding only
+        # POOL_FILE dropped junk receipts into the real results/runs/
+        # (docs/conventions.md §Testing).
+        self.enterContext(config.override(POOL_FILE=self.tmpdir / "pool.jsonl",
+                                          RESULTS_RUNS=self.tmpdir / "runs"))
 
     def tearDown(self):
         shutil.rmtree(self.tmpdir)
