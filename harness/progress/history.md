@@ -128,3 +128,31 @@ registry; path string vs model identity) and the third (D9) a writer path nobody
 enumerated — one grep for "what writes where" would have caught all three; the pool drift,
 in turn, came from a *label* (`tasks_version`) doing a *data* job, which is why the fix is
 derived data rather than a promise to bump a constant.
+
+## 2026-10-14 (cont.) — test version visible per row + orderable board (done)
+
+Human order: every model must show which test version it was measured with, the board
+must be orderable by value *and* by test version, and no doc may present a mixture of
+versions as one table (each version documented instead). Delivered in three layers.
+**CLI:** Table 1 gained a `SET` column (`label·task-set`, e.g. `v3·16/60/60` — label and
+real set shown together because they disagree exactly where it matters) and
+`--sort global|tools|code|agent|speed|version`, where `version` groups by set (biggest
+first, global inside each group). **Report:** `SET` badge in every row and card, a static
+"By task set" section (one block per set with its rows ordered by global, linked from the
+header chip) and an inline order control that reorders the ranking in place by the same six
+keys; dimension titles take their counts from the data (the stale 32/24/8 is gone).
+*Contract:* the report is no longer zero-JS — still self-contained (one inline script, no
+external resource, no network) and correct with JS off (spec + checklist + MILLORA updated).
+**Docs:** README now holds one table per set (current 16/60/60, superseded 12/60/28, the ON
+batch noted) plus a Task-set lineage table (v1 base → v2 hard → v3 expert → v4 C3) and the
+`--sort version` recipe; the damaged Quickstart (missing header, fence and step 1) was
+repaired. The 3 write-ups stay for after the fleet re-measure, as decided. Verified: the JS
+comparator exercised in node against a stub DOM (six orders, rank renumbering, missing speed
+last), render bench baseline re-recorded (19.2 → 28.3 ms, the page grew; 19-33 ms noise),
+394 tests green, bench "no benchmark regression", report re-published (gh-pages, main
+44508eb). Commits: 44508eb.
+
+retro: the request was really "make the condition self-evident in the artifact" — the data
+(`task_signature`) already existed from the morning's fix, so this pass only had to surface
+it and order by it; the expensive part was the report's zero-JS contract, which had to be
+renegotiated in docs and tests instead of quietly broken.
