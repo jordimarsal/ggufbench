@@ -19,9 +19,17 @@ The end goal is picking the best model for **opencode** (coding agent).
 ## 2. Principle: "same conditions" (revised 2026-10: common baselines + per-model profile)
 
 - **Common flags** for all models (baseline in `config.SERVER_FLAGS`):
-  `temp 0.2`, `top-p 0.95`, `seed 42`, `repeat-penalty 1.1`, `-ngl 999`,
-  `--flash-attn auto`, `--load-mode none` (0.6.0+; was `--no-mmap`), `--jinja`, KV cache `q8_0/q8_0`
-  (`config.CACHE_FLAGS`), `--parallel 1`.
+  `temp 0.2`, `top-p 0.95`, `seed 42`, `repeat-penalty 1.1`, **`top-k 40`**, **`min-p 0.05`**,
+  **`xtc-probability 0.0`** (the three pinned explicitly at llama.cpp's defaults: see the
+  sampler note below), `-ngl 999`, `--flash-attn auto`, `--load-mode none` (0.6.0+; was
+  `--no-mmap`), `--jinja`, KV cache `q8_0/q8_0` (`config.CACHE_FLAGS`), `--parallel 1`.
+- **Sampler metadata is a condition too**: llama.cpp applies a GGUF's `general.sampling.*`
+  keys to every sampler parameter the command line does *not* set explicitly, so an unpinned
+  parameter is a per-model value, not a harness default. Measured 2026-10-14: the fleet
+  shipped `top_k` 20 (MiniCPM-V, Ornith, the three Qwen3.8-27B), 64 (gemma) and none at all
+  (qwen36) — three samplers inside one table. The baseline pins all three at the engine's
+  defaults (40 / 0.05 / 0.0), which is the neutral choice and leaves no parameter to the
+  metadata (MILLORA §C11).
 - **Sampling (n=1)**: one graded attempt per task (`temp 0.2`, `seed 42`).
   Single-sample noise is real: the scoreboard is a *ranking on this
   harness*, not a certification — close rows (±0.01 global) are ties in

@@ -71,6 +71,15 @@ SERVER_FLAGS = [
     "-b", "512",
     "--temp", str(TEMPERATURE),
     "--top-p", "0.95",
+    # Sampler pinned EXPLICITLY, all three at llama.cpp's own defaults: llama.cpp applies a
+    # GGUF's `general.sampling.*` metadata to any parameter the command line does not set
+    # (`common.cpp`, guarded by COMMON_PARAMS_SAMPLING_CONFIG_*), so an unpinned parameter is
+    # not "the harness default" but a per-model value. Measured 2026-10-14: the fleet ships
+    # top_k 20 (MiniCPM, Ornith, the three Qwen3.8-27B), 64 (gemma) and nothing at all
+    # (qwen36) — three different samplers inside one "same conditions" table (MILLORA §C11).
+    "--top-k", "40",
+    "--min-p", "0.05",
+    "--xtc-probability", "0.0",
     "--repeat-penalty", "1.1",
     "--repeat-last-n", "256",
     "--seed", str(SEED),

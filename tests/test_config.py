@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from ggufbench import config
+from ggufbench import config, report
 
 class TestConfig(unittest.TestCase):
     def test_paths_exist(self):
@@ -68,6 +68,39 @@ class TestBaselineArgv(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+class TestBaselinePinsTheSampler(unittest.TestCase):
+    """MILLORA §C11: llama.cpp applies a GGUF's `general.sampling.*` to every sampler
+    parameter the command line does not set explicitly (`common.cpp`, guarded by
+    COMMON_PARAMS_SAMPLING_CONFIG_*). The fleet ships top_k 20/64 and nothing at all, so the
+    baseline must pin the three parameters it does not choose for a reason — otherwise the
+    "same conditions" table compares models with different samplers."""
+
+    def _value_of(self, flag):
+        argv = config.SERVER_FLAGS
+        return argv[argv.index(flag) + 1] if flag in argv else None
+
+    def test_top_k_is_pinned_at_the_engine_default(self):
+        self.assertEqual(self._value_of("--top-k"), "40")
+
+    def test_min_p_and_xtc_are_pinned_too(self):
+        self.assertEqual(self._value_of("--min-p"), "0.05")
+        self.assertEqual(self._value_of("--xtc-probability"), "0.0")
+
+    def test_every_sampler_parameter_the_engine_exposes_is_pinned(self):
+        """temp/top-p/repeat are the protocol values; top-k/min-p/xtc are the neutrals that
+        would otherwise come from the metadata (or the engine default, which is the same
+        number — pinned so a future GGUF cannot change it)."""
+        for flag in ("--temp", "--top-p", "--repeat-penalty", "--repeat-last-n", "--seed",
+                     "--top-k", "--min-p", "--xtc-probability"):
+            self.assertIn(flag, config.SERVER_FLAGS, flag)
+
+    def test_the_baseline_identity_follows_the_sampler(self):
+        """The pin is a condition: adding it changes the baseline id, which is what makes the
+        rows measured before it visibly different on the board (§C10)."""
+        self.assertNotEqual(report.baseline_id({"baseline_flags": " ".join(config.SERVER_FLAGS)}),
+                            report.baseline_id({"baseline_flags": " ".join(config.SERVER_FLAGS + ["--top-k", "20"])}))
+
+
 class TestTasksVersion(unittest.TestCase):
     def test_class_marks_the_task_generation(self):
         # discriminative_tasks R4 bumped it to v3 for the expert set; v4 marked the C3
