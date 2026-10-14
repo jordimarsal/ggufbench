@@ -220,6 +220,15 @@ class TestReport(unittest.TestCase):
         self.assertIn("16/60/60 tasks — 1 row", out)
         self.assertIn("12/60/28 tasks — 1 row", out)
 
+    def test_ordered_signatures_is_biggest_first(self):
+        # One order for every artefact that groups by set (--sort version, the report
+        # blocks, the chip, the notes): biggest set first, so they never disagree.
+        pool = [mk("a"), mk("b"), mk("c")]
+        pool[0]["task_signature"] = "12/60/28"
+        pool[1]["task_signature"] = "16/60/60"
+        pool[2]["task_signature"] = "8/60/24"
+        self.assertEqual(report.ordered_signatures(pool), ["16/60/60", "12/60/28", "8/60/24"])
+
     def test_scoreboard_stays_quiet_when_the_set_is_uniform(self):
         report.save_result(mk("a", thinking="off"))
         report.save_result(mk("b", thinking="off"))

@@ -40,6 +40,13 @@ def signature_counts(pool):
 SORTS = ("global", "tools", "code", "agent", "speed", "version")
 
 
+def ordered_signatures(pool):
+    """Task sets in the pool, biggest first — the order the board uses whenever it groups
+    by set (--sort version, the report's "By task set" blocks, the chip and the notes that
+    announce the mix). One order everywhere, so they agree."""
+    return sorted(signature_counts(pool), key=lambda s: (-_set_size(s), s))
+
+
 def _set_size(sig):
     """Graded task-runs in a signature: '16/60/60' -> 136. -1 when a dimension is not
     measured ('?'), so an incomplete row sorts last instead of pretending to be big."""
@@ -502,6 +509,8 @@ def _render_task_sets(pool):
         return []
     out = ["", "NOTE: this pool mixes task sets — a score is comparable only within a set "
                "(docs/MILLORA.md §C9)"]
-    for sig, n in sigs.items():
+    counts = signature_counts(pool)
+    for sig in ordered_signatures(pool):
+        n = counts[sig]
         out.append(f"  {sig} tasks — {n} row{'s' if n != 1 else ''}")
     return out

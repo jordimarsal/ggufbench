@@ -447,7 +447,7 @@ def render(pool, sort="global"):
         chips.append('<span class="chip">gray = retired model (record only)</span>')
     if len(sigs) > 1:
         links = " · ".join(f'<a href="#set-{_esc(sig.replace("/", "-"))}">{_esc(sig)}</a>'
-                           for sig in sigs)
+                           for sig in R.ordered_signatures(pool))
         chips.append(f'<span class="chip">task sets {links}</span>')
 
     kpis = [("Best overall", f"{rows[0]['global']:.2f}" if rows else "—"),
@@ -545,8 +545,10 @@ def render(pool, sort="global"):
     if len(dates) > 1 or len(sigs) > 1:
         sets_note = ""
         if len(sigs) > 1:
+            counts = R.signature_counts(pool)
             sets_note = (" and/or on different <b>task sets</b> ("
-                         + _esc(", ".join(f"{sig}: {n} rows" for sig, n in sigs.items()))
+                         + _esc(", ".join(f"{sig}: {counts[sig]} rows"
+                                          for sig in R.ordered_signatures(pool)))
                          + ") — the version label alone cannot tell them apart, so a score "
                            "is comparable only inside a set")
         banner = ('<div class="banner"><b>Mixed conditions.</b> The entries in this pool were '
