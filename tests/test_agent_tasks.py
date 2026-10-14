@@ -56,18 +56,16 @@ class TestAgentTasks(unittest.TestCase):
 
     def test_the_dataset_grew_with_multifile_projects(self):
         """C4 fill: 3 multi-file tasks per language is the target (the cell goes 15 -> 18).
-        Delivered: python 3, typescript 3, java 2, bash 1 (9 of the 12). Three authored by the
-        fleet were rejected by the gate below and removed rather than shipped broken (java
-        `feature_flag_end_to_end` passed as shipped; bash `csv_quoted_fields` and
-        `retry_pipeline` had tests that could not exercise their own contract). The bound is
-        the floor the dataset must never drop under; the strict half of this gate is
+        Delivered 2026-10-14: python 3, bash 3, java 3, typescript 4 (its extra one replaces
+        `mapped_type_refactor`, a legacy task that was unmeasurable and gave every model a
+        free pass). Floor, not target: the strict half of this gate is
         `test_multifile_tasks_start_from_a_failing_state` — a multi-file task that does not
         measure anything is rejected however many there are."""
         multi = [t for t in self.tasks if len(t["initial_files"]) >= MULTI_FILE_MIN]
-        self.assertGreaterEqual(len(multi), 9, f"{len(multi)} multi-file tasks")
+        self.assertGreaterEqual(len(multi), 12, f"{len(multi)} multi-file tasks")
         for lang in LANGS:
             n = sum(1 for t in multi if t["lang"] == lang)
-            self.assertGreaterEqual(n, 1, f"{lang}: {n} multi-file tasks")
+            self.assertGreaterEqual(n, 3, f"{lang}: {n} multi-file tasks")
 
     def test_multifile_tasks_get_a_real_turn_budget(self):
         """A 6-file project cannot be fixed in 8 turns: the old budget was the reason the

@@ -157,7 +157,7 @@ python3 -m ggufbench.html_report                        # writes ggufbench/resul
    `--level easy|hard|expert` filters them; without `--level` all run and the code
    score stays folded. `tasks_version` labels the suite generation — "v1" base, "v2" hard,
    "v3" expert, "v4" the C3 counts (16/60/60), "v5" the C3+C4 fill (tools 18, code 72,
-   agent 68) — but the label does not describe the set: every row
+   agent 72) — but the label does not describe the set: every row
    records its real `task_signature` (MILLORA §C9), and `--sort version` groups by it.
    Reference solutions for hard and expert are NOT committed (do not leak them to the
    models).

@@ -25,7 +25,7 @@ Common to every row: thinking OFF unless stated, llama-server 0.6.0-dev+4413a19,
 more), 2× RTX 5080. `excl.` = excluded with a recorded reason. 9 models were retired on
 2026-10-13: their rows stay in the full report, grayed, as a record.
 
-**Current set — 18 tools · 72 code · 68 agent** (v5, 2026-10-14): **no rows measured yet.**
+**Current set — 18 tools · 72 code · 72 agent** (v5, 2026-10-14): **no rows measured yet.**
 The fleet re-measure runs at this set (one frozen tuple), and until it does, every row in
 the pool below belongs to a superseded set.
 
@@ -64,7 +64,7 @@ clock; docs/MILLORA.md §C8).
 | v2 | hard tier | +16 `_hard` code tasks |
 | v3 | expert tier | +12 `_expert` code tasks, `EXTRA_FILES` sandbox |
 | v4 | superseded | the C3 additions: tools 8→16, agent 24→60 |
-| v5 | **current** | the C3+C4 fill: tools 16→18, code 15→18 per language, agent +9 multi-file projects (5-8 files, `list_files`, 14 turns) |
+| v5 | **current** | the C3+C4 fill: tools 16→18, code 15→18 per language, agent 15→18 per language (13 of them multi-file projects: 5-8 files, `list_files`, 14 turns) |
 
 The label is a name, not the condition: **v3 shipped four different counts**
 (8/60/24, 12/60/28, 12/60/36, 16/60/60) because the additions never bumped it. That is
