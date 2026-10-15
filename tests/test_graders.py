@@ -640,6 +640,18 @@ class TestCapProbes(unittest.TestCase):
         self.assertEqual(r["tools_capped"], 1)
         self.assertEqual(r["tools_max_tokens"], 128)
 
+    def test_tool_cap_probe_survives_the_multi_run_aggregation(self):
+        """§C13 regression: the N>1 branch builds its own result dict, and it dropped
+        `tools_capped` / `tools_max_tokens`. Since every row in the pool is measured with
+        `--runs 3`, no row ever carried the probe — the cap warning was printed and
+        thrown away, which is the one thing the probes exist to prevent."""
+        tasks = [{"id": "t1", "prompt": "x", "tools": [], "expected": {"name": "f"}}]
+        resp = {"choices": [{"finish_reason": "length", "message": {"tool_calls": [
+            {"function": {"name": "f", "arguments": "{\"a\":"}}]}}]}
+        r = graders.grade_tools(FakeClient([resp]), tasks, max_tokens=256, runs=3)
+        self.assertEqual(r["tools_capped"], 3)      # once per run, not once per section
+        self.assertEqual(r["tools_max_tokens"], 256)
+
     def test_agent_turn_answered_empty_is_counted(self):
         """The LFM2.5-24B-A2B signature: reasoning spends the whole turn budget and the model
         answers neither content nor a tool call."""

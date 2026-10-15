@@ -196,6 +196,12 @@ def grade_tools(client_mod, tasks, max_turns=6, on_task=None, runs=1,
               "score": score, "by_lang": {}, "runs": runs}
     if total_excluded_tasks:
         result["excluded"] = total_excluded_tasks
+    # §C13: this branch rebuilds the result dict, and used to drop the probes the N==1
+    # branch sets — so every `--runs 3` row (the pool protocol) lost `tools_capped`
+    # silently: the finding was on stderr and nowhere else, and a capped row would have
+    # looked exactly like an uncapped one on the board.
+    result["tools_max_tokens"] = max_tokens or config.TOOLS_MAX_TOKENS
+    result["tools_capped"] = capped
     return result
 
 
