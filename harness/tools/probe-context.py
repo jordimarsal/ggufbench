@@ -1,0 +1,185 @@
+#!/usr/bin/env python3
+"""Measure a model's REAL maximum context, live — the `--verify` that
+`context-audit.py` still declares unimplemented.
+
+Why it exists
+-------------
+`context-audit.py` is an estimator: it charges a full KV cache to every layer and reserves
+15% of VRAM plus 25% of compute. Its own note says so — for arches with sliding windows or
+hybrid attention the number is a LOWER bound — and even for plain attention the reserves are
+conservative. Measured 2026-10-15 (models/CONTEXT-AUDIT.md has the table): the fleet reaches
+193k-266k where the estimator said 78k-232k, and gemma-4-26B declared 32k against a real
+262144 (3-8x short). The pins in `models/<model>.txt` came from the estimator, so they were
+ceilings of an estimate, not of the card.
+
+What it does
+------------
+Loads the model with the harness' OWN command line — `server.build_args()`, so the baseline,
+the `--mmproj`, the `--split-mode`, the KV type and every profile flag are the ones a real
+run uses — and changes nothing but `-c`. Readiness is the /health endpoint; a candidate that
+raises the server, or that the CUDA allocator refuses, is the first "no", and the value just
+below it is the answer. Bisection, so ~4 loads per model.
+
+Examples
+--------
+    python3 ggufbench/harness/tools/probe-context.py --models "models/*.gguf"
+    python3 ggufbench/harness/tools/probe-context.py \
+        --models models/Qwen3.8-27B-Heretic-Q4_K_M.gguf --port 8999
+    python3 ggufbench/harness/tools/probe-context.py --models "models/*.gguf" \
+        --json /tmp/probe.json --kv q8_0
+
+Exit codes: 0 ran · 1 nothing matched · 2 usage error.
+"""
+
+from __future__ import annotations
+
+import argparse
+import glob
+import json
+import subprocess
+import sys
+import time
+import urllib.request
+from pathlib import Path
+
+_TOOLS_DIR = Path(__file__).resolve().parent
+_PKG_DIR = _TOOLS_DIR.parent.parent                 # ggufbench/
+_ROOT_DIR = _PKG_DIR.parent                         # workspace root
+if str(_ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(_ROOT_DIR))
+
+from ggufbench import server  # noqa: E402
+
+
+def _argv_for(model: str, ctx: int, port: int, kv: str | None) -> list[str]:
+    """The harness' own command line, with the profile's `-c` (or the baseline's) replaced."""
+    args = server.build_args(model, "fixed", port)
+    if kv:                                          # override the KV type of the baseline
+        for i, tok in enumerate(args):
+            if tok in ("--cache-type-k", "--cache-type-v") and i + 1 < len(args):
+                args[i + 1] = kv
+    out, replaced, i = [], False, 0
+    while i < len(args):
+        if args[i] in ("-c", "--ctx-size") and i + 1 < len(args):
+            out += [args[i], str(ctx)]
+            replaced = True
+            i += 2
+            continue
+        out.append(args[i])
+        i += 1
+    if not replaced:
+        out += ["-c", str(ctx)]
+    return out
+
+
+def _health_ok(port: int, timeout: int = 3) -> bool:
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=timeout) as r:
+            return json.loads(r.read().decode()).get("status") == "ok"
+    except Exception:
+        return False
+
+
+def _vram() -> list[int]:
+    try:
+        out = subprocess.run(["nvidia-smi", "--query-gpu=memory.used",
+                              "--format=csv,noheader,nounits"],
+                             capture_output=True, text=True, timeout=20).stdout
+        return [int(x) for x in out.split()]
+    except Exception:
+        return []
+
+
+def probe(model: str, ctx: int, port: int, kv: str | None, log_dir: Path,
+          timeout: int) -> tuple[bool, list[int], Path]:
+    """True when the server comes up with this context; the log path either way."""
+    log = log_dir / f"ctxprobe-{Path(model).stem[:24]}-{ctx}.log"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    with open(log, "w") as fh:
+        proc = subprocess.Popen(_argv_for(model, ctx, port, kv), stdout=fh,
+                                stderr=subprocess.STDOUT, start_new_session=True,
+                                cwd=str(_ROOT_DIR))
+    t0, ok = time.time(), False
+    while time.time() - t0 < timeout:
+        if proc.poll() is not None:                 # it gave up on its own
+            break
+        if _health_ok(port):
+            ok = True
+            break
+        txt = open(log, errors="ignore").read().lower()
+        if any(s in txt for s in ("out of memory", "failed to allocate", "not enough",
+                                  "cuda error", "unknown argument", "error: ")):
+            break
+        time.sleep(3)
+    used = _vram() if ok else []
+    proc.terminate()
+    try:
+        proc.wait(timeout=40)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+    time.sleep(4)
+    return ok, used, log
+
+
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser(
+        description="Measure the maximum context a model really loads with (live).")
+    ap.add_argument("--models", required=True,
+                    help="comma-separated paths and/or globs, e.g. 'models/*.gguf'")
+    ap.add_argument("--port", type=int, default=8999, help="port to test on (default 8999)")
+    ap.add_argument("--kv", default=None, help="force a KV type (default: the model's own)")
+    ap.add_argument("--floor", type=int, default=32768, help="known-good starting point")
+    ap.add_argument("--ceiling", type=int, default=1048576, help="upper bound to try first")
+    ap.add_argument("--timeout", type=int, default=240, help="seconds to wait per load")
+    ap.add_argument("--log-dir", default="/tmp/opencode", help="where the load logs go")
+    ap.add_argument("--json", default=None, help="write the table as JSON here")
+    args = ap.parse_args(argv)
+
+    models: list[str] = []
+    for spec in args.models.split(","):
+        spec = spec.strip()
+        if not spec:
+            continue
+        hits = sorted(glob.glob(spec)) if any(c in spec for c in "*?[") else [spec]
+        models += [str(Path(h)) for h in hits]
+    if not models:
+        print("no model files matched", file=sys.stderr)
+        return 1
+
+    rows = {}
+    for model in models:
+        t0 = time.time()
+        print(f"\n=== {Path(model).stem}", flush=True)
+        ok, used, _ = probe(model, args.ceiling, args.port, args.kv, Path(args.log_dir),
+                            args.timeout)
+        print(f"  {args.ceiling // 1024:>5}k → {'OK ' + str(used) if ok else 'NO'}", flush=True)
+        lo, best = args.floor, None
+        hi = args.ceiling
+        if ok:
+            best = args.ceiling
+        else:
+            while hi - lo > 8192:
+                mid = (((lo + hi) // 2) // 1024) * 1024
+                if mid <= lo or mid >= hi:
+                    break
+                ok, used, _ = probe(model, mid, args.port, args.kv, Path(args.log_dir),
+                                    args.timeout)
+                print(f"  {mid // 1024:>5}k → {'OK ' + str(used) if ok else 'NO'}", flush=True)
+                if ok:
+                    lo, best = mid, mid
+                else:
+                    hi = mid
+        rows[Path(model).stem] = {"max_ctx": best, "seconds": round(time.time() - t0, 1)}
+        print(f"  → max measured: {best if best else 'none'}  ({time.time() - t0:.0f}s)", flush=True)
+
+    print("\n" + "=" * 60)
+    for name, r in rows.items():
+        print(f"{name:52s} {str(r['max_ctx'] or '?'):>9}")
+    if args.json:
+        Path(args.json).write_text(json.dumps(rows, indent=1))
+        print(f"\nWrote {args.json}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
