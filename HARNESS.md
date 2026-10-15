@@ -1,6 +1,6 @@
 # Harness — ggufbench
 
-Installed with [harness-standard](https://github.com/jordimarsal/harness-standard) (`opencode`, `v0.8.0`).
+Installed with [harness](https://github.com/jordimarsal/harness) (`opencode`, `v0.8.0`).
 
 - **Stack detected:** generic
 - **Architecture:** generic template
