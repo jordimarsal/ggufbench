@@ -50,6 +50,21 @@
       "stem": "LFM2.5-24B-A2B-Q4_K_M",
       "date": "2026-10-14",
       "reason": "not in the fleet. Marketed for local agent work (post-trained inside OpenCode among others) but its chat template always opens a <think> block and has no `enable_thinking` switch, so the harness's OFF mode is impossible for it and the reasoning spends the per-call budget: 0.59 global (tools 78% / code 74% / agent 51%) with the fleet caps, and a focused re-run with 256/2048 caps lifted tools to ~91% and the agent to ~75% at half the dimension — still under the fleet's 87-93%. The row stays as a record of that condition (MILLORA §C13)."
+    },
+    {
+      "stem": "Qwen3.8-27B-TurboFCFusion-735-882-Here-Uncen-NEO-CODER-MAX-MTP-Q4_K_S",
+      "date": "2026-10-15",
+      "reason": "dominated inside the Qwen3.8-27B family, the only fleet member that wins on no axis: 17.5 GB and 46 ms against UD-Q3_K_XL's 13.1 GB and 36 ms for the SAME code score (0.79), and the Q4-class uncensored-coder niche is better served by Heretic (code 0.86 vs 0.79, agent 0.92 vs 0.91, 16.5 GB). Human decision 2026-10-15; the ON pass of the day was stopped rather than spend ~2h on it."
+    },
+    {
+      "stem": "Qwen3-VL-8B-Instruct-1M-Q6_K",
+      "date": "2026-10-15",
+      "reason": "last of the active fleet and separated from it: global 0.721 against 0.822+ for everything else, code 0.61 / agent 0.65. Its niche is vision, and MiniCPM-V 4.7 35B-A3B (same MoE size class) covers it 0.16 better on the text dimensions. What was left of its own was a 6.7 GB footprint with 574 t/s prefill, not worth a fleet slot. Human decision 2026-10-15."
+    },
+    {
+      "stem": "strata-swift-iq3_xxs",
+      "date": "2026-10-15",
+      "reason": "a distinct finetune of the 125B (Swift 1.5, -63% thinking) but dead weight as configured: its Strata config carried no --vram-reserve-mib, so with the 2026-10-15 calibration (adapt-every 1 / adapt-swaps 160) the expert cache filled the card and the engine refused to load it — 'only 40-58 MiB of VRAM free at the start of this request ... add --vram-reserve-mib 1216', Strata/strata-swift-iq3_xxs.log — and its pool row still was the v3 one. Retired instead of fixed + re-measured. Frees ~72 GB (two GGUF shards + pack). Human decision 2026-10-15."
     }
   ]
 }
