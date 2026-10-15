@@ -80,6 +80,23 @@ def _health_ok(port: int, timeout: int = 3) -> bool:
         return False
 
 
+def _wait_port_free(port: int, timeout: int = 25) -> bool:
+    """Block until nothing answers on the port.
+
+    Loaded 2026-10-15: Heretic's probe reported 262144 as OK, yet the batch crashed there with
+    '884 MiB on device 0: cudaMalloc failed' loading its --mmproj. A server that has not died
+    yet still answers /health — the next attempt then reads the PREVIOUS load's OK and a
+    context that does not fit is recorded as one that does. Terminating is not enough; wait for
+    the port to go quiet before believing anything.
+    """
+    t0 = time.time()
+    while time.time() - t0 < timeout:
+        if not _health_ok(port, timeout=2):
+            return True
+        time.sleep(1)
+    return False
+
+
 def _vram() -> list[int]:
     try:
         out = subprocess.run(["nvidia-smi", "--query-gpu=memory.used",
@@ -90,9 +107,25 @@ def _vram() -> list[int]:
         return []
 
 
+def _vram_total() -> list[int]:
+    try:
+        out = subprocess.run(["nvidia-smi", "--query-gpu=memory.total",
+                              "--format=csv,noheader,nounits"],
+                             capture_output=True, text=True, timeout=20).stdout
+        return [int(x) for x in out.split()]
+    except Exception:
+        return []
+
+
 def probe(model: str, ctx: int, port: int, kv: str | None, log_dir: Path,
-          timeout: int) -> tuple[bool, list[int], Path]:
-    """True when the server comes up with this context; the log path either way."""
+          timeout: int, margin_mib: int = 0) -> tuple[str, list[int], Path]:
+    """Status of loading this context: 'ok', 'tight' or 'fail'; plus VRAM and the log path.
+
+    'tight' exists because of Heretic, 2026-10-15: the probe said 262144 loaded and the batch
+    then died there with '884 MiB on device 0: cudaMalloc failed' loading its --mmproj. A
+    context that loads with almost nothing to spare is not usable in a real run — the desk's
+    own VRAM drifts up and down through the day. With a margin, such a load counts as too big.
+    """
     log = log_dir / f"ctxprobe-{Path(model).stem[:24]}-{ctx}.log"
     log.parent.mkdir(parents=True, exist_ok=True)
     with open(log, "w") as fh:
@@ -112,13 +145,20 @@ def probe(model: str, ctx: int, port: int, kv: str | None, log_dir: Path,
             break
         time.sleep(3)
     used = _vram() if ok else []
+    status = "fail"
+    if ok:
+        free = [t - u for t, u in zip(_vram_total(), used)] if used else []
+        status = "tight" if (margin_mib and free and min(free) < margin_mib) else "ok"
     proc.terminate()
     try:
         proc.wait(timeout=40)
     except subprocess.TimeoutExpired:
         proc.kill()
-    time.sleep(4)
-    return ok, used, log
+    if not _wait_port_free(port):
+        print(f"  ! the server on port {port} did not go quiet — results from here are suspect",
+              file=sys.stderr, flush=True)
+    time.sleep(2)
+    return status, used, log
 
 
 def main(argv=None) -> int:
@@ -131,6 +171,8 @@ def main(argv=None) -> int:
     ap.add_argument("--floor", type=int, default=32768, help="known-good starting point")
     ap.add_argument("--ceiling", type=int, default=1048576, help="upper bound to try first")
     ap.add_argument("--timeout", type=int, default=240, help="seconds to wait per load")
+    ap.add_argument("--margin-mib", type=int, default=1200,
+                    help="free VRAM a load must leave to count as usable (default 1200)")
     ap.add_argument("--log-dir", default="/tmp/opencode", help="where the load logs go")
     ap.add_argument("--json", default=None, help="write the table as JSON here")
     args = ap.parse_args(argv)
@@ -146,26 +188,32 @@ def main(argv=None) -> int:
         print("no model files matched", file=sys.stderr)
         return 1
 
+    def show(ctx, status, used):
+        verdict = {"ok": "OK", "tight": "TIGHT", "fail": "NO"}[status]
+        free = [t - u for t, u in zip(_vram_total(), used)] if used else []
+        extra = f"{used} free {free}" if used else ""
+        print(f"  {ctx // 1024:>5}k → {verdict:5s} {extra}", flush=True)
+
     rows = {}
     for model in models:
         t0 = time.time()
         print(f"\n=== {Path(model).stem}", flush=True)
-        ok, used, _ = probe(model, args.ceiling, args.port, args.kv, Path(args.log_dir),
-                            args.timeout)
-        print(f"  {args.ceiling // 1024:>5}k → {'OK ' + str(used) if ok else 'NO'}", flush=True)
+        status, used, _ = probe(model, args.ceiling, args.port, args.kv, Path(args.log_dir),
+                                args.timeout, args.margin_mib)
+        show(args.ceiling, status, used)
         lo, best = args.floor, None
         hi = args.ceiling
-        if ok:
+        if status == "ok":
             best = args.ceiling
         else:
             while hi - lo > 8192:
                 mid = (((lo + hi) // 2) // 1024) * 1024
                 if mid <= lo or mid >= hi:
                     break
-                ok, used, _ = probe(model, mid, args.port, args.kv, Path(args.log_dir),
-                                    args.timeout)
-                print(f"  {mid // 1024:>5}k → {'OK ' + str(used) if ok else 'NO'}", flush=True)
-                if ok:
+                status, used, _ = probe(model, mid, args.port, args.kv, Path(args.log_dir),
+                                        args.timeout, args.margin_mib)
+                show(mid, status, used)
+                if status == "ok":
                     lo, best = mid, mid
                 else:
                     hi = mid
