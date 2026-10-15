@@ -269,11 +269,27 @@ class TestReport(unittest.TestCase):
         pool[1]["task_signature"] = pool[2]["task_signature"] = "12/60/28"
         pool[2]["server_build"] = "0.4.0-dev"
         axes = report.condition_axes(pool)
-        self.assertEqual(list(axes), ["task set", "engine", "baseline"])
+        self.assertEqual(list(axes), ["task set", "engine", "baseline", "caps"])
         self.assertEqual(list(axes["task set"]), ["12/60/28", "16/60/60"])   # most first
         self.assertEqual(axes["task set"], {"12/60/28": 2, "16/60/60": 1})
         self.assertEqual(axes["engine"], {"llama 10250": 2, "llama 0.4.0-dev": 1})
         self.assertEqual(axes["baseline"], {"?": 3})        # no row recorded one
+        self.assertEqual(axes["caps"], {"?": 3})            # nor the per-call caps
+
+    def test_caps_axis_tells_a_raised_cap_apart(self):
+        """2026-10-15: the ON batch runs at 512/4096 and gemma was measured at 256/2048 in
+        the same pass. Without this axis the board would read them as one experiment, and a
+        row clipped by a small cap looks exactly like a weak model."""
+        clipped, roomy = mk("a"), mk("b")
+        clipped["tools"]["tools_max_tokens"] = 256
+        clipped["agent"]["agent_max_tokens"] = 2048
+        roomy["tools"]["tools_max_tokens"] = 512
+        roomy["agent"]["agent_max_tokens"] = 4096
+        self.assertEqual(report.caps_label(clipped), "tools 256/agent 2048")
+        self.assertEqual(report.caps_label(mk("c")), "?")
+        self.assertEqual(report.condition_axes([clipped, roomy])["caps"],
+                         {"tools 256/agent 2048": 1, "tools 512/agent 4096": 1})
+        self.assertIn("caps", report.mixed_axes([clipped, roomy]))
 
     def test_mixed_axes_is_empty_for_a_homogeneous_pool(self):
         pool = [mk("a"), mk("b")]

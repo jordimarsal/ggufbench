@@ -255,6 +255,10 @@ def _rows(pool):
             "code_by_level": (r.get("code") or {}).get("by_level") or {},
             # §C12: the code token cap and any per-task calibration that was in play.
             "code_budget": (r.get("code") or {}).get("code_budget"),
+            # §C13 (2026-10-15): the per-call caps travel with the row, so the card can say
+            # which ones it was measured with — a row clipped by a small cap looks exactly
+            # like a weak model, and the ON batch does not use the same caps as the OFF runs.
+            "caps": R.caps_label(r),
             "code_budget_stored": (r.get("code") or {}).get("code_budget_stored") or {},
             # §C13 run-time probes: ceilings that were touched, and whether the requested
             # thinking mode could be applied at all.
@@ -478,7 +482,7 @@ def render(pool, sort="global"):
         chips.append(f'<span class="chip">task sets {links}</span>')
     # §C10: the other two axes have no blocks to link to, so the chip names the values —
     # a reader must see the mix before reading a single row of the table.
-    for axis, label in (("engine", "engines"), ("baseline", "baselines")):
+    for axis, label in (("engine", "engines"), ("baseline", "baselines"), ("caps", "token caps")):
         if axis in mixed:
             chips.append(f'<span class="chip">{label} <b>{_esc(" · ".join(axes[axis]))}</b></span>')
 
@@ -589,6 +593,8 @@ def render(pool, sort="global"):
             probes.append("thinking-off requested but the template has no switch"
                           + (f" — {r['thinking_note']}" if r["thinking_note"] else ""))
         probe_line = ("\nprobes: " + " · ".join(probes)) if probes else ""
+        # §C13: what the caps were. '?' when the row predates the fields.
+        caps_line = f"\ncaps {r['caps']}" if r.get("caps") and r["caps"] != "?" else ""
         details.append(
             f'<details{" class=\"retired\"" if r["retired"] else ""}><summary>{_esc(r["name"])} <span class="badge{" strata" if r["engine"] == "strata" else ""}">'
             f'{_esc(r["engine"])} {_esc(r["build"])}</span>'
@@ -596,7 +602,7 @@ def render(pool, sort="global"):
             f'{" <span class=\"badge\">retired</span>" if r["retired"] else ""}'
             f' <span class="miss">{_esc(r["ts"])}</span></summary>'
             f'<pre>{by_level_line}{think_line}excluded code: {r["code_excluded"]}\n'
-            f'{base_line}{budget_line}{probe_line}\n{flags}</pre></details>')
+            f'{base_line}{budget_line}{caps_line}{probe_line}\n{flags}</pre></details>')
 
     banner = ""
     if len(dates) > 1 or mixed:

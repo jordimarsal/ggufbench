@@ -62,9 +62,23 @@ def _engine_label(row) -> str:
 
 
 # The condition axes the board compares, in a fixed order — every note lists them in this
-# one order. A row carries all three (`task_signature`, `engine` + `server_build`,
-# `baseline_flags`): §C10 is the §C9 rule applied to the two axes §C9 did not cover.
-CONDITION_AXES = ("task set", "engine", "baseline")
+# one order. A row carries all four (`task_signature`, `engine` + `server_build`,
+# `baseline_flags`, the per-call caps): §C10 is the §C9 rule applied to the axes §C9 did
+# not cover. The caps joined the list on 2026-10-15, when the ON batch was raised to
+# 512/4096 and gemma had already been measured at 256/2048 — a difference a reader must
+# see, because a row clipped by a small cap looks exactly like a weak model.
+CONDITION_AXES = ("task set", "engine", "baseline", "caps")
+
+
+def caps_label(row) -> str:
+    """The per-call token caps a row was measured with: tool calls and agent turns. '?' for
+    rows that predate the fields (the OFF runs of the v5 pass kept the harness defaults, so
+    an ON row with raised caps is a different condition, not a better model)."""
+    t = ((row.get("tools") or {}).get("tools_max_tokens")) or "?"
+    a = ((row.get("agent") or {}).get("agent_max_tokens")) or "?"
+    if t == "?" and a == "?":
+        return "?"
+    return f"tools {t}/agent {a}"
 
 
 def condition_axes(pool) -> dict[str, dict[str, int]]:
@@ -73,7 +87,7 @@ def condition_axes(pool) -> dict[str, dict[str, int]]:
     value is a condition the pool mixes."""
     axes = {axis: {} for axis in CONDITION_AXES}
     for r in pool:
-        values = (task_signature(r), _engine_label(r), baseline_id(r))
+        values = (task_signature(r), _engine_label(r), baseline_id(r), caps_label(r))
         for axis, value in zip(CONDITION_AXES, values):
             counts = axes[axis]
             counts[value] = counts.get(value, 0) + 1
