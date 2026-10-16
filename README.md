@@ -14,30 +14,49 @@ No cloud, no APIs, no puzzles. The scoreboard answers one question:
 
 ## Scoreboard
 
-**Three task sets live in the pool** — the suite grew and the fleet re-measure under the
-current one is still pending. A score is comparable **only inside a set**, so every table
-below is one set and the full report marks each row with its `SET` badge
-(`label·task-set`, e.g. `v3·16/60/60`). Read columns down a table, never rows across
-tables.
+**Three task sets live in the pool** — the suite grew and older rows were measured under
+earlier ones. A score is comparable **only inside a set**, so every table below is one set
+and the full report marks each row with its `SET` badge (`label·task-set`, e.g.
+`v3·16/60/60`). Read columns down a table, never rows across tables.
 
-Common to every row: thinking OFF unless stated, llama-server 0.6.0-dev+4413a19,
-**3 runs per task, seeds 42/43/44** (mean ± stdev), ctx 32K (unless the profile pins
-more), 2× RTX 5080. `excl.` = excluded with a recorded reason. 9 models were retired on
-2026-10-13: their rows stay in the full report, grayed, as a record.
+Common to every row: llama-server 0.6.0-dev+4413a19, **3 runs per task, seeds 42/43/44**
+(mean ± stdev), 2× RTX 5080. `excl.` = excluded with a recorded reason. 13 models were
+retired (9 on 2026-10-13, 1 on 10-14, 3 on 10-15 — `harness/retired.json` has the why):
+their rows stay in the full report, grayed, as a record. Rows at a model's maximum context
+were measured with the desktop idle; the report prints each row's flags (`-c` included),
+and Heretic's pin has since come down to its day-safe 147456 (2026-10-16,
+`harness/tools/probe-context.py`).
 
-**Current set — 18 tools · 72 code · 72 agent** (v5, 2026-10-14)
+**Current set — 18 tools · 72 code · 72 agent** (v5, 2026-10-14 · fleet re-measured 10-14/15)
 
 | model | think | tools | code | agent | speed | global |
 |---|---|---|---|---|---|---|
-| minicpm-v-4.7-35b-a3b q4_k_m | off | 100% ±0 | 83% ±1 *(2 excl.)* | 90% ±2 | 26ms | **0.85 ±0** |
+| minicpm-v-4.7-35b-a3b q4_k_m | on | 100% ±0 | 82% ±4 *(8 excl.)* | 89% ±0 | 23ms | **0.85 ±1** |
+| minicpm-v-4.7-35b-a3b q4_k_m | off ★ | 100% ±0 | 83% ±1 *(2 excl.)* | 90% ±2 | 26ms | **0.85 ±0** |
+| qwen36-35b-distill-mxfp4_moe | off ★ | 94% ±0 | 74% ±3 | 92% ±2 | 19ms | 0.84 ±1 |
+| qwen3.8-27b-ud-q3_k_xl | off | 100% ±0 | 79% ±4 | 90% ±1 | 36ms | 0.82 ±1 |
+| ornith-1.5-35b-a3b-apex-mtp-quality | off ★ | 100% ±0 | 75% ±2 | 92% ±1 | 32ms | 0.82 ±1 |
+| qwen3.8-27b-heretic-q4_k_m | off ★ | 100% ±0 | 86% ±2 | 92% ±2 | 85ms | 0.81 ±1 |
+| qwen3.8-27b-ud-q3_k_xl | on | 94% ±0 | 93% ±1 *(1 excl.)* | 96% ±1 | 629ms | 0.80 ±0 |
+| gemma-4-26b-a4b-it-ud-q5_k_xl | off ★ | 89% ±0 | 86% ±1 | 87% ±2 | 33ms | 0.80 ±0 |
+| strata-iq3_xxs *(strata engine)* | off ★ | 91% ±6 | 85% ±1 | 92% ±1 | 45ms | 0.80 ±1 |
+| qwen3.8-27b-heretic-q4_k_m | on | 94% ±0 | 90% ±2 | 97% ±1 | 1060ms | 0.80 ±0 |
+| ornith-1.5-35b-a3b-apex-mtp-quality | on | 94% ±0 | 85% ±2 | 91% ±1 | 506ms | 0.77 ±1 |
+| gemma-4-26b-a4b-it-ud-q5_k_xl | on | 91% ±3 | 85% ±3 | 85% ±3 | 775ms | 0.74 ±2 |
+| qwen36-35b-distill-mxfp4_moe | on | 93% ±6 | 70% ±4 *(1 excl.)* | 91% ±2 | 280ms | 0.72 ±2 |
+| strata-iq3_xxs *(strata engine)* | on | 78% ±0 | 91% ±3 *(4 excl.)* | 77% ±2 | 406ms | 0.70 ±1 |
 
-One row so far (2× RTX 5080, ctx 131072, 24 min for the three rounds). Its weak spot is the
-expert code tier (0.67 vs 0.91 easy / 0.87 hard) and bash (it answers bash prompts with
-fences in other languages, which the harness records as exclusions, never as silent
-failures). The rest of the pool below is **superseded**, and it was also measured before the
-grader fix of 2026-10-14 (§D10 in `docs/MILLORA.md`: shared task ids were attributed across
-languages), so its code/agent numbers are skewed: the fleet re-measure at this set is the
-next step.
+Six GGUFs and Strata, both thinking modes: that is the fleet re-measure at this set (the
+night of 2026-10-14/15). Thinking ON pays for its own thinking tokens in the speed probe —
+every ON row but MiniCPM's runs 280-1060ms against 19-85ms OFF (its own lands at 23ms) —
+and it costs quality in every model as well, with MiniCPM the only tie. Where it does buy
+something is the hard code tier: UD-Q3 +14 points over its own OFF (79→93), Ornith +10,
+strata +6, Heretic +4, and Heretic's agent reaches 97%, the fleet's best. Two ON rows are
+still owed a fair pass, and the report says so in its condition note: gemma was measured at
+the earlier call caps (256/2048 instead of 1024/8192) and Strata at 512 with 51 empty
+replies. The rest of the pool below is **superseded**; part of it also predates the grader
+fix of 2026-10-14 (§D10 in `docs/MILLORA.md`: shared task ids were attributed across
+languages), so read its code/agent numbers with that in mind.
 
 **Superseded — 16 tools · 60 code · 60 agent** (v4: the two rows of 2026-10-14)
 
