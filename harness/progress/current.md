@@ -92,9 +92,94 @@ conditions, not data. Sequence fixed with the human (2026-10-14), running detach
   config's args and the settings file — it never reinstalls — and `--yes --no-start` makes it
   non-interactive without leaving a server up.
 
+## 2026-10-16 · Heretic: l'A/B d'MTP (i dos paranys pel camí)
+
+**El MTP natiu no existeix en aquest GGUF.** Verificat amb el lector de GGUF: l'Heretic no té cap
+bloc MTP (no hi ha `blk.64.nextn.*`; l'últim és `blk.63`) i el servidor ho diu tal qual: "context
+type MTP requested but model doesn't contain MTP layers". La nota que hi havia al perfil ("el GGUF
+el declara (ffn_mtp)") era meva i era falsa, i està corregida. Qui sí que en porta: qwen36
+(`blk.40`), Ornith-APEX (`blk.40`) i UD-Q3 (`blk.64`).
+
+**La família, però, porta el cap MTP separat**: `models/nerkior/mtp-Qwen3.8-27B-Q4_0.gguf` (18
+tensors: `blk.64.nextn.*` + `token_embd` + `output`), i el build l'accepta com a esborrany
+(`--spec-draft-model`). Sonda en viu a `-c 86016` amb el cap a la GPU: **151,4 t/s contra 47,0
+t/s** del mateix model sol, 149/197 acceptats (76%). Amb el cap a CPU: 10,9 t/s — pèrdua.
+
+**Disseny del 2×2**: quatre cames a `-c 86016` (el pin del seu OFF, on el cap hi cap; a 233472 no
+hi entra: el KV de l'esborrany demana 456 MiB i el seu graf 1220 MiB a la targeta 0), OFF/ON ×
+sense/amb cap, 3 passades, sostres 1024/8192, perfil tornat a 233472 al final i **taulell
+protegit** (`pool.before-heretic-mtp-ab.jsonl` + restauració per `trap`): les files de l'A/B
+viuen com a rebuts a `results/runs/` i no toquen el taulell. Les cames amb cap diuen "amb cap de
+la família", no "MTP natiu" — mesuren el cap com a esborrany, que és una altra cosa.
+
+**Dos paranys, tots dos del mateix tipus** (una condició que diu una cosa i n'és una altra):
+
+1. *La llista blanca del harness* (`config.py`) portava el nom vell de la bandera (`-md`) i
+   tirava la nova (`--spec-draft-model`) sense aturar la passada: la cama va sortir amb
+   `--spec-type draft-mtp` i sense cap, i el servidor va morir en carregar. Arreglat (`b1efb8e`)
+   amb test que el nomena, mateix tractament que les banderes de mostreig de §C11. La sonda en
+   viu no hi va caure perquè afegia les banderes *després* de `build_args`.
+2. *El meu esborrador del perfil* ancorava els patrons en el nom solt i deixava
+   `--spec-draft-model <ruta>` i `--spec-draft-n-max 4` al fitxer després de cada neteja: per
+   això la cama 3, tot i ser un ON net, arrossega un `--spec-draft-n-max 4` inert (sense
+   `--spec-type` no hi ha esborrany). Esborrador arreglat; queda anotat com a condició que hi és.
+
+**Estat de les cames** — tancat el 16-10 a les 17:15, amb perfil (233472, sense cap) i taulell
+(byte a byte igual al snapshot) restaurats. Totes a `-c 86016`, 3 passades, sostres 1024/8192:
+
+| cama | mode | cap | tools | code | agent | sonda | t/s | global | passada |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | OFF sense cap | no | 100 | 86,1 | 93,1 | 69 ms | 57,6 | 0,819 | 56 min |
+| 2 | OFF amb cap | sí | 100 | 82,9 | 94,9 | 41 ms | 97,2 | 0,833 | 33 min |
+| 3 | ON sense cap | no | 94,4 | 89,8 | 97,2 | 1075 ms | 66,9 | 0,798 | 7 h 44 |
+
+**Què en surt**: el cap funciona i és un guany d'**1,7×** (sonda 69→41 ms, generació 57,6→97,2
+t/s, passada 56→33 min) **sense cost de qualitat** dins el que tres passades permeten dir (code
+−3,2 i agent +1,8 punts; tools igual; la dispersió del taulell és ±2-4). El global de l'OFF puja
++0,014 (0,819→0,833): el cap es paga per la via de la velocitat. La cama 1, a més, diu que els
+sostres alts no mouen l'OFF (dims idèntiques als de la fila canònica amb 512), i la cama 3 que
+comparar l'ON a 86016 amb el canònic a 233472 és just (0,798 vs 0,796; sonda 1075 vs 1060 ms).
+
+**El preu del cap és context**: a 233472 no hi cap (KV de l'esborrany 456 MiB + graf 1220 MiB, i a
+la targeta 0 n'hi havia ~1 GB); a 86016 hi cap de sobres. El sostre exacte amb cap no està
+mesurat (entre 86k i 233k). Per això el perfil no el porta per defecte: el context és el que
+aquest model ven al taulell, i la nota del perfil deixa la comanda preparada per a qui prefereixi
+latència.
+
+**No mesurat**: la cama 4 (ON amb cap), aturada a posta l'16-10 pel cost (~2-3 h) contra el que
+aporta (mecanisme, no decisió). Nota per a qui ho repengui: en ON el coll és el pressupost de
+32768 (6 topades a la cama 3, 0 a les dues OFF) i el cap no mou tokens, només rellotge — el que
+s'hi guanyaria són hores de passada, no punts.
+
+## 2026-10-16 (vespre) · Els pins de context màxim són de màquina tranquil·la
+
+La suite ha caigut avui per una cosa que no era el codi: `test_smoke.py` aixeca un servidor de
+debò amb el perfil de producció del model petit, i el d'UD-Q3 (`--spec-type draft-mtp --mmproj
+-c 262144`) demana 1226 MiB per al graf de l'MTP i la targeta diu no. Amb el despatx actiu (~1,8
+GB a la targeta 0), Heretic tampoc carrega a 233472: mor al mmproj (884 MiB); a 220k i a 212k
+carrega, però amb 660 i 591 MiB lliures — per sota del marge de 1200 MiB que la sonda exigeix.
+
+És a dir: les files ON de context màxim (Heretic, UD-Q3, qwen36, Ornith, qwen39, gemma) són
+mesures de **màquina tranquil·la** — les vam fer de nit. Els rebuts són vàlids; el que no es
+reprodueix és la condició. Si un run falla en arrencar amb `cudaMalloc ... out of memory`, és
+això i no el codi: tancar el navegador, o baixar el pin. Verificat amb la sonda arreglada (que
+ara, quan el sostre falla, comprova el terra abans de dir "none"): rebut complet a
+`harness/logs/probe-context-smoke.log`.
+
+Arreglat de passada, i és el que fa tornar la suite a verd:
+
+- `ServerManager(extra_args=...)`: van al final, després del perfil — mateixa convenció que el
+  propi perfil, o sigui que l'última paraula és del qui crida.
+- El smoke carrega a `-c 8192`: la seva feina és la canonada (arrencar → xerrar → correctors),
+  no validar el pin de producció; per a això ja hi ha el smoke de nivell 3 de
+  `docs/verification.md`. 473 tests, verd, amb 1 salt (el del `--version`, que ja era).
+
 ## Next step
 
-_If a new session opens: read AGENTS.md + current.md + feature_list.json. The night's benches run
-detached (`setsid`): check `harness/logs/v5_off/dense.log`, `harness/logs/v5_strata/` and
-`harness/logs/v5_on/fleet.log` before touching anything, and never start a server while one is up
-— the harness owns the lifecycle._
+_If a new session opens: read AGENTS.md + current.md + feature_list.json. As of 2026-10-16 17:15
+nothing is running and the GPUs are free; the A/B receipts live in `results/runs/` (08:57, 16:41,
+17:15) and `harness/logs/v5_ab_mtp/`. Pending on the board: **gemma's ON row** still carries the
+old caps (256/2048, 22 empty) and **Strata's ON** carries 512 (51 empty) — both deserve a pass
+with the fleet's raised caps, and the two engines cannot run at once (never llama-server and
+Strata together). Owed: smoke-test `harness/tools/probe-context.py` end-to-end (fixed 15-10,
+never run as a CLI since). After those land, refresh scoreboard + report in one go._
