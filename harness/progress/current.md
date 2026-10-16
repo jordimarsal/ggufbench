@@ -33,6 +33,9 @@ _Note each significant step: files created, decisions, blockers._
   - lletra petita: files ON de gemma/strata pendents de passada justa + pestanya Retired.
 - Verificat: 3 fitxers de 73 línies, 8 encapçalaments i les mateixes 10 files a les tres
   llengües (conjunts numèrics iguals; `1.512`/`1,512` és el separador de milers).
+- **Handle**: els write-ups es queden amb **`jordimarsal`** — un intent de passar-los a
+  `jordimp` (`80aa7d5`) es va revertir el mateix dia a petició de l'humà (`b56f8ec`).
+  No canviar el handle sense una petició explícita.
 
 ## Next step
 
