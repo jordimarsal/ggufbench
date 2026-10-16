@@ -206,6 +206,20 @@ al pool ja hi ha la re-mesura de l'estol sencer. Publicat, doncs, en dos passos:
   <https://jordimarsal.github.io/ggufbench/>. `compare.html` s'ha enviat tal qual, que és el
   disseny del script (l'últim parell executat amb `--compare`).
 
+## 2026-10-16 · Spec `report_polish` (polit del report) → Spec Gate
+
+L'usuari demana tres canvis de polit al report publicat: (1) els models retirats, en una
+pestanya HTML pròpia (avui s'intercalen en gris a *totes* les seccions: global, code,
+agent, tools, speed, t/s, matriu, condicions), (2) les recomanacions just sota la franja
+de KPIs, (3) tots els llistats d'stats, de millor a pitjor. Spec escrita en mode híbrid
+(fem de spec-author): `harness/specs/report_polish/` — 12 R, 5 T en 3 tandes — i la
+decisió de fons a **ADR-0010**: les pestanyes amb radios + CSS pur, sense cap script nou
+(la pàgina manté el pressupost d'≤1 script i es llegeix sense JS). Decidit també a la
+spec: la franja de KPIs passa a comptar *només* files vives (avui «Fastest 307 t/s» i
+«Lowest latency 13 ms» els guanya el Nemotron, retirat) i la pestanya Retired és el
+mirall del board, sense KPIs ni recomanacions (instruments d'elecció). Res de codi
+tocat: **atura i espera el Spec Gate humà** (feature 8 = `spec_ready`).
+
 ## Next step
 
 _If a new session opens: read AGENTS.md + current.md + feature_list.json. As of 2026-10-16 ~18:00
@@ -216,4 +230,6 @@ ON** carries 512 (51 empty) — both deserve a pass with the fleet's raised caps
 human's run; never llama-server and Strata together). Offered to the human, waiting on an
 answer: refresh the three write-ups (`docs/writeups/*.md` are v4-era, title included) against
 the v5 table. Optional: re-measure Heretic's ON row at its new 147456 pin (one night) so the
-row matches the profile._
+row matches the profile._ **Also pending: feature 8 `report_polish` (report tab polish) is
+`spec_ready` — waiting on the human Spec Gate; see the section above and
+`harness/specs/report_polish/`.**

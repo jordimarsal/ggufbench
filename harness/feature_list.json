@@ -111,6 +111,27 @@
         "R5: sense canvis de pesos, plegat ni semàntica de score"
       ],
       "status": "spec_ready"
+    },
+    {
+      "id": 8,
+      "name": "report_polish",
+      "title": "Polit del report HTML: pestanya per als retirats, recomanacions a dalt, stats de millor a pitjor",
+      "description": "El report publicat acumula soroll: les files retirades s'intercalen en gris a totes les seccions i les recomanacions viuen al final del tot. Demanda de l'usuari (2026-10-16): (1) els models retirats, en una pestanya HTML pròpia (Board per defecte amb només files vives; Retired com a registre, sense KPIs ni recomanacions); (2) les recomanacions just sota la franja de KPIs (Best overall/Fastest/Lowest latency/Newest), abans de Weighted global; (3) tots els llistats per dimensió (code/agent/tools/speed/gen/prompt tps), de millor a pitjor, a les dues pestanyes. Pestanyes amb radios + CSS pur: sense cap script nou (la pàgina manté <=1 script i es llegeix sense JS). La franja de KPIs passa a comptar només files vives.",
+      "acceptance": [
+        "R1: amb files vives i retirades, dues pestanyes (Board / Retired), una visible alhora",
+        "R2: el Board és la pestanya per defecte (sense JS ni storage)",
+        "R3: sense files retirades, el report es pinta com ara: ni barra ni segona pestanya",
+        "R4: la pestanya Retired no té recomanacions ni franja de KPIs",
+        "R5: la franja de KPIs només compta files vives",
+        "R6: les recomanacions, just sota els KPIs i abans de Weighted global",
+        "R7: tots els llistats per dimensió, de millor a pitjor (scores/tps desc, latència asc), a les dues pestanyes",
+        "R8: cap fila retirada dins del Board",
+        "R9: la pestanya Retired diu que és només registre (no es pot tornar a executar)",
+        "R10: el xip de models dona els dos comptes (vives + retirades)",
+        "R11: els enllaços de task sets només apunten a blocs del Board; signatures només retirades, com a text",
+        "R12: autònom com ara: cap recurs extern, <=1 script, pestanyes commutables sense JS"
+      ],
+      "status": "spec_ready"
     }
   ]
 }
