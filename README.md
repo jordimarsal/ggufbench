@@ -22,7 +22,8 @@ and the full report marks each row with its `SET` badge (`label·task-set`, e.g.
 Common to every row: llama-server 0.6.0-dev+4413a19, **3 runs per task, seeds 42/43/44**
 (mean ± stdev), 2× RTX 5080. `excl.` = excluded with a recorded reason. 13 models were
 retired (9 on 2026-10-13, 1 on 10-14, 3 on 10-15 — `harness/retired.json` has the why):
-their rows stay in the full report, grayed, as a record. Rows at a model's maximum context
+their rows stay in the full report behind its **Retired** tab — record only, they count
+for neither the headline KPIs nor the recommendations. Rows at a model's maximum context
 were measured with the desktop idle; the report prints each row's flags (`-c` included),
 and Heretic's pin has since come down to its day-safe 147456 (2026-10-16,
 `harness/tools/probe-context.py`).

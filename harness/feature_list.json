@@ -131,7 +131,7 @@
         "R11: els enllaços de task sets només apunten a blocs del Board; signatures només retirades, com a text",
         "R12: autònom com ara: cap recurs extern, <=1 script, pestanyes commutables sense JS"
       ],
-      "status": "spec_ready"
+      "status": "in_progress"
     }
   ]
 }

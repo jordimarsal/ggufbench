@@ -3,10 +3,11 @@
 > This file is cleared on session close and moved to `history.md`.
 > Keep it updated in real time while you work — not at the end.
 
-- **Feature in progress:** _none_ (all 6 `done`; `lora_eval` = feature 7 `spec_ready`,
-  waiting on the human Spec Gate)
-- **Started:** _—_
-- **Agent:** _—_
+- **Feature in progress:** 8 — `report_polish` (all T1–T5 `[x]` with evidence; traceability
+  12/12 PASS; **waiting on the human Completion Gate**). `lora_eval` = feature 7 still
+  `spec_ready`, waiting on its own Spec Gate
+- **Started:** 2026-10-16 (implementation after the Spec Gate approval, same session)
+- **Agent:** hybrid in-session (implementer + reviewer modes)
 
 ## Plan
 
@@ -220,6 +221,37 @@ spec: la franja de KPIs passa a comptar *només* files vives (avui «Fastest 307
 mirall del board, sense KPIs ni recomanacions (instruments d'elecció). Res de codi
 tocat: **atura i espera el Spec Gate humà** (feature 8 = `spec_ready`).
 
+## 2026-10-16 (vespre) · report_polish: implementació (tandes 1 i 2)
+
+Spec aprovada a la porta → feature 8 `in_progress`. L'ordre del report ara és: KPIs → recomanacions
+→ "Weighted global" → resta de seccions; les files vives i les retirades viuen en panes separades
+amb pestanyes de radios + CSS pur (cap script nou: la pàgina manté ≤1 script i es llegeix sense JS).
+
+- **Tanda 1 (T1+T2)**: `render()` parteix `rows` en `live`/`gone`; panes `.pane-board`/`.pane-retired`
+  amb `#tab-board:checked~…` (Board és la pestanya per defecte; sense retirats no hi ha pestanyes);
+  nota "Record only…" a la pane retirada i fora el xip gris vell ("gray = retired model" descrivia un
+  board que ja no existeix). Franja de KPIs i recomanacions passen a `live` (`_kpis(live)`,
+  `_rec_section(live)`); la pane retirada no en porta. Seccions extretes a
+  `_sections(rows, sort, *, board, optimal)`; `_by_set_section(anchors=…)` deixa els `id="set-…"`
+  només al board (cap id duplicat); `_dim_bars` invertit a millor→pitjor en aquesta tanda (el codi va
+  néixer amb l'extracció; els seus tests són a la tanda 2). Evidència: `harness/logs/report_polish/
+  batch-1.log` (481 tests, verd).
+- **Tanda 2 (T3+T4)**: xip de models `N models (+M retired)` (comptes separats només quan n'hi ha) i
+  enllaços del xip de task sets només cap a blocs del board — una signatura només retirada queda com
+  a text (`<span class="miss">`). Tests d'ordre per a les dues panes (code/speed/gen; sense mesura,
+  al final). Evidència: `batch-2.log` (487 tests, verd).
+- **T1–T5 marcats `[x]`** a `harness/specs/report_polish/tasks.md` amb referència als logs
+  (`batch-1/2/3.log`). T5 feta: README ("behind its **Retired** tab — record only"), nota
+  *Landed* a l'ADR-0010, traçabilitat **12/12 PASS** (`check-traceability.py --feature
+  report_polish`, sortida a `harness/specs/report_polish/review.md`) i revisió caminada
+  (també `harness/progress/review_report_polish.md`, veredicte APPROVED). Verificació extra
+  amb el taulell real: render a `/tmp/opencode/report-polish-preview.html` — 1 sol `.tabs`,
+  KPIs `0.85 / 207 t/s / 19 ms / 2026-10-15` (el Nemotron retirat ja no fa titular), llistes
+  vives començant `93%` / `19 ms` / `207 t/s`, i la pestanya Retired amb 19 files sense ids.
+  **Aturada a la Completion Gate per a l'humà.** El render local (`results/report.html`) i la
+  pàgina publicada NO s'han tocat encara: es regeneraran (i publicaran) quan l'humà tanqui la
+  porta, perquè el taulell i la pàgina no es contradiguin.
+
 ## Next step
 
 _If a new session opens: read AGENTS.md + current.md + feature_list.json. As of 2026-10-16 ~18:00
@@ -230,6 +262,7 @@ ON** carries 512 (51 empty) — both deserve a pass with the fleet's raised caps
 human's run; never llama-server and Strata together). Offered to the human, waiting on an
 answer: refresh the three write-ups (`docs/writeups/*.md` are v4-era, title included) against
 the v5 table. Optional: re-measure Heretic's ON row at its new 147456 pin (one night) so the
-row matches the profile._ **Also pending: feature 8 `report_polish` (report tab polish) is
-`spec_ready` — waiting on the human Spec Gate; see the section above and
-`harness/specs/report_polish/`.**
+row matches the profile._ **Also pending: feature 8 `report_polish` — T1–T4 done with green
+gates (`harness/logs/report_polish/batch-1.log`, `batch-2.log`); T5 (docs + traceability) is
+the next step, then the Completion Gate for the human.** The report render is NOT regenerated
+yet: `results/report.html` (and the published page) still hold the old layout on purpose.

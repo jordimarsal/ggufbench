@@ -2,6 +2,9 @@
 
 - **Date:** 2026-10-16
 - **Status:** accepted
+- **Landed:** 2026-10-16 — report_polish T1-T2: `.tabs` + hidden radios (`#tab-board`
+  checked) + `:checked ~` rules switch `.pane-board`/`.pane-retired`; `TestReportTabs`
+  pins the contract (including the `<= 1 <script>` budget).
 - **Feature:** report_polish
 
 ## Context

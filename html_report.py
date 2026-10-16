@@ -180,10 +180,12 @@ def _rows_phrase(n):
     return f"{n} row" + ("" if n == 1 else "s")
 
 
-def _by_set_section(rows):
+def _by_set_section(rows, *, anchors=True):
     """Static 'by task set' view (MILLORA §C9): one block per task set, its rows ordered by
     global inside the block, so a reader can pick a set and compare only inside it. It is
-    the no-JS answer to 'order by test version' — the ranking control does it in place."""
+    the no-JS answer to 'order by test version' — the ranking control does it in place.
+    `anchors=False` (retired pane, report_polish) drops the block ids: only the board pane
+    is linkable, and the two panes must not duplicate ids."""
     groups = {}
     for r in rows:
         groups.setdefault(r["sig"], []).append(r)
@@ -198,7 +200,8 @@ def _by_set_section(rows):
         dates = sorted({r["ts"] for r in group if r["ts"]})
         span = f'{dates[0]} → {dates[-1]}' if len(dates) > 1 else (dates[0] if dates else "—")
         labels = sorted({r["set"].split("·")[0] for r in group})
-        out.append(f'  <div class="setblock" id="set-{_esc(sig.replace("/", "-"))}">'
+        anchor = f' id="set-{_esc(sig.replace("/", "-"))}"' if anchors else ""
+        out.append(f'  <div class="setblock"{anchor}>'
                    f'<h3>{_esc(sig)} tasks '
                    f'<span class="setmeta">· label {" / ".join(_esc(l) for l in labels)} · '
                    f'{len(group)} row{"s" if len(group) != 1 else ""} · measured {_esc(span)}</span></h3>')
@@ -347,6 +350,191 @@ def _rec_section(rows):
     return "\n".join(out)
 
 
+def _kpis(rows):
+    """The headline strip (Best overall / Fastest (gen) / Lowest latency / Newest model),
+    computed from `rows` only — the board passes its live rows, so a deleted model cannot
+    headline the board (report_polish R5)."""
+    dates = sorted({r["ts"] for r in rows if r["ts"]})
+    kpis = [("Best overall", f"{rows[0]['global']:.2f}" if rows else "—"),
+            ("Fastest (gen)", f"{max((r['sc']['gen_tps'] for r in rows), default=0):.0f} t/s"),
+            ("Lowest latency", f"{min((r['sc']['speed_ms'] for r in rows if r['sc']['speed_ms']), default=0)} ms"),
+            ("Newest model", _esc(dates[-1]) if dates else "—")]
+    return ('<div class="kpis">'
+            + ''.join(f'<div class="kpi"><div class="v">{v}</div><div class="l">{_esc(l)}</div></div>'
+                      for l, v in kpis)
+            + '</div>')
+
+
+def _dim_bars(rows, key, fmt):
+    """One row per model, best performer first (report_polish R7): scores and throughputs
+    descending, latency ascending (lower is better); a row without the measurement lands
+    last. Before the polish this ran worst-first, the opposite of how the page is read."""
+    def order(x):
+        v = x["sc"][key]
+        return (v if v else 1e9) if key == "speed_ms" else -(v or 0)
+
+    out = []
+    for r in sorted(rows, key=order):
+        v = r["sc"][key]
+        # Badge BEFORE the name: .name uses ellipsis (nowrap) so the badge at the end
+        # was clipped in narrow columns. title = full name as tooltip.
+        think = (f'<span class="badge">think:{_esc(r["thinking"])}</span> '
+                 if r["thinking"] != "—" else "")
+        if r["retired"]:
+            think += '<span class="badge">retired</span> '
+        out.append(f'<div class="trow{" retired" if r["retired"] else ""}">'
+                   f'<div class="name" title="{_esc(r["name"])}">{think}{_esc(r["name"])}</div>'
+                   f'<div class="num" style="text-align:right">{fmt(v)}</div></div>')
+    return "".join(out)
+
+
+_LANGS = ["python", "bash", "java", "typescript"]
+
+
+def _sections(rows, sort, *, board, optimal):
+    """Every card section of one pane, in page order: ranking, by task set, the four
+    dimension bars, tokens per second, the language matrix and the per-model conditions.
+    `board=True` adds the in-page order control and the `id="set-…"` anchors the header
+    chip links to; the retired pane (report_polish) reuses the same layout without
+    either, and always in global order (the control is a board tool)."""
+    ranking = []
+    for i, r in enumerate(rows):
+        cls = " top" if i == 0 else ""
+        think = (f' <span class="badge">think:{_esc(r["thinking"])}</span>'
+                 if r["thinking"] != "—" else "")
+        if optimal.get(r["slug"]) == r["thinking"]:
+            think += ' <span class="badge strata">★ optimal</span>'
+        if r["retired"]:
+            think += ' <span class="badge">retired</span>'
+        # data-* feeds the in-page order control (no server round trip): the same values
+        # the static order uses. Values, not text, so the JS never parses the display.
+        data = (f' data-g="{r["global"]:.4f}" data-tools="{r["sc"]["tools"] or 0:.4f}"'
+                f' data-code="{r["sc"]["code"] or 0:.4f}" data-agent="{r["sc"]["agent"] or 0:.4f}"'
+                f' data-speed="{r["sc"]["speed_ms"] or 0}" data-setsize="{r["set_size"]}"'
+                f' data-set="{_esc(r["set"])}"')
+        ranking.append(
+            f'<div class="trow{" retired" if r["retired"] else ""}"{data}>'
+            f'<div class="pos{cls}">{i + 1}</div>'
+            f'<div class="name" title="{_esc(r["name"])}">{_esc(r["name"])}<small>{_esc(r["ts"])} · '
+            f'{r["tasks"]["tools"]}+{r["tasks"]["code"]}+{r["tasks"]["agent"]} tasks · '
+            f'version {_esc(r["set"])} · excluded code: {r["code_excluded"]}</small></div>'
+            f'<div class="gval{cls}">{r["global"]:.2f}{_spread_html((r["spread"] or {}).get("global"))} '
+            f'{_set_badge(r)} '
+            f'<span class="badge{" strata" if r["engine"] == "strata" else ""}">'
+            f'{_esc(r["engine"])} {_esc(r["build"])}</span>{think}</div></div>')
+
+    sortbar = ""
+    if board:
+        sortbar = ('<div class="sortbar">'
+                   '<label for="sortkey">order by</label>'
+                   f'<select id="sortkey" aria-label="ranking order">'
+                   + "".join(f'<option value="{k}"{" selected" if k == sort else ""}>{k}</option>'
+                             for k in R.SORTS)
+                   + '</select>'
+                   '<span class="miss" id="sorted">'
+                   + _esc("static order: " + sort + " — the control reorders in place, no network")
+                   + '</span></div>')
+
+    matrix_rows = []
+    for r in rows:
+        cells = []
+        for dim in ("code", "agent"):
+            for lang in _LANGS:
+                v = r["by_lang"][dim].get(lang)
+                if v is None:
+                    cells.append('<td class="miss">—</td>')
+                else:
+                    cells.append(f"<td>{_heat(v)}</td>")
+        think = (f'<span class="badge">think:{_esc(r["thinking"])}</span> '
+                 if r["thinking"] != "—" else "")
+        if r["retired"]:
+            think += '<span class="badge">retired</span> '
+        matrix_rows.append(f'<tr{" class=\"retired\"" if r["retired"] else ""}><td class="name" title="{_esc(r["name"])}">{think}{_esc(r["name"])}</td>'
+                           f'{"".join(cells)}</tr>')
+    matrix_head = "".join(f'<th>{dim}:{lang}</th>' for dim in ("code", "agent") for lang in _LANGS)
+
+    details = []
+    for r in rows:
+        flags = _esc(_sanitize_public(r["flags"])) if r["flags"] else "harness default flags"
+        bl = r["code_by_level"]
+        by_level_line = ""
+        if bl:
+            by_level_line = "code by level: " + " · ".join(
+                f"{k} {v:.0%}" for k, v in sorted(bl.items())) + "\n"
+        think_line = (f"think: {r['thinking']}\n" if r["thinking"] != "—" else "")
+        # §C10: the baseline id, next to the per-model flags. The flags themselves are
+        # config.SERVER_FLAGS + config.CACHE_FLAGS (docs/SPEC.md §2); the id says which
+        # version of them the row ran under ('?' = the row predates the field).
+        base_line = f"baseline {r['base']}" + ("" if r["base"] != "?" else " (not recorded)")
+        # §C12: the token cap the code tasks ran under (rows before it simply omit the line).
+        budget_line = ""
+        if r["code_budget"]:
+            stored = r["code_budget_stored"]
+            extra = (f" · {sum(stored.values())} task(s) at "
+                     + ", ".join(f"{cap}" for cap in stored) + " (stored calibration)"
+                     ) if stored else ""
+            budget_line = f"\ncode budget {r['code_budget']}{extra}"
+        # §C13 probes: say out loud what the run hit, instead of leaving it in a receipt.
+        probes = []
+        if r["code_budget_hits"]:
+            probes.append(f"{r['code_budget_hits']} code task(s) at the token cap ({r['code_budget']})")
+        if r["agent_empty_replies"]:
+            probes.append(f"{r['agent_empty_replies']} agent turn(s) answered empty (turn cap?)")
+        if r["tools_capped"]:
+            probes.append(f"{r['tools_capped']} tool call(s) at the cap")
+        if r["thinking_applied"] is False:
+            probes.append("thinking-off requested but the template has no switch"
+                          + (f" — {r['thinking_note']}" if r["thinking_note"] else ""))
+        probe_line = ("\nprobes: " + " · ".join(probes)) if probes else ""
+        # §C13: what the caps were. '?' when the row predates the fields.
+        caps_line = f"\ncaps {r['caps']}" if r.get("caps") and r["caps"] != "?" else ""
+        details.append(
+            f'<details{" class=\"retired\"" if r["retired"] else ""}><summary>{_esc(r["name"])} <span class="badge{" strata" if r["engine"] == "strata" else ""}">'
+            f'{_esc(r["engine"])} {_esc(r["build"])}</span>'
+            f'{" <span class='badge strata'>★ optimal</span>" if optimal.get(r["slug"]) == r["thinking"] else ""}'
+            f'{" <span class=\"badge\">retired</span>" if r["retired"] else ""}'
+            f' <span class="miss">{_esc(r["ts"])}</span></summary>'
+            f'<pre>{by_level_line}{think_line}excluded code: {r["code_excluded"]}\n'
+            f'{base_line}{budget_line}{caps_line}{probe_line}\n{flags}</pre></details>')
+
+    rank_id = ' id="ranking"' if board else ""
+    return f"""<section>
+  <h2>Weighted global</h2>
+  {sortbar}
+  <div{rank_id}>
+  {chr(10).join(ranking)}
+  </div>
+</section>
+
+{_by_set_section(rows, anchors=board)}
+
+<div class="grid2">
+<section><h2>Code ({_n_tasks(rows, "code")} tasks · 4 languages)</h2>{_dim_bars(rows, "code", lambda v: f"{v:.0%}")}</section>
+<section><h2>Multi-step agent ({_n_tasks(rows, "agent")} tasks)</h2>{_dim_bars(rows, "agent", lambda v: f"{v:.0%}")}</section>
+<section><h2>Tool-calling ({_n_tasks(rows, "tools")} tasks)</h2>{_dim_bars(rows, "tools", lambda v: f"{v:.0%}")}</section>
+<section><h2>Speed (generation ms · lower is better)</h2>{_dim_bars(rows, "speed_ms", lambda v: f"{v} ms")}</section>
+</div>
+
+<section>
+  <h2>Tokens per second</h2>
+  <div class="grid2">
+    <div><h2>gen (output)</h2>{_dim_bars(rows, "gen_tps", lambda v: f"{v:.0f} t/s")}</div>
+    <div><h2>prompt (input)</h2>{_dim_bars(rows, "prompt_tps", lambda v: f"{v:.0f} t/s")}</div>
+  </div>
+</section>
+
+<section>
+  <h2>By language (code / agent)</h2>
+  <table><thead><tr><th>Model</th>{matrix_head}</tr></thead>
+  <tbody>{''.join(matrix_rows)}</tbody></table>
+</section>
+
+<section>
+  <h2>Conditions per model</h2>
+  {''.join(details)}
+</section>"""
+
+
 _CSS = """
 :root{
   --bg:#0b1220; --card:#101a2e; --card2:#0d1526; --border:#1e2a44;
@@ -410,6 +598,21 @@ tr:hover td{background:rgba(59,130,246,.07)}
 .sortbar select{background:var(--card2);color:var(--text);border:1px solid var(--border);
   border-radius:7px;padding:4px 6px;font:12px var(--mono)}
 .sortbar select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+/* report_polish: Board/Retired panes. Native radios + :checked — the page keeps its
+   single script and both panes are reachable with JS off (ADR-0010). */
+.tabs{display:grid;gap:12px;position:relative}
+.tabs>input{position:absolute;opacity:0;pointer-events:none}
+.tabbar{display:flex;gap:6px}
+.tabbar label{cursor:pointer;font:12px/1 var(--mono);color:var(--muted);border:1px solid var(--border);
+  border-radius:999px;padding:6px 10px;background:var(--card2)}
+.tabbar label b{color:var(--text)}
+#tab-board:checked~.tabbar label[for="tab-board"],#tab-retired:checked~.tabbar label[for="tab-retired"]{
+  color:#fff;background:var(--primary);border-color:transparent}
+#tab-board:focus-visible~.tabbar label[for="tab-board"],#tab-retired:focus-visible~.tabbar label[for="tab-retired"]{
+  outline:2px solid var(--accent);outline-offset:2px}
+#tab-board:checked~.pane-retired{display:none}
+#tab-retired:checked~.pane-board{display:none}
+.pane-board,.pane-retired{display:grid;gap:16px}
 .setblock{border:1px solid var(--border);border-radius:9px;background:var(--card2);
   padding:8px 10px;margin-bottom:8px}
 .setblock h3{margin:0 0 6px;font:600 12px var(--mono);letter-spacing:.3px;color:var(--label)}
@@ -445,10 +648,15 @@ def render(pool, sort="global"):
     inline script (the ranking's order control), no external resource, no network.
 
     `sort` is the order the static ranking is rendered in (report.SORTS): the page reads
-    correctly without JS from that order, and the control reorders it in place."""
+    correctly without JS from that order, and the control reorders it in place.
+
+    report_polish: live rows fill the Board pane; retired rows render behind their own
+    pure-CSS tab (record only — no KPIs, no recommendations). The header chips and the
+    mixed-conditions banner stay global to the pool."""
     rows = _order_rows(_rows(pool), sort)
+    live = [r for r in rows if not r["retired"]]
+    gone = [r for r in rows if r["retired"]]
     now = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
-    rec_section = _rec_section(rows)
     # C8 optimal thinking mode per model (needs wall_time_s on both rows of a
     # pair; rows from before it simply get no marker).
     optimal = R.optimal_by_slug(pool)
@@ -458,13 +666,14 @@ def render(pool, sort="global"):
     # recorded at all before 2026-10-14.
     axes = R.condition_axes(pool)
     mixed = R.mixed_axes(pool)
-    set_section = _by_set_section(rows)
     gpus = _gpu_chips()
     w = config.WEIGHTS
     dates = sorted({r["ts"] for r in rows if r["ts"]})
-    langs = ["python", "bash", "java", "typescript"]
 
-    chips = [f'<span class="chip"><b>{len(rows)}</b> models</span>',
+    models_chip = f'<b>{len(live)}</b> models'
+    if gone:   # report_polish R10: the two counts separately (single total otherwise)
+        models_chip += f' (+{len(gone)} retired)'
+    chips = [f'<span class="chip">{models_chip}</span>',
              f'<span class="chip"><b>{sum(max(r["tasks"].values()) for r in rows)}</b> tasks</span>',
              '<span class="chip">weights <b>tools {:.2f} · code {:.2f} · agent {:.2f} · speed {:.2f}</b></span>'.format(
                  w["tools"], w["code"], w["agent"], w["speed"])]
@@ -474,11 +683,14 @@ def render(pool, sort="global"):
     # Pointer to the sibling compare page (results/compare.html, same dir both
     # locally and on gh-pages): one link, no embed — the page stays offline-first.
     chips.append('<a class="chip" href="compare.html">head-to-head compare →</a>')
-    if any(r["retired"] for r in rows):
-        chips.append('<span class="chip">gray = retired model (record only)</span>')
     if "task set" in mixed:
-        links = " · ".join(f'<a href="#set-{_esc(sig.replace("/", "-"))}">{_esc(sig)}</a>'
-                           for sig in R.ordered_signatures(pool))
+        # report_polish R11: only the board pane carries set anchors, so a signature with
+        # live rows gets a link; a retired-only set stays as text (nothing to jump to).
+        live_sigs = {r["sig"] for r in live}
+        links = " · ".join(
+            f'<a href="#set-{_esc(sig.replace("/", "-"))}">{_esc(sig)}</a>'
+            if sig in live_sigs else f'<span class="miss">{_esc(sig)}</span>'
+            for sig in R.ordered_signatures(pool))
         chips.append(f'<span class="chip">task sets {links}</span>')
     # §C10: the other two axes have no blocks to link to, so the chip names the values —
     # a reader must see the mix before reading a single row of the table.
@@ -486,123 +698,29 @@ def render(pool, sort="global"):
         if axis in mixed:
             chips.append(f'<span class="chip">{label} <b>{_esc(" · ".join(axes[axis]))}</b></span>')
 
-    kpis = [("Best overall", f"{rows[0]['global']:.2f}" if rows else "—"),
-            ("Fastest (gen)", f"{max((r['sc']['gen_tps'] for r in rows), default=0):.0f} t/s"),
-            ("Lowest latency", f"{min((r['sc']['speed_ms'] for r in rows if r['sc']['speed_ms']), default=0)} ms"),
-            ("Newest model", _esc(dates[-1]) if dates else "—")]
-
-    ranking = []
-    for i, r in enumerate(rows):
-        cls = " top" if i == 0 else ""
-        think = (f' <span class="badge">think:{_esc(r["thinking"])}</span>'
-                 if r["thinking"] != "—" else "")
-        if optimal.get(r["slug"]) == r["thinking"]:
-            think += ' <span class="badge strata">★ optimal</span>'
-        if r["retired"]:
-            think += ' <span class="badge">retired</span>'
-        # data-* feeds the in-page order control (no server round trip): the same values
-        # the static order uses. Values, not text, so the JS never parses the display.
-        data = (f' data-g="{r["global"]:.4f}" data-tools="{r["sc"]["tools"] or 0:.4f}"'
-                f' data-code="{r["sc"]["code"] or 0:.4f}" data-agent="{r["sc"]["agent"] or 0:.4f}"'
-                f' data-speed="{r["sc"]["speed_ms"] or 0}" data-setsize="{r["set_size"]}"'
-                f' data-set="{_esc(r["set"])}"')
-        ranking.append(
-            f'<div class="trow{" retired" if r["retired"] else ""}"{data}>'
-            f'<div class="pos{cls}">{i + 1}</div>'
-            f'<div class="name" title="{_esc(r["name"])}">{_esc(r["name"])}<small>{_esc(r["ts"])} · '
-            f'{r["tasks"]["tools"]}+{r["tasks"]["code"]}+{r["tasks"]["agent"]} tasks · '
-            f'version {_esc(r["set"])} · excluded code: {r["code_excluded"]}</small></div>'
-            f'<div class="gval{cls}">{r["global"]:.2f}{_spread_html((r["spread"] or {}).get("global"))} '
-            f'{_set_badge(r)} '
-            f'<span class="badge{" strata" if r["engine"] == "strata" else ""}">'
-            f'{_esc(r["engine"])} {_esc(r["build"])}</span>{think}</div></div>')
-
-    sortbar = ('<div class="sortbar">'
-               '<label for="sortkey">order by</label>'
-               f'<select id="sortkey" aria-label="ranking order">'
-               + "".join(f'<option value="{k}"{" selected" if k == sort else ""}>{k}</option>'
-                         for k in R.SORTS)
-               + '</select>'
-               '<span class="miss" id="sorted">'
-               + _esc("static order: " + sort + " — the control reorders in place, no network")
-               + '</span></div>')
-
-    def dim_bars(key, fmt):
-        out = []
-        for r in sorted(rows, key=lambda x: -(x["sc"][key] or 1e9) if key == "speed_ms" else (x["sc"][key] or 0)):
-            v = r["sc"][key]
-            # Badge BEFORE the name: .name uses ellipsis (nowrap) so the badge at the end
-            # was clipped in narrow columns. title = full name as tooltip.
-            think = (f'<span class="badge">think:{_esc(r["thinking"])}</span> '
-                     if r["thinking"] != "—" else "")
-            if r["retired"]:
-                think += '<span class="badge">retired</span> '
-            out.append(f'<div class="trow{" retired" if r["retired"] else ""}">'
-                       f'<div class="name" title="{_esc(r["name"])}">{think}{_esc(r["name"])}</div>'
-                       f'<div class="num" style="text-align:right">{fmt(v)}</div></div>')
-        return "".join(out)
-
-    matrix_rows = []
-    for r in rows:
-        cells = []
-        for dim in ("code", "agent"):
-            for lang in langs:
-                v = r["by_lang"][dim].get(lang)
-                if v is None:
-                    cells.append('<td class="miss">—</td>')
-                else:
-                    cells.append(f"<td>{_heat(v)}</td>")
-        think = (f'<span class="badge">think:{_esc(r["thinking"])}</span> '
-                 if r["thinking"] != "—" else "")
-        if r["retired"]:
-            think += '<span class="badge">retired</span> '
-        matrix_rows.append(f'<tr{" class=\"retired\"" if r["retired"] else ""}><td class="name" title="{_esc(r["name"])}">{think}{_esc(r["name"])}</td>'
-                           f'{"".join(cells)}</tr>')
-    matrix_head = "".join(f'<th>{dim}:{lang}</th>' for dim in ("code", "agent") for lang in langs)
-
-    details = []
-    for r in rows:
-        flags = _esc(_sanitize_public(r["flags"])) if r["flags"] else "harness default flags"
-        bl = r["code_by_level"]
-        by_level_line = ""
-        if bl:
-            by_level_line = "code by level: " + " · ".join(
-                f"{k} {v:.0%}" for k, v in sorted(bl.items())) + "\n"
-        think_line = (f"think: {r['thinking']}\n" if r["thinking"] != "—" else "")
-        # §C10: the baseline id, next to the per-model flags. The flags themselves are
-        # config.SERVER_FLAGS + config.CACHE_FLAGS (docs/SPEC.md §2); the id says which
-        # version of them the row ran under ('?' = the row predates the field).
-        base_line = f"baseline {r['base']}" + ("" if r["base"] != "?" else " (not recorded)")
-        # §C12: the token cap the code tasks ran under (rows before it simply omit the line).
-        budget_line = ""
-        if r["code_budget"]:
-            stored = r["code_budget_stored"]
-            extra = (f" · {sum(stored.values())} task(s) at "
-                     + ", ".join(f"{cap}" for cap in stored) + " (stored calibration)"
-                     ) if stored else ""
-            budget_line = f"\ncode budget {r['code_budget']}{extra}"
-        # §C13 probes: say out loud what the run hit, instead of leaving it in a receipt.
-        probes = []
-        if r["code_budget_hits"]:
-            probes.append(f"{r['code_budget_hits']} code task(s) at the token cap ({r['code_budget']})")
-        if r["agent_empty_replies"]:
-            probes.append(f"{r['agent_empty_replies']} agent turn(s) answered empty (turn cap?)")
-        if r["tools_capped"]:
-            probes.append(f"{r['tools_capped']} tool call(s) at the cap")
-        if r["thinking_applied"] is False:
-            probes.append("thinking-off requested but the template has no switch"
-                          + (f" — {r['thinking_note']}" if r["thinking_note"] else ""))
-        probe_line = ("\nprobes: " + " · ".join(probes)) if probes else ""
-        # §C13: what the caps were. '?' when the row predates the fields.
-        caps_line = f"\ncaps {r['caps']}" if r.get("caps") and r["caps"] != "?" else ""
-        details.append(
-            f'<details{" class=\"retired\"" if r["retired"] else ""}><summary>{_esc(r["name"])} <span class="badge{" strata" if r["engine"] == "strata" else ""}">'
-            f'{_esc(r["engine"])} {_esc(r["build"])}</span>'
-            f'{" <span class='badge strata'>★ optimal</span>" if optimal.get(r["slug"]) == r["thinking"] else ""}'
-            f'{" <span class=\"badge\">retired</span>" if r["retired"] else ""}'
-            f' <span class="miss">{_esc(r["ts"])}</span></summary>'
-            f'<pre>{by_level_line}{think_line}excluded code: {r["code_excluded"]}\n'
-            f'{base_line}{budget_line}{caps_line}{probe_line}\n{flags}</pre></details>')
+    # The panes (report_polish). The board reads the live rows — a retired model cannot
+    # headline the KPIs nor be recommended; the retired rows keep the same sections in
+    # their own tab, record only (no KPIs, no recommendations).
+    board_body = (_kpis(live) + "\n"
+                  + _rec_section(live) + "\n"
+                  + _sections(live, sort, board=True, optimal=optimal))
+    if gone:
+        body = (f'<div class="tabs">\n'
+                f'<input type="radio" name="board" id="tab-board" checked>\n'
+                f'<input type="radio" name="board" id="tab-retired">\n'
+                f'<nav class="tabbar" aria-label="board views">\n'
+                f'  <label for="tab-board">Board <b>{len(live)}</b></label>\n'
+                f'  <label for="tab-retired">Retired <b>{len(gone)}</b> · record only</label>\n'
+                f'</nav>\n'
+                f'<div class="pane-board">\n{board_body}\n</div>\n'
+                f'<div class="pane-retired">\n'
+                '<p class="miss">Record only: these models were retired from the bench and '
+                'cannot run again; their rows stay for history '
+                '(see <code>harness/retired.json</code>).</p>\n'
+                f'{_sections(gone, "global", board=False, optimal=optimal)}\n'
+                '</div>\n</div>')
+    else:
+        body = board_body
 
     banner = ""
     if len(dates) > 1 or mixed:
@@ -649,44 +767,7 @@ def render(pool, sort="global"):
   <div class="chips">{''.join(chips)}</div>
 </header><main>
 {banner}
-<div class="kpis">{''.join(f'<div class="kpi"><div class="v">{v}</div><div class="l">{_esc(l)}</div></div>' for l, v in kpis)}</div>
-
-<section>
-  <h2>Weighted global</h2>
-  {sortbar}
-  <div id="ranking">
-  {chr(10).join(ranking)}
-  </div>
-</section>
-
-{set_section}
-
-<div class="grid2">
-<section><h2>Code ({_n_tasks(rows, "code")} tasks · 4 languages)</h2>{dim_bars("code", lambda v: f"{v:.0%}")}</section>
-<section><h2>Multi-step agent ({_n_tasks(rows, "agent")} tasks)</h2>{dim_bars("agent", lambda v: f"{v:.0%}")}</section>
-<section><h2>Tool-calling ({_n_tasks(rows, "tools")} tasks)</h2>{dim_bars("tools", lambda v: f"{v:.0%}")}</section>
-<section><h2>Speed (generation ms · lower is better)</h2>{dim_bars("speed_ms", lambda v: f"{v} ms")}</section>
-</div>
-
-<section>
-  <h2>Tokens per second</h2>
-  <div class="grid2">
-    <div><h2>gen (output)</h2>{dim_bars("gen_tps", lambda v: f"{v:.0f} t/s")}</div>
-    <div><h2>prompt (input)</h2>{dim_bars("prompt_tps", lambda v: f"{v:.0f} t/s")}</div>
-  </div>
-</section>
-
-<section>
-  <h2>By language (code / agent)</h2>
-  <table><thead><tr><th>Model</th>{matrix_head}</tr></thead>
-  <tbody>{''.join(matrix_rows)}</tbody></table>
-</section>
-
-<section>
-  <h2>Conditions per model</h2>
-  {''.join(details)}
-</section>
-{rec_section}
+{body}
 </main>
 <script>{_SORT_JS}</script>
 <footer>

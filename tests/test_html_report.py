@@ -97,16 +97,19 @@ class TestRender(unittest.TestCase):
     def test_every_model_row_shows_think_mode(self):
         # Every per-model section (matrix + bars) marks the mode, BEFORE
         # the name (the ellipsis used to clip the badge at the end in narrow columns).
+        # report_polish moved the cards just below the KPI strip, so the per-model
+        # sections now read BETWEEN the cards and the end of the page.
         html = html_report.render([_mk(thinking="off"), _mk("models/bar.gguf",
                                                              thinking="on")])
-        base, _, rec = html.partition("Recommendations (by use)")
+        tail = html.partition("Recommendations (by use)")[2]
+        cards, _, body = tail.partition("<h2>Weighted global</h2>")
         # ranking + 6 dimension rows + matrix + the "by task set" block (§C9)
-        self.assertEqual(base.count("think:off"), 9)
-        self.assertEqual(base.count("think:on"), 9)
-        self.assertIn('<span class="badge">think:off</span> foo', base)
-        self.assertIn('title="foo"', base)
-        self.assertIn("think:off", rec)  # also in the cards
-        self.assertIn("think:on", rec)
+        self.assertEqual(body.count("think:off"), 9)
+        self.assertEqual(body.count("think:on"), 9)
+        self.assertIn('<span class="badge">think:off</span> foo', body)
+        self.assertIn('title="foo"', body)
+        self.assertIn("think:off", cards)  # also in the cards
+        self.assertIn("think:on", cards)
 
     def test_bar_rows_align_to_four_column_grid(self):
         # No bars: rows are text (trow: name + value), no .bar/.fill
@@ -760,12 +763,15 @@ class TestRetiredGray(unittest.TestCase):
         with mock.patch.object(html_report, "_retired_stems", return_value={"foo"}):
             return html_report.render([_mk()], **kw)
 
-    def test_retired_row_is_gray_with_badge(self):
+    def test_retired_row_lives_in_the_retired_tab(self):
         html = self._render_foo_retired()
         static = html.split('<div id="cmp-body">', 1)[0] if '<div id="cmp-body">' in html else html
         self.assertIn('<div class="trow retired">', static)
         self.assertIn('<span class="badge">retired</span>', static)
-        self.assertIn("gray = retired model (record only)", static)
+        self.assertIn('<div class="pane-retired">', static)   # report_polish: own tab
+        self.assertIn('id="tab-retired"', static)
+        self.assertIn("Record only", static)
+        self.assertNotIn("gray = retired model", static)      # the legend is gone
         self.assertIn(".retired .heat", static)
 
     def test_retired_excluded_from_recommendations(self):
@@ -777,7 +783,8 @@ class TestRetiredGray(unittest.TestCase):
             html = html_report.render([_mk()])
         self.assertNotIn("trow retired", html)
         self.assertNotIn(">retired</span>", html)
-        self.assertNotIn("gray = retired", html)
+        self.assertNotIn('<div class="tabs">', html)          # no retired, no tabbar
+        self.assertNotIn('<div class="pane-retired">', html)
         self.assertIn("Recommendations (by use)", html)
 
     def test_retired_dir_missing_is_empty(self):
@@ -797,7 +804,7 @@ class TestRetiredGray(unittest.TestCase):
             self.assertEqual(html_report._retired_stems(), {"foo"})
             html = html_report.render([_mk()])
         self.assertIn('<div class="trow retired">', html)
-        self.assertIn("gray = retired model (record only)", html)
+        self.assertIn('<div class="pane-retired">', html)
 
     def test_registry_and_archived_profiles_are_unioned(self):
         with tempfile.TemporaryDirectory() as d:
@@ -842,6 +849,182 @@ class TestRetiredGray(unittest.TestCase):
         html_report._RETIRED_STEMS = None
         self.addCleanup(setattr, html_report, "_RETIRED_STEMS", None)
         self.enterContext(config.override(MODELS_DIR=models_dir, RETIRED_FILE=retired_file))
+
+
+class TestReportTabs(unittest.TestCase):
+    """report_polish (R1-R6, R8-R9): live rows fill the Board pane and retired rows render
+    behind their own pure-CSS tab (record only — no KPIs, no recommendations). The KPIs
+    read the live rows only, and the recommendations sit just below the KPI strip."""
+
+    def _render(self, pool, retired=("gone",), **kw):
+        with mock.patch.object(html_report, "_retired_stems", return_value=set(retired)):
+            return html_report.render(pool, **kw)
+
+    def test_two_panes_when_retired_rows_exist(self):
+        html = self._render([_mk(name="models/foo.gguf"), _mk(name="models/gone.gguf")])
+        self.assertIn('<div class="tabs">', html)
+        self.assertIn('<label for="tab-board">', html)
+        self.assertIn('<label for="tab-retired">', html)
+        board, _, retired = html.partition('<div class="pane-retired">')
+        self.assertIn('<div class="pane-board">', board)
+        self.assertIn('title="foo"', board)
+        self.assertNotIn('title="gone"', board)     # the board reads live rows only (R8/R9)
+        self.assertNotIn("trow retired", board)
+        self.assertIn('title="gone"', retired)
+        self.assertNotIn('title="foo"', retired)    # and the record only the retired
+        self.assertIn("Record only", retired)
+
+    def test_board_is_the_default_tab(self):
+        html = self._render([_mk(name="models/gone.gguf")])
+        self.assertIn('id="tab-board" checked', html)
+        self.assertNotIn('id="tab-retired" checked', html)
+
+    def test_no_tabs_without_retired_rows(self):
+        with mock.patch.object(html_report, "_retired_stems", return_value=set()):
+            html = html_report.render([_mk()])
+        self.assertNotIn('<div class="tabs">', html)
+        self.assertNotIn('<div class="pane-retired">', html)
+        self.assertNotIn('id="tab-retired"', html)
+
+    def test_pure_css_switching(self):
+        # The tabs need no JS: native radios + :checked rules hide the other pane
+        # (ADR-0010). The page keeps its single inline script (the order control).
+        html = self._render([_mk(name="models/foo.gguf"), _mk(name="models/gone.gguf")])
+        self.assertIn("#tab-board:checked~.pane-retired{display:none}", html)
+        self.assertIn("#tab-retired:checked~.pane-board{display:none}", html)
+        self.assertLessEqual(html.count("<script"), 1)
+
+    def test_board_only_ids_occur_once(self):
+        # A duplicated id would make anchors and the order control hit the wrong pane.
+        html = self._render([_mk(name="models/foo.gguf"), _mk(name="models/gone.gguf")])
+        self.assertEqual(html.count('id="ranking"'), 1)
+        self.assertEqual(html.count('id="sortkey"'), 1)
+        self.assertEqual(html.count('id="sorted"'), 1)
+
+    def test_set_anchors_live_only_in_the_board(self):
+        html = self._render([_mk(name="models/foo.gguf"), _mk(name="models/gone.gguf")])
+        board, _, retired = html.partition('<div class="pane-retired">')
+        self.assertIn('id="set-', board)
+        self.assertIn('<div class="setblock">', retired)    # block without id
+        self.assertNotIn('id="set-', retired)
+
+    def test_retired_pane_has_no_kpis_nor_recommendations(self):
+        html = self._render([_mk(name="models/foo.gguf"), _mk(name="models/gone.gguf")])
+        _, _, retired = html.partition('<div class="pane-retired">')
+        self.assertNotIn('class="kpis"', retired)
+        self.assertNotIn("Recommendations (by use)", retired)
+
+    def test_kpis_ignore_retired_rows(self):
+        live = _mk(name="models/foo.gguf")
+        live["speed"].update(gen_tps=200.0, speed_ms=40)
+        gone = _mk(name="models/gone.gguf", code_score=0.99)
+        gone["speed"].update(gen_tps=999.0, speed_ms=1)
+        html = self._render([live, gone])
+        board_kpis = html.split('<div class="kpis">', 1)[1].split("<section", 1)[0]
+        # The speed score normalises against the pool's fastest row (the gone 1 ms
+        # pulls live's global down to 0.62); the strip must still read the live row
+        # (0.62 / 200 t/s / 40 ms), never the retired one (0.80 / 999 t/s / 1 ms).
+        self.assertIn("0.62", board_kpis)
+        self.assertIn("200 t/s", board_kpis)
+        self.assertIn("40 ms", board_kpis)
+        self.assertNotIn("999", board_kpis)
+        self.assertNotIn("0.80", board_kpis)
+
+    def test_recommendations_below_the_kpis(self):
+        html = self._render([_mk(name="models/foo.gguf")], retired=())
+        self.assertIn("Recommendations (by use)", html)
+        self.assertLess(html.index('<div class="kpis">'),
+                        html.index("Recommendations (by use)"))
+        self.assertLess(html.index("Recommendations (by use)"),
+                        html.index("Weighted global"))
+
+
+class TestReportChips(unittest.TestCase):
+    """report_polish R10-R11: the models chip states live + retired separately, and the
+    task-sets chip links only to blocks that exist in the board pane."""
+
+    def _render(self, pool, retired=("gone",), **kw):
+        with mock.patch.object(html_report, "_retired_stems", return_value=set(retired)):
+            return html_report.render(pool, **kw)
+
+    def test_models_chip_counts_live_and_retired(self):
+        html = self._render([_mk(name="models/foo.gguf"), _mk(name="models/gone.gguf")])
+        self.assertIn('<b>1</b> models (+1 retired)', html)
+
+    def test_models_chip_stays_a_single_total_without_retired(self):
+        with mock.patch.object(html_report, "_retired_stems", return_value=set()):
+            html = html_report.render([_mk()])
+        self.assertIn('<b>1</b> models</span>', html)
+        self.assertNotIn("retired)", html)
+
+    def test_taskset_chip_links_board_blocks_only(self):
+        live = _mk(name="models/foo.gguf", code_score=0.9, tools_score=0.9)
+        live["task_signature"] = "16/60/60"
+        gone = _mk(name="models/gone.gguf", code_score=0.5, tools_score=0.5)
+        gone["task_signature"] = "8/60/24"
+        html = self._render([live, gone])
+        self.assertIn('<a href="#set-16-60-60">16/60/60</a>', html)
+        self.assertIn('<span class="miss">8/60/24</span>', html)   # retired-only: text
+        self.assertNotIn('href="#set-8-60-24"', html)
+
+
+class TestReportOrdering(unittest.TestCase):
+    """report_polish R7: every per-dimension list reads best→worst — scores and throughput
+    descending, latency ascending, a missing measurement last — on the board and in the
+    retired record alike."""
+
+    def _render(self, pool, retired=("goneA", "goneB"), **kw):
+        with mock.patch.object(html_report, "_retired_stems", return_value=set(retired)):
+            return html_report.render(pool, **kw)
+
+    @staticmethod
+    def _region(html, start, end="</section>"):
+        return html.split(start, 1)[1].split(end, 1)[0]
+
+    @staticmethod
+    def _trio():
+        a = _mk(name="models/aaa.gguf", code_score=0.9)
+        b = _mk(name="models/bbb.gguf", code_score=0.5)
+        c = _mk(name="models/ccc.gguf", code_score=0.1)
+        for r, gen, ms in ((a, 300.0, 10), (b, 200.0, 100), (c, 100.0, 1000)):
+            r["speed"].update(gen_tps=gen, speed_ms=ms)
+        return a, b, c
+
+    def test_live_lists_best_first(self):
+        html = html_report.render(list(self._trio()))
+        code = self._region(html, "Code (")
+        self.assertLess(code.index("aaa"), code.index("bbb"))
+        self.assertLess(code.index("bbb"), code.index("ccc"))
+        speed = self._region(html, "Speed (generation ms")
+        self.assertLess(speed.index("aaa"), speed.index("bbb"))   # 10 < 100 < 1000 ms
+        self.assertLess(speed.index("bbb"), speed.index("ccc"))
+        gen = self._region(html, "gen (output)", "<h2>prompt")
+        self.assertLess(gen.index("aaa"), gen.index("bbb"))       # 300 > 200 > 100 t/s
+        self.assertLess(gen.index("bbb"), gen.index("ccc"))
+
+    def test_retired_lists_best_first_too(self):
+        x = _mk(name="models/goneA.gguf", code_score=0.8)
+        y = _mk(name="models/goneB.gguf", code_score=0.2)
+        x["speed"].update(gen_tps=250.0, speed_ms=20)
+        y["speed"].update(gen_tps=120.0, speed_ms=300)
+        html = self._render([_mk(name="models/foo.gguf"), x, y])
+        retired = html.split('<div class="pane-retired">', 1)[1]
+        code = self._region(retired, "Code (")
+        self.assertLess(code.index("gonea"), code.index("goneb"))
+        speed = self._region(retired, "Speed (generation ms")
+        self.assertLess(speed.index("gonea"), speed.index("goneb"))
+        gen = self._region(retired, "gen (output)", "<h2>prompt")
+        self.assertLess(gen.index("gonea"), gen.index("goneb"))
+
+    def test_missing_measurement_lands_last(self):
+        full = _mk(name="models/full.gguf")
+        blank = _mk(name="models/blank.gguf")
+        blank["speed"].update(gen_tps=0.0, speed_ms=0)
+        html = html_report.render([full, blank])
+        speed = self._region(html, "Speed (generation ms")
+        self.assertLess(speed.index("full"), speed.index("blank"))
+        gen = self._region(html, "gen (output)", "<h2>prompt")
+        self.assertLess(gen.index("full"), gen.index("blank"))
 
 
 class TestComparePicker(unittest.TestCase):
