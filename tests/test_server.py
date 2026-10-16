@@ -361,3 +361,19 @@ class TestSamplerFlagsAreAllowed(unittest.TestCase):
         """`--seed` is the per-run protocol (C1 stage 2 draws seeds 42+idx); letting a profile
         pin it would silently defeat the repeated-runs measurement."""
         self.assertNotIn("--seed", config.ALLOWED_MODEL_FLAGS)
+
+
+class TestDraftFlagsAreAllowed(unittest.TestCase):
+    """The MTP A/B of 2026-10-16. Heretic's GGUF carries no MTP layers (no `blk.64.nextn.*`),
+    so the copy the user asked to isolate lives in its own file — the family's head,
+    `models/nerkior/mtp-Qwen3.8-27B-Q4_0.gguf` — and the A/B needs `--spec-draft-model`.
+    The allow-list had only the flag's OLD name (`-md`) and dropped the new one without
+    failing the run: the leg went out with `--spec-type draft-mtp` and no head, the server
+    answered "model doesn't contain MTP layers" and died on load. Only the stderr warning said
+    why. Same failure mode as the sampler flags above: a profile that is silently trimmed
+    measures something that is not the experiment."""
+
+    def test_draft_head_and_where_it_lives_are_allowed(self):
+        for flag in ("--spec-draft-model", "-ngld", "--n-gpu-layers-draft",
+                     "--spec-draft-type-k", "-ctkd", "--spec-draft-type-v", "-ctvd"):
+            self.assertIn(flag, config.ALLOWED_MODEL_FLAGS, flag)

@@ -133,8 +133,17 @@ ALLOWED_MODEL_FLAGS = {
     "--mirostat", "--mirostat-tau", "--mirostat-eta",
     "--penalize-nl", "--ignore-eos",
     # model loading
-    "--mmproj", "-md",
+    "--mmproj", "-md", "--spec-draft-model",
+    # speculative decoding. `-md` was the old name and it was allowed, while its modern
+    # replacement was dropped: on 2026-10-16 the Heretic MTP A/B ran a leg with
+    # `--spec-type draft-mtp` and NO head (silently dropped) and the server refused to load
+    # ("model doesn't contain MTP layers") — a whole leg measured nothing. Where the draft
+    # lives is part of making it usable, not tuning: with the head on CPU, 10.9 t/s against
+    # 47.0 t/s of the model alone; with it on the GPU, 151.4 t/s.
     "--spec-type", "--spec-draft-n-max",
+    "--spec-draft-type-k", "-ctkd", "--cache-type-k-draft",
+    "--spec-draft-type-v", "-ctvd", "--cache-type-v-draft",
+    "--n-gpu-layers-draft", "-ngld",
     "--draft-min-p",
     # misc
     "--parallel",
