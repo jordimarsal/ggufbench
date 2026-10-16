@@ -55,7 +55,7 @@ live lists start `93%` (code), `19 ms` (speed), `207 t/s` (gen); the retired pan
   `current.md` describes the live session.
 - C3 [x] change confined to the report module (`html_report.py` + its tests); no prints/TODOs.
 - C4 [x] `487 passed, 1 skipped, 11 subtests` (was 472 before the feature: +15 tests).
-- C5 [ ] by definition post-gate: the history move / clean tree happen at close.
+- C5 [x] closure executed 2026-10-16 (history move + clean tree + final green `init.sh`).
 - C6 [x] 3 spec files in EARS; all tasks `[x]`; R↔test mapping 12/12 (machine + semantic).
 - C7 [x] `audit_level: basic` — manual security checklist below.
 
@@ -68,4 +68,4 @@ live lists start `93%` (code), `19 ms` (speed), `207 t/s` (gen); the retired pan
   `_esc`ed signatures and integer counts); self-containment test green.
 - [x] No server code touched; no `curl | sh`.
 
-**Verdict: APPROVED** (hybrid self-review; pending the human Completion Gate).
+**Verdict: APPROVED** (hybrid self-review; Completion Gate approved by the human, 2026-10-16).

@@ -31,7 +31,7 @@ render, checkpoints C1-C7, basic security checklist).
 - C2: [x]
 - C3: [x]
 - C4: [x]
-- C5: [ ] post-gate by definition (closure runs after the human's approval)
+- C5: [x]
 - C6: [x]
 - C7: [x]
 
