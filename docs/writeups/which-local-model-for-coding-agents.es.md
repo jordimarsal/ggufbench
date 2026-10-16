@@ -4,7 +4,7 @@
 
 Ejecuto agentes de código en mi propio hardware. llama.cpp en dos RTX 5080, modelos de mi carpeta `models`, y una pregunta: ¿qué GGUF, en qué quant, debo cargar antes de ponerme a trabajar?
 
-Los leaderboards públicos miden otra cosa. En su mayoría, los modelos están entrenados sobre ellos, puntúan respuestas de un solo disparo y no dicen nada sobre si un modelo sabe llamar a una herramienta con argumentos bien formados, sobrevivir a un bucle de varias llamadas, leer una carpeta, editar un archivo y verificar su propio cambio. Esa es la faena que hace un agente todo el día, así que dejé de leer esas tablas para esta decisión y construí [ggufbench](https://github.com/jordimarsal/ggufbench).
+Los leaderboards públicos miden otra cosa. En su mayoría, los modelos están entrenados sobre ellos, puntúan respuestas de un solo disparo y no dicen nada sobre si un modelo sabe llamar a una herramienta con argumentos bien formados, sobrevivir a un bucle de varias llamadas, leer una carpeta, editar un archivo y verificar su propio cambio. Esa es la faena que hace un agente todo el día, así que dejé de leer esas tablas para esta decisión y construí [ggufbench](https://github.com/jordimp/ggufbench).
 
 Un harness, las mismas condiciones, cuatro dimensiones y los recibos en bruto de cada llamada — esta ronda, seis GGUFs bajo llama.cpp y un modelo bajo el motor [Strata](https://github.com/Niko1221/Strata), cada uno en los dos modos de thinking.
 
@@ -69,5 +69,5 @@ Trata las filas cercanas como empates. Diez filas dentro de cinco centésimas no
 
 Las tareas están escritas para este harness, las soluciones de referencia no salen nunca de la máquina y los modelos bajo prueba son los quants de GPU de consumo que la gente ejecuta. Las puntuaciones responden a "qué GGUF debería ejecutar para trabajo agéntico", no a "cuán listo es este modelo". Dos filas thinking-on (gemma, strata) se midieron con límites de llamadas más estrechos que el resto y el informe las marca como pendientes de una pasada justa; los trece modelos retirados por el camino viven en su pestaña Retired, solo registro. Método completo en `docs/SPEC.md` del repositorio.
 
-Marcador e informe en vivo: [jordimarsal.github.io/ggufbench](https://jordimarsal.github.io/ggufbench/).
-Código, tareas y recibos: [github.com/jordimarsal/ggufbench](https://github.com/jordimarsal/ggufbench).
+Marcador e informe en vivo: [jordimp.github.io/ggufbench](https://jordimp.github.io/ggufbench/).
+Código, tareas y recibos: [github.com/jordimp/ggufbench](https://github.com/jordimp/ggufbench).

@@ -4,7 +4,7 @@
 
 Executo agents de codi al meu propi maquinari. llama.cpp en dues RTX 5080, models de la meva carpeta `models`, i una pregunta: quin GGUF, en quin quant, hauria de carregar abans de posar-me a treballar?
 
-Els leaderboards públics mesuren una altra cosa. La majoria dels models hi estan entrenats, puntuen respostes d'un sol tret i no diuen res sobre si un model sap cridar una eina amb arguments ben formats, sobreviure a un bucle de diverses crides, llegir una carpeta, editar un fitxer i verificar el seu propi canvi. Aquesta és la feina que fa un agent tot el dia, així que vaig deixar de llegir aquestes taules per a aquesta decisió i vaig construir [ggufbench](https://github.com/jordimarsal/ggufbench).
+Els leaderboards públics mesuren una altra cosa. La majoria dels models hi estan entrenats, puntuen respostes d'un sol tret i no diuen res sobre si un model sap cridar una eina amb arguments ben formats, sobreviure a un bucle de diverses crides, llegir una carpeta, editar un fitxer i verificar el seu propi canvi. Aquesta és la feina que fa un agent tot el dia, així que vaig deixar de llegir aquestes taules per a aquesta decisió i vaig construir [ggufbench](https://github.com/jordimp/ggufbench).
 
 Un harness, les mateixes condicions, quatre dimensions i els rebuts en brut de cada crida — aquesta ronda, sis GGUFs sota llama.cpp i un model sota el motor [Strata](https://github.com/Niko1221/Strata), cadascun en els dos modes de thinking.
 
@@ -69,5 +69,5 @@ Tracta les files properes com a empats. Deu files dins de cinc centèsimes no s�
 
 Les tasques estan escrites per a aquest harness, les solucions de referència no surten mai de la màquina i els models sota prova són els quants de GPU de consum que la gent executa. Les puntuacions responen a "quin GGUF hauria d'executar per a treball agentic", no a "com n'és de llest aquest model". Dues files thinking-on (gemma, strata) es van mesurar amb límits de cridades més estrets que la resta i l'informe les marca com a pendents d'una passada justa; els tretze models retirats pel camí viuen a la seva pestanya Retired, només registre. Mètode complet a `docs/SPEC.md` del repositori.
 
-Marcador i informe en directe: [jordimarsal.github.io/ggufbench](https://jordimarsal.github.io/ggufbench/).
-Codi, tasques i rebuts: [github.com/jordimarsal/ggufbench](https://github.com/jordimarsal/ggufbench).
+Marcador i informe en directe: [jordimp.github.io/ggufbench](https://jordimp.github.io/ggufbench/).
+Codi, tasques i rebuts: [github.com/jordimp/ggufbench](https://github.com/jordimp/ggufbench).
