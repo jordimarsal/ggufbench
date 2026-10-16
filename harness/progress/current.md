@@ -174,6 +174,14 @@ Arreglat de passada, i és el que fa tornar la suite a verd:
   no validar el pin de producció; per a això ja hi ha el smoke de nivell 3 de
   `docs/verification.md`. 473 tests, verd, amb 1 salt (el del `--version`, que ja era).
 
+**I el pin, baixat** (petició de l'usuari, 17:34): Heretic passa de `-c 233472` a **147456**.
+Mesurat amb la sonda amb el despatx actiu i marge 2000 MiB: 196k→937 lliures, 170k→1509,
+157k→1797, 150k→1961, i 144k→**2047**, l'únic que passa. Amb el marge estàndard de 1200 hi
+cabria ~170k; s'ha triat 2000 perquè entre nit i dia el despatx bascula ~1 GB i encara hi ha
+d'haver lloc per a un navegador. La fila ON (233472) queda com a rebut de màquina tranquil·la;
+el proper run sortirà a 147456 i escriurà la seva pròpia condició (`ctx_resolved`), que és el
+que el taulell llegeix. Si mai es vol més context, la variant d'~170k és a la nota del perfil.
+
 ## Next step
 
 _If a new session opens: read AGENTS.md + current.md + feature_list.json. As of 2026-10-16 17:15
