@@ -546,6 +546,7 @@ class TestSharedIdsAcrossLanguages(unittest.TestCase):
         self.assertEqual(shared["bubble_sort"], {"bash", "java", "python", "typescript"})
         self.assertEqual(len(code), len({(t["lang"], t["id"]) for t in code}))
 
+@unittest.skipUnless(HAS_SANDBOX, "host cannot create isolated namespaces (unshare -Urn); code-execution coverage runs on sandboxed hosts")
 class TestCodeBudgetTravels(unittest.TestCase):
     """MILLORA §C12: the code token cap is a condition (`graders.CODE_MAX_TOKENS`, single
     attempt since ADR-0002) and the row must say which cap its tasks ran under, including the
@@ -618,6 +619,7 @@ class TestCapProbes(unittest.TestCase):
         token_budget.reset_cache()
         self.addCleanup(token_budget.reset_cache)
 
+    @unittest.skipUnless(HAS_SANDBOX, "host cannot create isolated namespaces (unshare -Urn); code-execution coverage runs on sandboxed hosts")
     def test_code_budget_hit_is_counted(self):
         tasks = [{"id": "t1", "lang": "python", "level": "easy", "prompt": "p",
                   "test_code": "from solution import *\nassert f() == 1\nprint('OK')\n"}]
@@ -652,6 +654,7 @@ class TestCapProbes(unittest.TestCase):
         self.assertEqual(r["tools_capped"], 3)      # once per run, not once per section
         self.assertEqual(r["tools_max_tokens"], 256)
 
+    @unittest.skipUnless(HAS_SANDBOX, "host cannot create isolated namespaces (unshare -Urn); code-execution coverage runs on sandboxed hosts")
     def test_agent_turn_answered_empty_is_counted(self):
         """The LFM2.5-24B-A2B signature: reasoning spends the whole turn budget and the model
         answers neither content nor a tool call."""

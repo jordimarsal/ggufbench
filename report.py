@@ -28,7 +28,7 @@ def task_signature(result):
 def signature_counts(pool):
     """{task_signature: number of rows}, most frequent first. More than one entry means
     the pool mixes task sets — the drift the report must announce instead of hiding."""
-    counts = {}
+    counts: dict[str, int] = {}
     for r in pool:
         sig = task_signature(r)
         counts[sig] = counts.get(sig, 0) + 1
@@ -85,7 +85,7 @@ def condition_axes(pool) -> dict[str, dict[str, int]]:
     """axis -> {value: number of rows}, axes in CONDITION_AXES order and values most
     frequent first (the same spirit as `signature_counts`). An axis with more than one
     value is a condition the pool mixes."""
-    axes = {axis: {} for axis in CONDITION_AXES}
+    axes: dict[str, dict[str, int]] = {axis: {} for axis in CONDITION_AXES}
     for r in pool:
         values = (task_signature(r), _engine_label(r), baseline_id(r), caps_label(r))
         for axis, value in zip(CONDITION_AXES, values):

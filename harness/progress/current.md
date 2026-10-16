@@ -36,6 +36,23 @@ _Note each significant step: files created, decisions, blockers._
 - **Handle**: els write-ups es queden amb **`jordimarsal`** — un intent de passar-los a
   `jordimp` (`80aa7d5`) es va revertir el mateix dia a petició de l'humà (`b56f8ec`).
   No canviar el handle sense una petició explícita.
+- **2026-10-16 (tarda) — CI vermella (#49, #50), ad-hoc**: els dos jobs de `ci.yml`
+  fallaven a `main`. Diagnòstic amb `gh run view --log-failed`:
+  1. *test*: 3 tests de `test_graders.py` executen codi real (``grade_code`` /
+     `run_tests`) sense el guard `skipUnless(HAS_SANDBOX)` i toquen el fail-closed
+     nou de `executors._run_in` (els runners de GitHub bloquegen `unshare -Urn`).
+     Guardats: `TestCodeBudgetTravels` (classe), `TestCapProbes.test_code_budget_hit_is_counted`
+     i `test_agent_turn_answered_empty_is_counted` (mètode).
+  2. *Latent*: `TestSandbox.tearDown` (test_executors) deixava `SANDBOX_AVAILABLE=None`
+     i desactivava el fail-closed per a tota la suite posterior — el test d'agent només
+     passava a CI per aquest bypass. `tearDown` ara re-sonda i restaura el valor real.
+  3. *mypy*: `counts` i `axes` a `report.py` sense anotació (`var-annotated`, mypy 2.4).
+- Verificat: suite local 488 OK (amb smoke real: GPUs lliures); simulació fidel de CI
+  (`/tmp/opencode/ci_sim.py`: probe d'unshare que falla i fa caché, smoke exclòs com a
+  CI) 487 tests, 0 errors, 64 skips; mypy net.
+- Nota: el smoke local fa skip quan Strata és en marxa (port 8080); amb el desk aturat
+  arrenca un servidor real — no interpretar un failure del smoke com a regressió de codi
+  (mirar ports/GPUs primer).
 
 ## Next step
 

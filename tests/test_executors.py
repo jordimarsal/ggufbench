@@ -135,7 +135,13 @@ class TestSandbox(unittest.TestCase):
         executors.SANDBOX_AVAILABLE = None
 
     def tearDown(self):
+        # Restore the host's REAL answer, not None: a leaked None makes
+        # `SANDBOX_AVAILABLE is False` false in executors._run_in, silently
+        # defeating the fail-closed gate for every test that runs after this
+        # class (the CI incident of 2026-10-16: three graders tests hit the
+        # raise while others slipped through in degraded mode).
         executors.SANDBOX_AVAILABLE = None
+        executors._probe_sandbox()
 
     @mock.patch.dict(os.environ, {}, clear=True)
     def test_unavailable_no_override_raises(self):
