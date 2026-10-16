@@ -182,12 +182,38 @@ d'haver lloc per a un navegador. La fila ON (233472) queda com a rebut de màqui
 el proper run sortirà a 147456 i escriurà la seva pròpia condició (`ctx_resolved`), que és el
 que el taulell llegeix. Si mai es vol més context, la variant d'~170k és a la nota del perfil.
 
+## 2026-10-16 · Publicació del taulell v5 (README + gh-pages)
+
+L'ordre era "publica el report actualitzat", i el report només era mitja veritat si la portada
+del repo deia el contrari: el README encara anunciava *"One row so far"* per al conjunt v5 quan
+al pool ja hi ha la re-mesura de l'estol sencer. Publicat, doncs, en dos passos:
+
+- **README**: la secció del taulell porta ara la taula v5 completa (6 GGUF + Strata, OFF i ON =
+  14 files, ordenades pel global com al CLI) amb el ★ del mode òptim. El text del voltant diu
+  el que el report ja sap: 13 retirats (9+1+3, `harness/retired.json`), les files de context
+  màxim són de màquina tranquil·la (el report imprimeix les banderes amb el `-c` de cada fila) i
+  el pin diürn de l'Heretic (147456). **Dues files ON segueixen devent una passada justa** i ara
+  ho diu la portada: gemma (sostres vells 256/2048) i Strata (512, 51 respostes buides).
+- **`models/ASSIGNACIO.md`** (fora del repo, sense commit): la fila de l'Heretic deia que "el
+  GGUF SÍ que declara MTP" — la nota falsa que em vaig empassar ahir — i portava el pin vell
+  (262144). Ara diu 147456 (diürn), que **no té MTP**, i que el cap de la família existeix a
+  part i dona 1,7× d'esborrany (A/B del 16-10). La capçalera recull l'excepció al criteri
+  "pin = màxim mesurat en viu".
+
+- **`harness/tools/publish-report.sh`** → gh-pages actualitzat (ref nou `7bf7c92`, el commit
+  diu `main 937e862`). Verificat que no és un CDN enganyat: la pàgina servida és **byte a byte
+  igual** al render local (`curl -o` + `diff`, 133262 bytes, IDENTICS). URL:
+  <https://jordimarsal.github.io/ggufbench/>. `compare.html` s'ha enviat tal qual, que és el
+  disseny del script (l'últim parell executat amb `--compare`).
+
 ## Next step
 
-_If a new session opens: read AGENTS.md + current.md + feature_list.json. As of 2026-10-16 17:15
-nothing is running and the GPUs are free; the A/B receipts live in `results/runs/` (08:57, 16:41,
-17:15) and `harness/logs/v5_ab_mtp/`. Pending on the board: **gemma's ON row** still carries the
-old caps (256/2048, 22 empty) and **Strata's ON** carries 512 (51 empty) — both deserve a pass
-with the fleet's raised caps, and the two engines cannot run at once (never llama-server and
-Strata together). Owed: smoke-test `harness/tools/probe-context.py` end-to-end (fixed 15-10,
-never run as a CLI since). After those land, refresh scoreboard + report in one go._
+_If a new session opens: read AGENTS.md + current.md + feature_list.json. As of 2026-10-16 ~18:00
+nothing is running, the GPUs are free and the report is published (section above); the A/B
+receipts live in `results/runs/` (08:57, 16:41, 17:15) and `harness/logs/v5_ab_mtp/`. Pending on
+the board: **gemma's ON row** still carries the old caps (256/2048, 22 empty) and **Strata's
+ON** carries 512 (51 empty) — both deserve a pass with the fleet's raised caps (gemma is the
+human's run; never llama-server and Strata together). Offered to the human, waiting on an
+answer: refresh the three write-ups (`docs/writeups/*.md` are v4-era, title included) against
+the v5 table. Optional: re-measure Heretic's ON row at its new 147456 pin (one night) so the
+row matches the profile._
