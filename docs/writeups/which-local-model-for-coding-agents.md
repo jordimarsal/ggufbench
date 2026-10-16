@@ -4,7 +4,7 @@
 
 I run coding agents on my own hardware. llama.cpp on two RTX 5080s, models from my `models` folder, and one question: which GGUF, at which quant, should I load before I start working?
 
-Public leaderboards measure something else. They are mostly trained on, they score single-shot answers, and they say nothing about whether a model can call a tool with well-formed arguments, survive a multi-call loop, read a folder, edit a file, and verify its own change. That is the work an agent does all day, so I stopped reading those tables for this decision and built [ggufbench](https://github.com/jordimp/ggufbench).
+Public leaderboards measure something else. They are mostly trained on, they score single-shot answers, and they say nothing about whether a model can call a tool with well-formed arguments, survive a multi-call loop, read a folder, edit a file, and verify its own change. That is the work an agent does all day, so I stopped reading those tables for this decision and built [ggufbench](https://github.com/jordimarsal/ggufbench).
 
 One harness, same conditions, four dimensions, and the raw receipts of every call — this round, six GGUFs under llama.cpp plus one model under the [Strata](https://github.com/Niko1221/Strata) engine, each in both thinking modes.
 
@@ -69,5 +69,5 @@ Treat close rows as ties. Ten rows inside five hundredths of a point is not a ra
 
 The tasks are written for this harness, the reference solutions never leave the machine, and the models under test are the consumer-GPU quants people actually run. Scores answer "which GGUF should I run for agentic work", not "how smart is this model". Two thinking-ON rows (gemma, strata) were measured under tighter tool-loop caps than the rest and are flagged in the report as owed a fair pass; the thirteen models retired along the way live in its Retired tab, record only. Full method in `docs/SPEC.md` of the repository.
 
-Live scoreboard and report: [jordimp.github.io/ggufbench](https://jordimp.github.io/ggufbench/).
-Code, tasks and receipts: [github.com/jordimp/ggufbench](https://github.com/jordimp/ggufbench).
+Live scoreboard and report: [jordimarsal.github.io/ggufbench](https://jordimarsal.github.io/ggufbench/).
+Code, tasks and receipts: [github.com/jordimarsal/ggufbench](https://github.com/jordimarsal/ggufbench).

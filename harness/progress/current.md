@@ -33,10 +33,6 @@ _Note each significant step: files created, decisions, blockers._
   - lletra petita: files ON de gemma/strata pendents de passada justa + pestanya Retired.
 - Verificat: 3 fitxers de 73 línies, 8 encapçalaments i les mateixes 10 files a les tres
   llengües (conjunts numèrics iguals; `1.512`/`1,512` és el separador de milers).
-- **Handle → `jordimp`** (petició de l'humà, abast confirmat: només els write-ups): els
-  3 fitxers canvien `jordimarsal` per `jordimp` (3 línies / 5 ocurrències per fitxer —
-  intro, pàgina i repo). Avís: `jordimp/ggufbench` i `jordimp.github.io/ggufbench` encara
-  donen 404; el README, `HARNESS.md` i `MILLORA.md` segueixen amb `jordimarsal`.
 
 ## Next step
 
