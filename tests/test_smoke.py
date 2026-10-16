@@ -52,7 +52,14 @@ class SmokeTest(unittest.TestCase):
         model_path = self.models[0]
         port = config.PORT + 1
 
-        sm = S.ServerManager(model_path, context_mode="fixed", port=port)
+        sm = S.ServerManager(model_path, context_mode="fixed", port=port,
+                             extra_args=["-c", "8192"])
+        # 8k, not the profile's pin: the smoke's job is the pipeline (start → chat →
+        # graders), and the fleet's profiles run at 256k+ with --mmproj and native MTP,
+        # which only loads on an otherwise idle card. Measured 2026-10-16: with the desk
+        # up, UD-Q3's own pin died allocating the MTP graph (1226 MiB, device 1) — a
+        # failure of the moment, not of the code. The production config has its own gate:
+        # docs/verification.md, Level 3 (real bench smoke).
         sm.start()
         try:
             self.assertTrue(sm.wait_ready(timeout=240), "Server failed to become ready")

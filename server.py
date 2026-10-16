@@ -212,7 +212,7 @@ def strata_python():
 
 class ServerManager:
     def __init__(self, model_path, context_mode="fixed", port=None, engine="llama",
-                 thinking="off"):
+                 thinking="off", extra_args=None):
         if engine not in ENGINES:
             raise ValueError(f"unknown engine: {engine!r} (expected one of {ENGINES})")
         if thinking not in ("on", "off"):
@@ -221,6 +221,11 @@ class ServerManager:
         self.thinking = thinking  # record only (R1): the control goes via the body (ADR-4)
         self.model_path = str(model_path)
         self.context_mode = context_mode
+        # Appended AFTER the model profile — same convention as the profile itself, so the
+        # last word on a flag is the caller's. The smoke test uses it to load with a small
+        # -c: the fleet's pins (256k+ with --mmproj and native MTP) only fit an otherwise
+        # idle card, and a test must not fail for the desk's VRAM.
+        self.extra_args = [str(a) for a in (extra_args or [])]
         self.port = port or (config.STRATA_PORT if engine == "strata" else config.PORT)
         self.ready_timeout = READY_TIMEOUT[engine]
         self.proc = None
@@ -241,7 +246,7 @@ class ServerManager:
             args = strata_command(self.model_path, self.port)
             cwd = str(config.STRATA_DIR)
         else:
-            args = build_args(self.model_path, self.context_mode, self.port)
+            args = build_args(self.model_path, self.context_mode, self.port) + self.extra_args
             cwd = None
             extra = describe_config(self.model_path)
             if extra:
