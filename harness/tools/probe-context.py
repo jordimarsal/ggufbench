@@ -217,6 +217,16 @@ def main(argv=None) -> int:
                     lo, best = mid, mid
                 else:
                     hi = mid
+            if best is None:
+                # 2026-10-16: with a window no wider than the 8k grid the loop above never runs
+                # (`hi - lo > 8192` is false) and the tool answered "none" — true of the grid,
+                # misleading about the model, since the declared floor may load fine. Verify it
+                # once, so "none" comes to mean "not even the floor loads".
+                status, used, _ = probe(model, args.floor, args.port, args.kv, Path(args.log_dir),
+                                        args.timeout, args.margin_mib)
+                show(args.floor, status, used)
+                if status == "ok":
+                    best = args.floor
         rows[Path(model).stem] = {"max_ctx": best, "seconds": round(time.time() - t0, 1)}
         print(f"  → max measured: {best if best else 'none'}  ({time.time() - t0:.0f}s)", flush=True)
 
