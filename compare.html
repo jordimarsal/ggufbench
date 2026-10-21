@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Head-to-head — ggufbench compare</title>
+<style>
+:root{
+  --bg:#0b1220; --card:#101a2e; --card2:#0d1526; --border:#1e2a44;
+  --text:#e7eef9; --muted:#93a4be; --primary:#3b82f6; --primary2:#60a5fa;
+  --accent:#f59e0b; --good:#34d399; --bad:#f87171;
+  /* Minor titles / metadata headings (task-set block headers). Amber, because in this
+     page that is already the "condition / caveat" colour of the mixed-conditions banner:
+     the set of tasks a row ran is a caveat, not a score. One variable to retune it. */
+  --label:#f59e0b;
+  --mono:'Fira Code',ui-monospace,'Cascadia Mono','JetBrains Mono',monospace;
+  --sans:'Fira Sans','Segoe UI',system-ui,-apple-system,sans-serif;
+}
+*{box-sizing:border-box}
+html{scrollbar-color:var(--border) var(--bg)}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 var(--sans)}
+a{color:var(--primary2)}
+header{position:sticky;top:0;z-index:5;background:rgba(11,18,32,.94);backdrop-filter:blur(6px);
+  border-bottom:1px solid var(--border);padding:14px 22px}
+h1{margin:0;font-size:19px;letter-spacing:.2px}
+h1 small{color:var(--muted);font-weight:400}
+.sub{color:var(--muted);font-size:12.5px;margin-top:3px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chip{font:11.5px/1 var(--mono);color:var(--muted);border:1px solid var(--border);
+  border-radius:999px;padding:5px 9px;background:var(--card2)}
+.chip b{color:var(--text);font-weight:600}
+a.chip{background:var(--primary);color:#fff;border-color:transparent;font-weight:600}
+a.chip:hover{background:var(--primary2);border-color:transparent}
+main{max-width:1180px;margin:0 auto;padding:18px 22px 40px;display:grid;gap:16px}
+.banner{border:1px solid #6b4b0a;background:#1c1503;color:#fcd34d;border-radius:10px;
+  padding:10px 14px;font-size:13px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 14px}
+.kpi .v{font:600 22px/1.15 var(--mono);color:var(--primary2)}
+.kpi .l{color:var(--muted);font-size:12px;margin-top:2px}
+section{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+h2{margin:0 0 10px;font-size:14px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{color:var(--muted);text-align:left;font-weight:600;font-size:11.5px;text-transform:uppercase;
+  letter-spacing:.5px;padding:6px 8px;border-bottom:1px solid var(--border)}
+td{padding:6px 8px;border-bottom:1px solid var(--border)}
+tr:hover td{background:rgba(59,130,246,.07)}
+.num{font-family:var(--mono);text-align:right;white-space:nowrap}
+.trow{display:flex;gap:10px;align-items:baseline;padding:5px 4px;border-bottom:1px solid var(--border)}
+.trow:last-child{border-bottom:0}
+.trow:hover{background:rgba(59,130,246,.07)}
+.trow .name{flex:1;min-width:0}
+.trow .num,.trow .gval{margin-left:auto}
+.pos{font:600 13px var(--mono);color:var(--muted);text-align:right}
+.pos.top{color:var(--accent)}
+.name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.name small{display:block;color:var(--muted);font-weight:400;font:11px var(--mono)}
+.badge{display:inline-block;font:10.5px/1 var(--mono);border-radius:5px;padding:3px 6px;
+  border:1px solid var(--border);color:var(--muted)}
+.retired .name,.retired .num,.retired .gval,.retired td,.retired small,.retired summary,.retired .pos{color:var(--muted)!important;font-weight:400}
+.retired .heat{background:#232f45!important;color:var(--muted)!important}
+.retired .badge{background:transparent!important;color:var(--muted)!important;border-color:var(--border)!important;font-weight:400}
+.badge.strata{color:#0b1220;background:var(--accent);border-color:var(--accent);font-weight:700}
+.badge.set{color:var(--primary2);border-color:#2b4a7a}
+.sortbar{display:flex;gap:8px;align-items:center;margin:0 0 8px;font-size:12px;color:var(--muted)}
+.sortbar select{background:var(--card2);color:var(--text);border:1px solid var(--border);
+  border-radius:7px;padding:4px 6px;font:12px var(--mono)}
+.sortbar select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+/* report_polish: Board/Retired panes. Native radios + :checked — the page keeps its
+   single script and both panes are reachable with JS off (ADR-0010). */
+.tabs{display:grid;gap:12px;position:relative}
+.tabs>input{position:absolute;opacity:0;pointer-events:none}
+.tabbar{display:flex;gap:6px}
+.tabbar label{cursor:pointer;font:12px/1 var(--mono);color:var(--muted);border:1px solid var(--border);
+  border-radius:999px;padding:6px 10px;background:var(--card2)}
+.tabbar label b{color:var(--text)}
+#tab-board:checked~.tabbar label[for="tab-board"],#tab-retired:checked~.tabbar label[for="tab-retired"]{
+  color:#fff;background:var(--primary);border-color:transparent}
+#tab-board:focus-visible~.tabbar label[for="tab-board"],#tab-retired:focus-visible~.tabbar label[for="tab-retired"]{
+  outline:2px solid var(--accent);outline-offset:2px}
+#tab-board:checked~.pane-retired{display:none}
+#tab-retired:checked~.pane-board{display:none}
+.pane-board,.pane-retired{display:grid;gap:16px}
+.setblock{border:1px solid var(--border);border-radius:9px;background:var(--card2);
+  padding:8px 10px;margin-bottom:8px}
+.setblock h3{margin:0 0 6px;font:600 12px var(--mono);letter-spacing:.3px;color:var(--label)}
+.setblock h3 .setmeta{color:var(--label);opacity:.75;font-weight:400}
+.gval{font:600 15px var(--mono);text-align:right;color:var(--primary2)}
+.gval.top{color:var(--accent)}
+.gval small,.kpi .v small{color:var(--muted);font-weight:400;font-size:11px}
+.heat{font:600 12px var(--mono);text-align:center;border-radius:6px;padding:4px 6px}
+.miss{color:var(--muted);font-family:var(--mono)}
+details{border:1px solid var(--border);border-radius:9px;background:var(--card2);
+  margin-bottom:8px;overflow:hidden}
+summary{cursor:pointer;padding:9px 12px;font-weight:600;list-style:none;display:flex;
+  gap:10px;align-items:center;flex-wrap:wrap}
+summary::-webkit-details-marker{display:none}
+summary::after{content:'+';margin-left:auto;color:var(--muted);font-family:var(--mono)}
+details[open] summary::after{content:'–'}
+summary:hover,summary:focus-visible{background:rgba(59,130,246,.09)}
+pre{margin:0;padding:10px 12px;border-top:1px solid var(--border);white-space:pre-wrap;
+  word-break:break-word;font:11.5px/1.55 var(--mono);color:var(--muted)}
+footer{color:var(--muted);font-size:12.5px;max-width:1180px;margin:0 auto;padding:0 22px 40px}
+code{font-family:var(--mono);color:var(--primary2)}
+:where(a,summary):focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+@media (max-width:900px){.grid2{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:no-preference){
+  tr:hover td,.trow:hover,summary:hover{transition:background .18s ease}
+}
+@media print{header{position:static}body{background:#fff;color:#000}}
+
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.card h2{font-size:15px;text-transform:none;letter-spacing:0;color:var(--text)}
+.meta{margin-top:10px}
+.meta .l{color:var(--muted);font-size:10.5px;text-transform:uppercase;letter-spacing:.5px}
+.meta .mv{font:12px/1.5 var(--mono);word-break:break-word;margin-top:2px}
+.mrow{display:grid;grid-template-columns:minmax(190px,1.3fr) 120px 120px minmax(170px,1fr);
+  gap:10px;align-items:baseline;padding:7px 4px;border-bottom:1px solid var(--border)}
+.mrow:last-child{border-bottom:0}
+.mrow:hover{background:rgba(59,130,246,.07)}
+.mlabel{min-width:0}
+.mlabel b{font-weight:600}
+.mlabel small{display:block;color:var(--muted);font-size:11px;font-weight:400}
+.mval{font:600 14px var(--mono);text-align:right;white-space:nowrap}
+.mval small{font:400 10.5px var(--mono);color:var(--muted)}
+.mval.good{color:var(--good)}
+.mval.bad{color:var(--bad)}
+.mval.tie,.mval.miss{color:var(--muted);font-weight:400}
+.verdict{font-size:12.5px;color:var(--muted);min-width:0}
+.verdict.good{color:var(--good);font-weight:600}
+.tie{color:var(--muted)}
+.good{color:var(--good)}
+.bad{color:var(--bad)}
+.secbadge{font:600 11.5px var(--mono);border:1px solid var(--border);border-radius:999px;
+  padding:3px 9px;margin-left:10px;vertical-align:2px}
+.secbadge.good{color:var(--good);border-color:var(--good)}
+.picker{display:flex;gap:6px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.picker .l{color:var(--muted);font-size:12px}
+.picker select{background:#16233d;color:var(--text);border:1px solid var(--border);
+  border-radius:8px;padding:6px 8px;font:12px var(--mono);max-width:330px}
+.picker select option{background:var(--card);color:var(--text)}
+.picker button{background:var(--card2);color:var(--text);border:1px solid var(--border);
+  border-radius:8px;padding:6px 10px;cursor:pointer;font:12px var(--mono)}
+.picker button:hover,.picker select:hover{border-color:var(--primary)}
+@media (max-width:900px){.cards{grid-template-columns:1fr}
+  .mrow{grid-template-columns:1fr 96px 96px}
+  .mrow .verdict{grid-column:1/-1}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Head-to-head <small>· ggufbench model-vs-model compare</small></h1>
+  <div class="sub">Generated 21/10/2026 11:59 · scores from the harness functions (same math as the CLI) ·
+single sample per task (<b>n=1</b>, fixed seed/temp): this page orders, it does not certify close calls</div>
+  <div class="chips"><span class="chip">weights <b>tools 0.3 · code 0.3 · agent 0.25 · speed 0.15</b></span>
+  <span class="chip">better <b><span class="good">green</span></b> / worse <b><span class="bad">red</span></b> · ties stay neutral</span></div>
+  <div class="picker">
+    <span class="l">pick a pair</span>
+    <select id="sel-a" aria-label="model A"><option value="0">gemma-4-26b-a4b-it-ud-q5_k_xl · think:off</option><option value="1">gemma-4-26b-a4b-it-ud-q5_k_xl · think:on</option><option value="2">minicpm-v-4_7-35b-a3b-q4_k_m · think:off</option><option value="3">minicpm-v-4_7-35b-a3b-q4_k_m · think:on</option><option value="4">ornith-1_5-35b-a3b-apex-mtp-quality · think:off</option><option value="5">ornith-1_5-35b-a3b-apex-mtp-quality · think:on</option><option value="6">qwen36-35b-distill-mxfp4_moe · think:off</option><option value="7">qwen36-35b-distill-mxfp4_moe · think:on</option><option value="8">qwen3_8-27b-heretic-q4_k_m · think:off</option><option value="9">qwen3_8-27b-heretic-q4_k_m · think:on</option><option value="10">qwen3_8-27b-ud-q3_k_xl · think:off</option><option value="11">qwen3_8-27b-ud-q3_k_xl · think:on</option><option value="12" selected>strata-iq3_xxs · think:off</option><option value="13">strata-iq3_xxs · think:on</option><option value="14">strata-iq3_xxs-q8ple · think:off</option></select>
+    <button id="swap" type="button" title="swap A ⇄ B">⇄ swap</button>
+    <select id="sel-b" aria-label="model B"><option value="0">gemma-4-26b-a4b-it-ud-q5_k_xl · think:off</option><option value="1">gemma-4-26b-a4b-it-ud-q5_k_xl · think:on</option><option value="2">minicpm-v-4_7-35b-a3b-q4_k_m · think:off</option><option value="3">minicpm-v-4_7-35b-a3b-q4_k_m · think:on</option><option value="4">ornith-1_5-35b-a3b-apex-mtp-quality · think:off</option><option value="5">ornith-1_5-35b-a3b-apex-mtp-quality · think:on</option><option value="6">qwen36-35b-distill-mxfp4_moe · think:off</option><option value="7">qwen36-35b-distill-mxfp4_moe · think:on</option><option value="8">qwen3_8-27b-heretic-q4_k_m · think:off</option><option value="9">qwen3_8-27b-heretic-q4_k_m · think:on</option><option value="10">qwen3_8-27b-ud-q3_k_xl · think:off</option><option value="11">qwen3_8-27b-ud-q3_k_xl · think:on</option><option value="12">strata-iq3_xxs · think:off</option><option value="13">strata-iq3_xxs · think:on</option><option value="14" selected>strata-iq3_xxs-q8ple · think:off</option></select>
+    <noscript><span class="l">(static page: regenerate with <code>--compare</code> for another pair)</span></noscript>
+  </div>
+</header>
+<main>
+<div id="cmp-body">
+
+<div class="cards"><section class="card"><h2>strata-iq3_xxs <span class="badge">think:off</span> <span class="badge strata">strata 0.1.46.1</span></h2><div class="kpi"><div class="v">0.80 <small>±1</small></div><div class="l">global · rank #15 of 34 · measured 2026-10-21 · set 18/72/72</div></div><div class="meta"><div class="l">model_config_flags</div><div class="mv">qwen3.8-flash-next-iq3_xxs --pack ~/jordi/ia/llama/Strata-data/packs/iq3_xxs --native ~/jordi/ia/llama/Strata-data/models/IQ3_XXS/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS-00001-of-00002.gguf --ple-gguf ~/jordi/ia/llama/Strata-data/models/IQ3_XXS/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS-00002-of-00002.gguf --expert-profile ~/jordi/ia/llama/Strata/data/expert-profile.bin --expert-cache auto --vram-reserve-mib 1000 --prefill auto --spec 4 --mtp ~/jordi/ia/llama/Strata-data/mtp/rt --max-context 131072 --kv int8 --control-vector-scaled ~/jordi/ia/llama/Strata/data/experimental-speed-projection/Qwen3.8-Flash-Next-experimental-speed-projection.gguf:1.0 --control-vector-layer-range 4 44 --cvec-mode project --cvec-dir per-layer --pcie-frac 0.35 --spec-min-p 0.30 --adapt-every 1 --adapt-swaps 80 --adapt-decay 0.97</div></div><div class="meta"><div class="l">environment</div><div class="mv">RTX 5080 16GB × 2 · Linux · 60 GB RAM</div></div></section><section class="card"><h2>strata-iq3_xxs-q8ple <span class="badge">think:off</span> <span class="badge strata">strata 0.1.46.1</span></h2><div class="kpi"><div class="v">0.80 <small>±1</small></div><div class="l">global · rank #14 of 34 · measured 2026-10-21 · set 18/72/72</div></div><div class="meta"><div class="l">model_config_flags</div><div class="mv">qwen3.8-flash-next-iq3_xxs-q8ple --pack ~/jordi/ia/llama/Strata-data/packs/iq3_xxs --native ~/jordi/ia/llama/Strata-data/models/IQ3_XXS_Q8PLE/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS-00001-of-00002.gguf --ple-gguf ~/jordi/ia/llama/Strata-data/models/IQ3_XXS_Q8PLE/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS-00002-of-00002.gguf --expert-profile ~/jordi/ia/llama/Strata/data/expert-profile.bin --expert-cache auto --vram-reserve-mib 1000 --prefill auto --spec 4 --mtp ~/jordi/ia/llama/Strata-data/mtp/rt --max-context 131072 --kv int8 --control-vector-scaled ~/jordi/ia/llama/Strata/data/experimental-speed-projection/Qwen3.8-Flash-Next-experimental-speed-projection.gguf:1.0 --control-vector-layer-range 4 44 --cvec-mode project --cvec-dir per-layer --pcie-frac 0.35 --spec-min-p 0.30 --adapt-every 1 --adapt-swaps 80 --adapt-decay 0.97</div></div><div class="meta"><div class="l">environment</div><div class="mv">RTX 5080 16GB × 2 · Linux · 60 GB RAM</div></div></section></div>
+<section>
+  <h2>Global <span class="secbadge good" title="mean of the metric deltas won by strata-iq3_xxs-q8ple (think:off) in this section">+2.7%</span></h2>
+  <div class="mrow"><div class="mlabel"><b>Weighted global</b><small>tools .30 · code .30 · agent .25 · speed .15</small></div><div class="mval bad">0.80</div><div class="mval good">0.80</div><div class="verdict good">Higher weighted global. +0.3%</div></div>
+  <div class="mrow"><div class="mlabel"><b>Pool rank</b><small>position in the accumulated scoreboard; lower wins</small></div><div class="mval bad">#15</div><div class="mval good">#14</div><div class="verdict good">Higher pool rank. +6.7%</div></div>
+  <div class="mrow"><div class="mlabel"><b>Wall clock (total run)</b><small>time to complete the whole benchmark in this mode (C8); lower wins</small></div><div class="mval bad">38m 56s</div><div class="mval good">38m 33s</div><div class="verdict good">Less wall clock. +1.0%</div></div>
+</section><section>
+  <h2>Speed <span class="secbadge good" title="mean of the metric deltas won by strata-iq3_xxs (think:off) in this section">+7.9%</span></h2>
+  <div class="mrow"><div class="mlabel"><b>Prompt + reply latency</b><small>speed-task round trip; lower is better</small></div><div class="mval good">40 ms</div><div class="mval bad">45 ms</div><div class="verdict good">Faster prompt + reply latency. +11%</div></div>
+  <div class="mrow"><div class="mlabel"><b>Generation throughput</b><small>output tokens/s</small></div><div class="mval good">125 t/s</div><div class="mval bad">116 t/s</div><div class="verdict good">Faster generation. +7.0%</div></div>
+  <div class="mrow"><div class="mlabel"><b>Prompt processing</b><small>input tokens/s</small></div><div class="mval good">209 t/s</div><div class="mval bad">198 t/s</div><div class="verdict good">Faster prompt processing. +5.4%</div></div>
+</section><section>
+  <h2>Tools <span class="secbadge good" title="mean of the metric deltas won by strata-iq3_xxs-q8ple (think:off) in this section">+2.0%</span></h2>
+  <div class="mrow"><div class="mlabel"><b>Tool-calling score</b><small>8 graded tasks: arguments, multi-call, error handling</small></div><div class="mval bad">91%</div><div class="mval good">93%</div><div class="verdict good">Better tool-calling. +2.0%</div></div>
+</section><section>
+  <h2>Code <span class="secbadge good" title="mean of the metric deltas won by strata-iq3_xxs (think:off) in this section">+3.2%</span></h2>
+  <div class="mrow"><div class="mlabel"><b>Code overall</b><small>all levels; (N excl.) = excluded with a recorded reason</small></div><div class="mval good">84%</div><div class="mval bad">83%</div><div class="verdict good">Better code overall. +0.6%</div></div>
+  <div class="mrow"><div class="mlabel"><b>Easy tier</b><small>base tasks</small></div><div class="mval good">97%</div><div class="mval bad">96%</div><div class="verdict good">Better on easy code. +1.0%</div></div>
+  <div class="mrow"><div class="mlabel"><b>Hard tier</b><small>_hard tasks</small></div><div class="mval bad">78%</div><div class="mval good">83%</div><div class="verdict good">Better on hard code. +6.4%</div></div>
+  <div class="mrow"><div class="mlabel"><b>Expert tier</b><small>_expert tasks (multi-file)</small></div><div class="mval good">68%</div><div class="mval bad">63%</div><div class="verdict good">Better on expert code. +7.9%</div></div>
+</section><section>
+  <h2>Agent <span class="secbadge good" title="mean of the metric deltas won by strata-iq3_xxs-q8ple (think:off) in this section">+1.5%</span></h2>
+  <div class="mrow"><div class="mlabel"><b>Agent score</b><small>turn + tool-call accounting over the agent tasks</small></div><div class="mval bad">91%</div><div class="mval good">92%</div><div class="verdict good">Better agent work. +1.5%</div></div>
+</section>
+</div>
+</main>
+<footer>
+  Regenerate with <code>python3 -m ggufbench.run --compare "slug,think" "slug,think"</code>
+  (think defaults to off) from the workspace root. Section badges are the mean of the metric
+  deltas won inside the section. Ranking relative to this hardware and this harness: not at all
+  comparable with public benchmarks (HumanEval, BFCL, SWE-bench). More: <code>docs/SPEC.md</code> ·
+  <code>docs/MILLORA.md</code>.
+</footer>
+<script id="cmp-data" type="application/json">[{"s":"gemma-4-26b-a4b-it-ud-q5_k_xl","t":"off","e":"llama","b":"0.6.0-dev+4413a19","d":"2026-10-14","f":"-c 32768","v":"v5","sig":"18/72/72","base":"f982b06a","env":"RTX 5080 16GB × 2 · Linux · 60 GB RAM","g":0.8026899429073342,"r":13,"n":34,"ms":33,"gt":119.3,"pt":279.7,"w":1775.8,"tools":0.8888888888888888,"code":0.8611111111111112,"cex":0,"lv":{"easy":[1.0,0],"hard":[0.82,0],"expert":[0.68,0]},"agent":0.8743961352657005,"gs":0.0024156066008928032},{"s":"gemma-4-26b-a4b-it-ud-q5_k_xl","t":"on","e":"llama","b":"0.6.0-dev+4413a19","d":"2026-10-15","f":"-c 262144","v":"v5","sig":"18/72/72","base":"ed3153c0","env":"RTX 5080 16GB × 2 · Linux · 60 GB RAM","g":0.7438355734767025,"r":27,"n":34,"ms":775,"gt":118.6,"pt":234.3,"w":7947.2,"tools":0.9074074074074074,"code":0.8518518518518519,"cex":0,"lv":{"easy":[0.9,0],"hard":[0.88,1],"expert":[0.75,0]},"agent":0.8541666666666666,"gs":0.023029827121869635},{"s":"minicpm-v-4_7-35b-a3b-q4_k_m","t":"off","e":"llama","b":"0.6.0-dev+4413a19","d":"2026-10-14","f":"-c 131072","v":"v5","sig":"18/72/72","base":"f982b06a","env":"RTX 5080 16GB × 2 · Linux · 60 GB RAM","g":0.8473809523809523,"r":2,"n":34,"ms":26,"gt":151.8,"pt":214.2,"w":1436.8,"tools":1.0,"code":0.8285714285714285,"cex":2,"lv":{"easy":[0.91,2],"hard":[0.87,0],"expert":[0.67,0]},"agent":0.8952380952380953,"gs":0.004107409475235036},{"s":"minicpm-v-4_7-35b-a3b-q4_k_m","t":"on","e":"llama","b":"0.6.0-dev+4413a19","d":"2026-10-15","f":"-c 262144","v":"v5","sig":"18/72/72","base":"ed3153c0","env":"RTX 5080 16GB × 2 · Linux · 60 GB RAM","g":0.8523173309178743,"r":1,"n":34,"ms":23,"gt":169.6,"pt":230.6,"w":3592.1,"tools":1.0,"code":0.8177083333333334,"cex":8,"lv":{"easy":[0.95,9],"hard":[0.81,3],"expert":[0.69,2]},"agent":0.8888888888888888,"gs":0.01184183597300388},{"s":"ornith-1_5-35b-a3b-apex-mtp-quality","t":"off","e":"llama","b":"0.6.0-dev+4413a19","d":"2026-10-14","f":"--spec-type draft-mtp -c 158720 --temp 1.0 --top-k 20","v":"v5","sig":"18/72/72","base":"ed3153c0","env":"RTX 5080 16GB × 2 · Linux · 60 GB RAM","g":0.8154060990338163,"r":8,"n":34,"ms":32,"gt":123.8,"pt":183.0,"w":1213.5,"tools":1.0,"code":0.75,"cex":0,"lv":{"easy":[0.94,0],"hard":[0.68,0],"expert":[0.52,0]},"agent":0.9178743961352657,"gs":0.006469369790829793},{"s":"ornith-1_5-35b-a3b-apex-mtp-quality","t":"on","e":"llama","b":"0.6.0-dev+4413a19","d":"2026-10-15","f":"--spec-type draft-mtp -c 262144","v":"v5","sig":"18/72/72","base":"ed3153c0","env":"RTX 5080 16GB × 2 · Linux · 60 GB RAM","g":0.7693630141999707,"r":21,"n":34,"ms":506,"gt":163.9,"pt":177.3,"w":8045.3,"tools":0.9444444444444444,"code":0.8472222222222222,"cex":0,"lv":{"easy":[0.94,1],"hard":[0.78,1],"expert":[0.79,3]},"agent":0.912037037037037,"gs":0.005868603126404841},{"s":"qwen36-35b-distill-mxfp4_moe","t":"off","e":"llama","b":"0.6.0-dev+4413a19","d":"2026-10-14","f":"--spec-type draft-mtp -c 211968","v":"v5","sig":"18/72/72","base":"f982b06a","env":"RTX 5080 16GB × 2 · Linux · 60 GB RAM","g":0.8368451939708426,"r":4,"n":34,"ms":19,"gt":206.6,"pt":181.3,"w":982.3,"tools":0.9444444444444444,"code":0.7361111111111112,"cex":0,"lv":{"easy":[0.95,0],"hard":[0.67,0],"expert":[0.47,0]},"agent":0.92018779342723,"gs":0.009363225669098139},{"s":"qwen36-35b-distill-mxfp4_moe","t":"on","e":"llama","b":"0.6.0-dev+4413a19","d":"2026-10-15","f":"--spec-type draft-mtp -c 262144","v":"v5","sig":"18/72/72","base":"ed3153c0","env":"RTX 5080 16GB × 2 · Linux · 60 GB RAM","g":0.7214530702734928,"r":29,"n":34,"ms":280,"gt":182.0,"pt":183.0,"w":2331.7,"tools":0.9259259259259259,"code":0.6995305164319249,"cex":1,"lv":{"easy":[0.93,6],"hard":[0.74,4],"expert":[0.36,1]},"agent":0.9074074074074074,"gs":0.02139675522282343},{"s":"qwen3_8-27b-heretic-q4_k_m","t":"off","e":"llama","b":"0.6.0-dev+4413a19","d":"2026-10-14","f":"--mmproj ~/jordi/ia/llama/models/mmproj-F16.gguf -c 86016 --split-mode tensor","v":"v5","sig":"18/72/72","base":"ed3153c0","env":"RTX 5080 16GB × 2 · Linux · 60 GB RAM","g":0.811908312620823,"r":9,"n":34,"ms":85,"gt":47.0,"pt":83.9,"w":3201.9,"tools":1.0,"code":0.8611111111111112,"cex":0,"lv":{"easy":[0.98,0],"hard":[0.85,0],"expert":[0.68,0]},"agent":0.9225352112676056,"gs":0.009942436362196433},{"s":"qwen3_8-27b-heretic-q4_k_m","t":"on","e":"llama","b":"0.6.0-dev+4413a19","d":"2026-10-15","f":"--mmproj ~/jordi/ia/llama/models/mmproj-F16.gguf -c 233472 --split-mode tensor","v":"v5","sig":"18/72/72","base":"ed3153c0","env":"RTX 5080 16GB × 2 · Linux · 60 GB RAM","g":0.7959368448637316,"r":16,"n":34,"ms":1060,"gt":67.9,"pt":64.6,"w":26537.8,"tools":0.9444444444444444,"code":0.8981481481481481,"cex":0,"lv":{"easy":[0.95,2],"hard":[0.91,4],"expert":[0.85,7]},"agent":0.9652777777777778,"gs":0.0026674541388239568},{"s":"qwen3_8-27b-ud-q3_k_xl","t":"off","e":"llama","b":"0.6.0-dev+4413a19","d":"2026-10-14","f":"--spec-type draft-mtp --mmproj ~/jordi/ia/llama/models/mmproj-F16.gguf -c 100352 --spec-draft-n-max 4","v":"v5","sig":"18/72/72","base":"ed3153c0","env":"RTX 5080 16GB × 2 · Linux · 60 GB RAM","g":0.8176056338028169,"r":7,"n":34,"ms":36,"gt":109.7,"pt":118.4,"w":2092.7,"tools":1.0,"code":0.7916666666666666,"cex":0,"lv":{"easy":[0.95,0],"hard":[0.77,0],"expert":[0.57,0]},"agent":0.903755868544601,"gs":0.013231624932307413},{"s":"qwen3_8-27b-ud-q3_k_xl","t":"on","e":"llama","b":"0.6.0-dev+4413a19","d":"2026-10-15","f":"--spec-type draft-mtp --mmproj ~/jordi/ia/llama/models/mmproj-F16.gguf -c 262144 --spec-draft-n-max 4","v":"v5","sig":"18/72/72","base":"ed3153c0","env":"RTX 5080 16GB × 2 · Linux · 60 GB RAM","g":0.8040391261186621,"r":11,"n":34,"ms":629,"gt":119.2,"pt":79.2,"w":24581.7,"tools":0.9444444444444444,"code":0.9272300469483568,"cex":1,"lv":{"easy":[0.96,2],"hard":[0.92,4],"expert":[0.91,4]},"agent":0.9577464788732394,"gs":0.0024108602543352594},{"s":"strata-iq3_xxs","t":"off","e":"strata","b":"0.1.46.1","d":"2026-10-21","f":"qwen3.8-flash-next-iq3_xxs --pack ~/jordi/ia/llama/Strata-data/packs/iq3_xxs --native ~/jordi/ia/llama/Strata-data/models/IQ3_XXS/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS-00001-of-00002.gguf --ple-gguf ~/jordi/ia/llama/Strata-data/models/IQ3_XXS/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS-00002-of-00002.gguf --expert-profile ~/jordi/ia/llama/Strata/data/expert-profile.bin --expert-cache auto --vram-reserve-mib 1000 --prefill auto --spec 4 --mtp ~/jordi/ia/llama/Strata-data/mtp/rt --max-context 131072 --kv int8 --control-vector-scaled ~/jordi/ia/llama/Strata/data/experimental-speed-projection/Qwen3.8-Flash-Next-experimental-speed-projection.gguf:1.0 --control-vector-layer-range 4 44 --cvec-mode project --cvec-dir per-layer --pcie-frac 0.35 --spec-min-p 0.30 --adapt-every 1 --adapt-swaps 80 --adapt-decay 0.97","v":"v5","sig":"18/72/72","base":"ed3153c0","env":"RTX 5080 16GB × 2 · Linux · 60 GB RAM","g":0.799212962962963,"r":15,"n":34,"ms":40,"gt":124.7,"pt":209.0,"w":2336.3,"tools":0.9074074074074074,"code":0.8379629629629629,"cex":0,"lv":{"easy":[0.97,0],"hard":[0.78,0],"expert":[0.68,0]},"agent":0.9074074074074074,"gs":0.014456013885181487},{"s":"strata-iq3_xxs","t":"on","e":"strata","b":"0.1.44.1","d":"2026-10-14","f":"qwen3.8-flash-next-iq3_xxs --pack ~/jordi/ia/llama/Strata-data/packs/iq3_xxs --native ~/jordi/ia/llama/Strata-data/models/IQ3_XXS/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS-00001-of-00002.gguf --ple-gguf ~/jordi/ia/llama/Strata-data/models/IQ3_XXS/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS-00002-of-00002.gguf --expert-profile ~/jordi/ia/llama/Strata/data/expert-profile.bin --expert-cache auto --vram-reserve-mib 1000 --prefill auto --spec 4 --mtp ~/jordi/ia/llama/Strata-data/mtp/rt --max-context 131072 --kv int8 --control-vector-scaled ~/jordi/ia/llama/Strata/data/experimental-speed-projection/Qwen3.8-Flash-Next-experimental-speed-projection.gguf:1.0 --control-vector-layer-range 4 44 --cvec-mode project --cvec-dir per-layer --pcie-frac 0.35 --spec-min-p 0.30 --adapt-every 1 --adapt-swaps 80 --adapt-decay 0.97","v":"v5","sig":"18/72/72","base":"ed3153c0","env":"RTX 5080 16GB × 2 · Linux · 60 GB RAM","g":0.7034821495648067,"r":30,"n":34,"ms":406,"gt":145.7,"pt":199.2,"w":9213.5,"tools":0.7777777777777778,"code":0.9068627450980392,"cex":4,"lv":{"easy":[0.96,0],"hard":[0.92,4],"expert":[0.83,4]},"agent":0.7731481481481481,"gs":0.011370455507982184},{"s":"strata-iq3_xxs-q8ple","t":"off","e":"strata","b":"0.1.46.1","d":"2026-10-21","f":"qwen3.8-flash-next-iq3_xxs-q8ple --pack ~/jordi/ia/llama/Strata-data/packs/iq3_xxs --native ~/jordi/ia/llama/Strata-data/models/IQ3_XXS_Q8PLE/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS-00001-of-00002.gguf --ple-gguf ~/jordi/ia/llama/Strata-data/models/IQ3_XXS_Q8PLE/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS-00002-of-00002.gguf --expert-profile ~/jordi/ia/llama/Strata/data/expert-profile.bin --expert-cache auto --vram-reserve-mib 1000 --prefill auto --spec 4 --mtp ~/jordi/ia/llama/Strata-data/mtp/rt --max-context 131072 --kv int8 --control-vector-scaled ~/jordi/ia/llama/Strata/data/experimental-speed-projection/Qwen3.8-Flash-Next-experimental-speed-projection.gguf:1.0 --control-vector-layer-range 4 44 --cvec-mode project --cvec-dir per-layer --pcie-frac 0.35 --spec-min-p 0.30 --adapt-every 1 --adapt-swaps 80 --adapt-decay 0.97","v":"v5","sig":"18/72/72","base":"ed3153c0","env":"RTX 5080 16GB × 2 · Linux · 60 GB RAM","g":0.8014351851851852,"r":14,"n":34,"ms":45,"gt":116.5,"pt":198.2,"w":2312.7,"tools":0.9259259259259259,"code":0.8333333333333334,"cex":0,"lv":{"easy":[0.96,0],"hard":[0.83,0],"expert":[0.63,0]},"agent":0.9212962962962963,"gs":0.010237659438655511}]</script>
+<script>
+(function () {
+  "use strict";
+  var POOL = JSON.parse(document.getElementById("cmp-data").textContent);
+  // Mirror of _COMPARE_SECTIONS in html_report.py — keep both in sync.
+  // [label, description, valueKey, exclKey, lowerIsBetter, fmt, verdictPhrase]
+  var SECTIONS = [
+    ["Global", [
+      ["Weighted global", "tools .30 · code .30 · agent .25 · speed .15", "g", null, false, "score2", "Higher weighted global."],
+      ["Pool rank", "position in the accumulated scoreboard; lower wins", "r", null, true, "rank", "Higher pool rank."],
+      ["Wall clock (total run)", "time to complete the whole benchmark in this mode (C8); lower wins", "w", null, true, "secs", "Less wall clock."]]],
+    ["Speed", [
+      ["Prompt + reply latency", "speed-task round trip; lower is better", "ms", null, true, "ms", "Faster prompt + reply latency."],
+      ["Generation throughput", "output tokens/s", "gt", null, false, "tps", "Faster generation."],
+      ["Prompt processing", "input tokens/s", "pt", null, false, "tps", "Faster prompt processing."]]],
+    ["Tools", [
+      ["Tool-calling score", "8 graded tasks: arguments, multi-call, error handling", "tools", null, false, "pct", "Better tool-calling."]]],
+    ["Code", [
+      ["Code overall", "all levels; (N excl.) = excluded with a recorded reason", "code", "cex", false, "pct", "Better code overall."],
+      ["Easy tier", "base tasks", "lv.easy", "lv.easy.x", false, "pct", "Better on easy code."],
+      ["Hard tier", "_hard tasks", "lv.hard", "lv.hard.x", false, "pct", "Better on hard code."],
+      ["Expert tier", "_expert tasks (multi-file)", "lv.expert", "lv.expert.x", false, "pct", "Better on expert code."]]],
+    ["Agent", [
+      ["Agent score", "turn + tool-call accounting over the agent tasks", "agent", null, false, "pct", "Better agent work."]]]
+  ];
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c];
+    });
+  }
+  function getv(p, k) {
+    if (k.slice(0, 3) === "lv.") {
+      var e = p.lv[k.slice(3)];
+      return (e && e[0] != null) ? e[0] : null;
+    }
+    var v = p[k];
+    if (k === "ms" || k === "gt" || k === "pt" || k === "r" || k === "w") return v ? v : null;
+    return (v == null) ? null : v;
+  }
+  function getx(p, k) {
+    if (!k) return 0;
+    if (k === "cex") return p.cex || 0;
+    var e = p.lv[k.slice(3, -2)]; // "lv.easy.x" -> "easy"
+    return (e && e[1]) || 0;
+  }
+  function fmt(kind, v, ex) {
+    var s;
+    if (kind === "score2") s = v.toFixed(2);
+    else if (kind === "rank") s = "#" + v;
+    else if (kind === "ms") s = v + " ms";
+    else if (kind === "secs") { var t = Math.round(v), m = Math.floor(t / 60);
+      s = m ? m + "m " + String(t % 60).padStart(2, "0") + "s" : t + "s"; }
+    else if (kind === "tps") s = Math.round(v) + " t/s";
+    else s = Math.round(v * 100) + "%";
+    return ex ? s + " <small>(" + ex + " excl.)</small>" : s;
+  }
+  function sign(d) {
+    var s = Math.abs(d) >= 10 ? d.toFixed(0) : d.toFixed(1);
+    return (d >= 0 ? "+" : "") + s + "%";
+  }
+  function card(p) {
+    var think = p.t === "—" ? "" : ' <span class="badge">think:' + esc(p.t) + "</span>";
+    var eng = ' <span class="badge' + (p.e === "strata" ? " strata" : "") + '">'
+      + esc(p.e) + " " + esc(p.b) + "</span>";
+    var rank = p.r ? "rank #" + p.r + " of " + p.n : "unranked (row not in pool)";
+    var env = p.env ? esc(p.env) : '<span class="miss">not recorded (pre-C5 row)</span>';
+    var flags = p.f ? esc(p.f) : "harness default flags";
+    return '<section class="card"><h2>' + esc(p.s) + think + eng + "</h2>"
+      + '<div class="kpi"><div class="v">' + p.g.toFixed(2)
+      + (p.gs == null ? "" : " <small>±" + Math.round(p.gs * 100) + "</small>") + "</div>"
+      + '<div class="l">global · ' + rank + " · measured " + esc(p.d)
+      + " · set " + esc(p.sig) + "</div></div>"
+      + '<div class="meta"><div class="l">model_config_flags</div><div class="mv">' + flags + "</div></div>"
+      + '<div class="meta"><div class="l">environment</div><div class="mv">' + env + "</div></div></section>";
+  }
+  function axisClauses(a, b) {
+    // Mirror of _cmp_axis_clauses in html_report.py — keep both in sync (§C9/C10).
+    var out = [];
+    if (a.sig !== b.sig) {
+      out.push("the task sets differ (" + esc(a.sig) + " vs " + esc(b.sig)
+        + " tasks), which the version label alone cannot tell apart");
+    }
+    if (a.e !== b.e || a.b !== b.b) {
+      out.push("the engine builds differ (" + esc(a.e) + " " + esc(a.b) + " vs "
+        + esc(b.e) + " " + esc(b.b) + ")");
+    }
+    if (a.base !== b.base) {
+      out.push("the baseline flags differ (" + esc(a.base) + " vs " + esc(b.base) + ")");
+    }
+    return out;
+  }
+  function mixedBanner(a, b) {
+    var clauses = axisClauses(a, b);
+    if (a.d === b.d && a.v === b.v && !clauses.length) return "";
+    var diff = "";
+    for (var i = 0; i < clauses.length; i++) {
+      diff += (i === 0 ? " — and " : ", and ") + clauses[i];
+    }
+    return '<div class="banner"><b>Mixed conditions.</b> These two rows were not measured under '
+      + "identical conditions (" + esc(a.d) + " · tasks " + esc(a.v) + " vs " + esc(b.d)
+      + " · tasks " + esc(b.v) + ")" + diff + ": the harness evolves, compare with care"
+      + " (docs/MILLORA.md §C7/C9/C10).</div>";
+  }
+  function sections(A, B) {
+    var out = "";
+    for (var s = 0; s < SECTIONS.length; s++) {
+      var metrics = SECTIONS[s][1], rows = "", wins = [0, 0], ds = [[], []];
+      for (var j = 0; j < metrics.length; j++) {
+        var m = metrics[j];
+        var va = getv(A, m[2]), vb = getv(B, m[2]);
+        var ca = "mval", cb = "mval", vcls = "", verdict;
+        if (va == null || vb == null) {
+          if (va == null) ca = "mval miss";
+          if (vb == null) cb = "mval miss";
+          verdict = '<span class="miss">—</span>';
+        } else if (va === vb) {
+          ca = cb = "mval tie";
+          verdict = '<span class="tie">tie</span>';
+        } else {
+          var aWins = m[4] ? va < vb : va > vb, w = aWins ? 0 : 1;
+          var wval = aWins ? va : vb, lval = aWins ? vb : va;
+          ca = aWins ? "mval good" : "mval bad";
+          cb = aWins ? "mval bad" : "mval good";
+          wins[w]++;
+          var dtxt = "";
+          if (lval !== 0) {
+            var d = (m[4] ? (lval - wval) : (wval - lval)) / lval * 100;
+            ds[w].push(d);
+            dtxt = " " + sign(d);
+          }
+          vcls = " good";
+          verdict = esc(m[6]) + dtxt;
+        }
+        rows += '<div class="mrow"><div class="mlabel"><b>' + esc(m[0]) + "</b><small>" + esc(m[1])
+          + '</small></div><div class="' + ca + '">' + (va == null ? "—" : fmt(m[5], va, getx(A, m[3])))
+          + '</div><div class="' + cb + '">' + (vb == null ? "—" : fmt(m[5], vb, getx(B, m[3])))
+          + '</div><div class="verdict' + vcls + '">' + verdict + "</div></div>";
+      }
+      var badge = "";
+      if (wins[0] !== wins[1]) {
+        var side = wins[0] > wins[1] ? 0 : 1;
+        if (ds[side].length) {
+          var mean = ds[side].reduce(function (acc, d) { return acc + d; }, 0) / ds[side].length;
+          var wp = side === 0 ? A : B;
+          badge = ' <span class="secbadge good" title="mean of the metric deltas won by '
+            + esc(wp.s) + " (think:" + esc(wp.t) + ') in this section">' + sign(mean) + "</span>";
+        }
+      }
+      out += "<section><h2>" + esc(SECTIONS[s][0]) + badge + "</h2>" + rows + "</section>";
+    }
+    return out;
+  }
+  var selA = document.getElementById("sel-a"),
+      selB = document.getElementById("sel-b");
+  function render() {
+    var A = POOL[selA.value], B = POOL[selB.value];
+    document.getElementById("cmp-body").innerHTML =
+      mixedBanner(A, B) + '<div class="cards">' + card(A) + card(B) + "</div>" + sections(A, B);
+  }
+  // NOTE: options are server-rendered into the selects (same POOL order as the
+  // JSON below), so the picker must NOT append them again — that doubled every
+  // entry in JS-enabled browsers.
+  function byLabel(lab) {
+    if (!lab) return -1;
+    var kv = lab.split(",");
+    for (var i = 0; i < POOL.length; i++)
+      if (POOL[i].s === kv[0] && POOL[i].t === kv[1]) return i;
+    return -1;
+  }
+  function sync() {
+    try {
+      history.replaceState(null, "",
+        "?a=" + encodeURIComponent(POOL[selA.value].s + "," + POOL[selA.value].t)
+        + "&b=" + encodeURIComponent(POOL[selB.value].s + "," + POOL[selB.value].t));
+    } catch (e) { /* file:// may refuse URL rewrites: the page still re-renders */ }
+  }
+  function changed() { render(); sync(); }
+  selA.addEventListener("change", changed);
+  selB.addEventListener("change", changed);
+  document.getElementById("swap").addEventListener("click", function () {
+    var t = selA.value;
+    selA.value = selB.value;
+    selB.value = t;
+    changed();
+  });
+  var params = new URLSearchParams(location.search);
+  var qa = byLabel(params.get("a")), qb = byLabel(params.get("b"));
+  if (qa >= 0 && qb >= 0 && qa !== qb) {
+    selA.value = String(qa);
+    selB.value = String(qb);
+    render();
+  }
+})();
+</script>
+</body>
+</html>
