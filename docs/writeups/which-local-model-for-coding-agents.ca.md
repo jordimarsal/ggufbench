@@ -22,24 +22,27 @@ Cada tasca guarda tres execucions, llavors 42, 43 i 44, i el marcador informa de
 
 ## Què va dir el marcador
 
-El pool actual executa el conjunt v5: 18 tasques d'eines, 72 de codi en quatre llenguatges (32 fàcils, 20 difícils, 20 expertes), 72 tasques d'agent multipas (13 de les quals projectes de diversos fitxers) i 32K de pressupost de sortida per al codi. Les files de sota es van mesurar la nit del 2026-10-14/15. La part alta de la taula:
+El pool actual executa el conjunt v5: 18 tasques d'eines, 72 de codi en quatre llenguatges (32 fàcils, 20 difícils, 20 expertes), 72 tasques d'agent multipas (13 de les quals projectes de diversos fitxers) i 32K de pressupost de sortida per al codi. Les files de sota són el pool actual, conjunt v5. La taula es genera des del marcador viu, de manera que mai no és una foto d'una nit que ja ha passat.
 
+<!-- table:start -->
 | model | think | eines | codi | agent | velocitat | global |
 | --- | --- | --- | --- | --- | --- | --- |
 | minicpm-v-4.7-35b-a3b q4_k_m | on | 100% ±0 | 82% ±4 *(8 excl.)* | 89% ±0 | 23ms | **0.85 ±1** |
-| minicpm-v-4.7-35b-a3b q4_k_m | off ★ | 100% ±0 | 83% ±1 *(2 excl.)* | 90% ±2 | 26ms | **0.85 ±0** |
-| qwen36-35b-distill-mxfp4_moe | off ★ | 94% ±0 | 74% ±3 | 92% ±2 | 19ms | 0.84 ±1 |
+| minicpm-v-4.7-35b-a3b q4_k_m ★ | off | 100% ±0 | 83% ±1 *(2 excl.)* | 90% ±2 | 26ms | **0.85 ±0** |
+| qwen36-35b-distill-mxfp4_moe ★ | off | 94% ±0 | 74% ±3 | 92% ±2 | 19ms | **0.84 ±1** |
 | qwen3.8-27b-ud-q3_k_xl | off | 100% ±0 | 79% ±4 | 90% ±1 | 36ms | 0.82 ±1 |
-| ornith-1.5-35b-a3b-apex-mtp-quality | off ★ | 100% ±0 | 75% ±2 | 92% ±1 | 32ms | 0.82 ±1 |
-| qwen3.8-27b-heretic-q4_k_m | off ★ | 100% ±0 | 86% ±2 | 92% ±2 | 85ms | 0.81 ±1 |
+| ornith-1.5-35b-a3b-apex-mtp-quality ★ | off | 100% ±0 | 75% ±2 | 92% ±1 | 32ms | 0.82 ±1 |
+| qwen3.8-27b-heretic-q4_k_m ★ | off | 100% ±0 | 86% ±2 | 92% ±2 | 85ms | 0.81 ±1 |
+| qwen3.8-27b-neo-coder-max-mtp q4_k_s | off | 100% ±0 | 79% ±2 | 91% ±1 | 46ms | 0.81 ±0 |
 | qwen3.8-27b-ud-q3_k_xl | on | 94% ±0 | 93% ±1 *(1 excl.)* | 96% ±1 | 629ms | 0.80 ±0 |
-| gemma-4-26b-a4b-it-ud-q5_k_xl | off ★ | 89% ±0 | 86% ±1 | 87% ±2 | 33ms | 0.80 ±0 |
-| strata-iq3_xxs *(strata engine)* | off ★ | 91% ±6 | 85% ±1 | 92% ±1 | 45ms | 0.80 ±1 |
+| gemma-4-26b-a4b-it-ud-q5_k_xl ★ | off | 89% ±0 | 86% ±1 | 87% ±2 | 33ms | 0.80 ±0 |
+| strata-iq3_xxs *(strata engine)* ★ | off | 91% ±3 | 84% ±1 | 91% ±2 | 40ms | 0.80 ±1 |
 | qwen3.8-27b-heretic-q4_k_m | on | 94% ±0 | 90% ±2 | 97% ±1 | 1060ms | 0.80 ±0 |
 
-*★ = el mode thinking òptim de cada model segons les dades: qualitat dins de ±0.02 de l'altre mode i sense més temps de rellotge; els empats exactes van a off.*
+*★ = each model's optimal thinking mode by data: quality within ±0.02 of the other mode and no extra wall clock; exact ties go to off.*
+<!-- table:end -->
 
-Tres coses van destacar.
+Quatre coses van destacar.
 
 ### Les primeres files són empats
 
@@ -54,6 +57,28 @@ On sí que compra alguna cosa és al nivell difícil de codi: l'UD-Q3 puja del 7
 ### Les tasques fàcils de codi no discriminen
 
 Amb thinking off, tota la flota aterra entre el 91% i el 100% al nivell fàcil, mentre que difícil i expert viuen entre el 47% i el 87%. La separació és en aquests dos nivells — sobretot a les expertes, construïdes amb depuració de diversos errors i contractes de sortida estrictes (tornar el fitxer complet corregit, arrodoniment exacte, còpies defensives). El marcador fon els tres nivells en una columna de codi; el desglossament per nivell que registra (`by_level`) és on viu la discussió.
+
+### El motor no va ser la variable
+
+Vaig executar el mateix harness contra un altre motor, el motor de streaming MoE de la comunitat
+[BigMoeOnEdge](https://github.com/Helldez/BigMoeOnEdge), per veure si el motor decideix la
+puntuació. No ho va fer: 0,920 contra 0,923 en les mateixes 72 tasques d'agent, mateix model,
+mateix quant i el mateix cabal (48 tok/s contra 47). Per a un 27B en dues 5080, llegir els
+experts des del NVMe no és el coll d'ampolla.
+
+Dues condicions, perquè la comparació sigui honesta. El motor va córrer a 16K de context,
+perquè un graph de prefill de 32K demana un buffer de còmput de 19,2 GB i no cap en una
+targeta de 16 GB. I no té mando per al tipus de KV, de manera que el KV va ser el del motor i
+no el q8_0 que fixen les files de dalt. La seed és un paràmetre de sessió allà, així que
+s'ha fixat per run i s'ha recarregat la sessió.
+
+El que sí que va destapar és un bug al router hook d'aquest motor. Un torn generat que el seu
+parser de xat no sap convertir ni en text ni en tool call torna com un missatge buit: 31
+tokens generats, el torn es perd i l'episodi continua amb un forat. Dotze d'aquests en les
+tres passades, i dues tasques de bash passen a fallar per això. llama.cpp es recupera on
+l'altre deixa anar el torn, de manera que el mateix model i les mateixes indicacions no
+produeixen cap resposta buida allà. Reportat amb backtrace:
+[issue #334](https://github.com/Helldez/BigMoeOnEdge/issues/334).
 
 ## Què et recomanaria fer
 

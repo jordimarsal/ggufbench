@@ -1,4 +1,4 @@
-# ¿Qué modelo local debería ejecutar un agente de código? Seis GGUFs y un motor Strata, un harness, recibos
+# ¿Qué modelo local debería ejecutar un agente de código? Siete GGUFs y un motor Strata, un harness, recibos
 
 *También disponible en [inglés](which-local-model-for-coding-agents.md) y [catalán](which-local-model-for-coding-agents.ca.md).*
 
@@ -22,22 +22,25 @@ Cada tarea guarda tres ejecuciones, semillas 42, 43 y 44, y el marcador informa 
 
 ## Lo que dijo el marcador
 
-El pool actual ejecuta el conjunto v5: 18 tareas de herramientas, 72 de código en cuatro lenguajes (32 fáciles, 20 difíciles, 20 expertas), 72 tareas de agente multipaso (13 de ellas proyectos de varios archivos) y 32K de presupuesto de salida para el código. Las filas de abajo se midieron la noche del 2026-10-14/15. La parte alta de la tabla:
+El pool actual ejecuta el conjunto v5: 18 tareas de herramientas, 72 de código en cuatro lenguajes (32 fáciles, 20 difíciles, 20 expertas), 72 tareas de agente multipaso (13 de ellas proyectos de varios archivos) y 32K de presupuesto de salida para el código. Las filas de abajo son el pool actual, conjunto v5. La tabla se genera desde el marcador en vivo, así que nunca es una foto de una noche que ya pasó.
 
+<!-- table:start -->
 | modelo | think | herramientas | código | agente | velocidad | global |
 | --- | --- | --- | --- | --- | --- | --- |
 | minicpm-v-4.7-35b-a3b q4_k_m | on | 100% ±0 | 82% ±4 *(8 excl.)* | 89% ±0 | 23ms | **0.85 ±1** |
-| minicpm-v-4.7-35b-a3b q4_k_m | off ★ | 100% ±0 | 83% ±1 *(2 excl.)* | 90% ±2 | 26ms | **0.85 ±0** |
-| qwen36-35b-distill-mxfp4_moe | off ★ | 94% ±0 | 74% ±3 | 92% ±2 | 19ms | 0.84 ±1 |
+| minicpm-v-4.7-35b-a3b q4_k_m ★ | off | 100% ±0 | 83% ±1 *(2 excl.)* | 90% ±2 | 26ms | **0.85 ±0** |
+| qwen36-35b-distill-mxfp4_moe ★ | off | 94% ±0 | 74% ±3 | 92% ±2 | 19ms | **0.84 ±1** |
 | qwen3.8-27b-ud-q3_k_xl | off | 100% ±0 | 79% ±4 | 90% ±1 | 36ms | 0.82 ±1 |
-| ornith-1.5-35b-a3b-apex-mtp-quality | off ★ | 100% ±0 | 75% ±2 | 92% ±1 | 32ms | 0.82 ±1 |
-| qwen3.8-27b-heretic-q4_k_m | off ★ | 100% ±0 | 86% ±2 | 92% ±2 | 85ms | 0.81 ±1 |
+| ornith-1.5-35b-a3b-apex-mtp-quality ★ | off | 100% ±0 | 75% ±2 | 92% ±1 | 32ms | 0.82 ±1 |
+| qwen3.8-27b-heretic-q4_k_m ★ | off | 100% ±0 | 86% ±2 | 92% ±2 | 85ms | 0.81 ±1 |
+| qwen3.8-27b-neo-coder-max-mtp q4_k_s | off | 100% ±0 | 79% ±2 | 91% ±1 | 46ms | 0.81 ±0 |
 | qwen3.8-27b-ud-q3_k_xl | on | 94% ±0 | 93% ±1 *(1 excl.)* | 96% ±1 | 629ms | 0.80 ±0 |
-| gemma-4-26b-a4b-it-ud-q5_k_xl | off ★ | 89% ±0 | 86% ±1 | 87% ±2 | 33ms | 0.80 ±0 |
-| strata-iq3_xxs *(strata engine)* | off ★ | 91% ±6 | 85% ±1 | 92% ±1 | 45ms | 0.80 ±1 |
+| gemma-4-26b-a4b-it-ud-q5_k_xl ★ | off | 89% ±0 | 86% ±1 | 87% ±2 | 33ms | 0.80 ±0 |
+| strata-iq3_xxs *(strata engine)* ★ | off | 91% ±3 | 84% ±1 | 91% ±2 | 40ms | 0.80 ±1 |
 | qwen3.8-27b-heretic-q4_k_m | on | 94% ±0 | 90% ±2 | 97% ±1 | 1060ms | 0.80 ±0 |
 
-*★ = el modo thinking óptimo de cada modelo según los datos: calidad dentro de ±0.02 del otro modo y sin más tiempo de reloj; los empates exactos van a off.*
+*★ = each model's optimal thinking mode by data: quality within ±0.02 of the other mode and no extra wall clock; exact ties go to off.*
+<!-- table:end -->
 
 Tres cosas destacaron.
 
@@ -54,6 +57,28 @@ Donde sí compra algo es en el nivel difícil de código: el UD-Q3 sube del 79% 
 ### Las tareas fáciles de código no discriminan
 
 Con thinking off, toda la flota aterriza entre el 91% y el 100% en el nivel fácil, mientras que difícil y experto viven entre el 47% y el 87%. La separación está en esos dos niveles — sobre todo en las expertas, construidas con depuración de varios errores y contratos de salida estrictos (devolver el archivo completo corregido, redondeo exacto, copias defensivas). El marcador funde los tres niveles en una columna de código; el desglose por nivel que registra (`by_level`) es donde vive la discusión.
+
+### El motor no fue la variable
+
+Ejecuté el mismo harness contra otro motor, el motor de streaming MoE de la comunidad
+[BigMoeOnEdge](https://github.com/Helldez/BigMoeOnEdge), para ver si el motor decide la
+puntuación. No lo hizo: 0,920 contra 0,923 en las mismas 72 tareas de agente, mismo modelo,
+mismo quant, y el mismo caudal (48 tok/s contra 47). Para un 27B en dos 5080, leer los
+expertos desde NVMe no es el cuello de botella.
+
+Dos condiciones, para que la comparación sea honesta. El motor corrió a 16K de contexto,
+porque un graph de prefill de 32K quiere un buffer de cómputo de 19,2 GB y no cabe en una
+tarjeta de 16 GB. Y no tiene mando para el tipo de caché KV, así que el KV fue el del motor
+y no el q8_0 que fijan las filas de arriba. La seed es un parámetro de sesión allí, así que
+se fijaba por run y se recargaba la sesión.
+
+Lo que sí destapó fue un bug en el router hook de ese motor. Un turno generado que su parser
+de chat no sabe convertir en texto ni en tool call vuelve como un mensaje vacío: 31 tokens
+generados, el turno se pierde y el episodio sigue con un agujero. Doce de esos en los tres
+runs, y dos tareas de bash pasan a fallar por eso. llama.cpp se recupera donde el otro pierde
+el turno, así que el mismo modelo y los mismos prompts no producen ninguna respuesta vacía
+allí. Reportado con backtrace:
+[issue #334](https://github.com/Helldez/BigMoeOnEdge/issues/334).
 
 ## Lo que te recomendaría hacer
 
