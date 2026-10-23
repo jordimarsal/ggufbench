@@ -4,7 +4,7 @@
 
 I run coding agents on my own hardware. llama.cpp on two RTX 5080s, models from my `models` folder, and one question: which GGUF, at which quant, should I load before I start working?
 
-Public leaderboards measure something else. They are mostly trained on, they score single-shot answers, and they say nothing about whether a model can call a tool with well-formed arguments, survive a multi-call loop, read a folder, edit a file, and verify its own change. That is the work an agent does all day, so I stopped reading those tables for this decision and built [ggufbench](https://github.com/jordimarsal/ggufbench).
+Public leaderboards measure something else. Most of their tasks are in models' training data, they score single-shot answers, and they say nothing about whether a model can call a tool with well-formed arguments, survive a multi-call loop, read a folder, edit a file, and verify its own change. That is the work an agent does all day, so I stopped reading those tables for this decision and built [ggufbench](https://github.com/jordimarsal/ggufbench).
 
 One harness, same conditions, four dimensions, and the raw receipts of every call — this round, seven GGUFs under llama.cpp plus one model under the [Strata](https://github.com/Niko1221/Strata) engine, each in both thinking modes.
 

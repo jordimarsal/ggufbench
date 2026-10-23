@@ -62,12 +62,12 @@ Amb thinking off, tota la flota aterra entre el 91% i el 100% al nivell fàcil, 
 
 Vaig executar el mateix harness contra un altre motor, el motor de streaming MoE de la comunitat
 [BigMoeOnEdge](https://github.com/Helldez/BigMoeOnEdge), per veure si el motor decideix la
-puntuació. No ho va fer: 0,920 contra 0,923 en les mateixes 72 tasques d'agent, mateix model,
+puntuació. No ho va fer: 0.920 contra 0.923 en les mateixes 72 tasques d'agent, mateix model,
 mateix quant i el mateix cabal (48 tok/s contra 47). Per a un 27B en dues 5080, llegir els
 experts des del NVMe no és el coll d'ampolla.
 
 Dues condicions, perquè la comparació sigui honesta. El motor va córrer a 16K de context,
-perquè un graph de prefill de 32K demana un buffer de còmput de 19,2 GB i no cap en una
+perquè un graph de prefill de 32K demana un buffer de còmput de 19.2 GB i no cap en una
 targeta de 16 GB. I no té mando per al tipus de KV, de manera que el KV va ser el del motor i
 no el q8_0 que fixen les files de dalt. La seed és un paràmetre de sessió allà, així que
 s'ha fixat per run i s'ha recarregat la sessió.
