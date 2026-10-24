@@ -90,6 +90,10 @@ def model_id(engine, model_path):
     path as given, relative or absolute."""
     if engine == "strata":
         return Path(model_path).stem
+    if engine == "bmoe":
+        # Prefix so a bmoe row can never be mistaken for the llama.cpp baseline of
+        # the very same .gguf file: the engines differ in everything but the weights.
+        return "bmoe-" + Path(model_path).stem
     return _stable_model_path(model_path)
 
 
@@ -278,7 +282,15 @@ def _limit(tasks, quick):
 
 def _server_build(engine="llama"):
     """Engine version: llama-server's for 'llama'; Strata's is read from
-    strata/engine/BUILD.json (version of the compiled executable)."""
+    strata/engine/BUILD.json (version of the compiled executable); bmoe-server
+    prints its own to stdout."""
+    if engine == "bmoe":
+        try:
+            out = subprocess.run([str(config.BMOE_SERVER_BIN), "--version"],
+                                 capture_output=True, text=True, timeout=10)
+            return (out.stdout + out.stderr).strip().splitlines()[0]
+        except (OSError, subprocess.TimeoutExpired, IndexError):
+            return "unknown"
     if engine == "strata":
         try:
             return str(json.loads((config.STRATA_DIR / "engine" / "BUILD.json")

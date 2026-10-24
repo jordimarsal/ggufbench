@@ -13,12 +13,14 @@ from pathlib import Path
 from . import config
 
 # Engines the harness knows how to start. "llama" = llama-server with the
-# harness' flags; "strata" = serve/server.py with a strata-<model>.json config.
-ENGINES = ("llama", "strata")
+# harness' flags; "strata" = serve/server.py with a strata-<model>.json config;
+# "bmoe" = BigMoeOnEdge's bmoe-server with the #334 session flags.
+ENGINES = ("llama", "strata", "bmoe")
 
 # Wait for the server to answer a test chat (s). Strata loads tens of GB into
 # RAM before answering the first request.
-READY_TIMEOUT = {"llama": 240, "strata": config.STRATA_READY_TIMEOUT}
+READY_TIMEOUT = {"llama": 240, "strata": config.STRATA_READY_TIMEOUT,
+                 "bmoe": config.BMOE_READY_TIMEOUT}
 
 
 # Context flags. The model profile pins it (models/<model>.txt for llama,
@@ -71,6 +73,10 @@ def resolve_context_and_source(model_path, context_mode, engine="llama"):
     if engine == "strata":
         pinned = _strata_pinned_context(model_path)
         return (pinned, "profile") if pinned is not None else (None, "engine-default")
+    if engine == "bmoe":
+        # bmoe_command pins the context on the command line (#334 session): the
+        # receipt records it as a profile pin, which is exactly what it is.
+        return config.BMOE_CTX, "profile"
     pinned = _pinned_flag_value(config.load_model_config_args(model_path), *_CTX_FLAGS)
     if pinned is not None:
         return pinned, "profile"
@@ -173,6 +179,8 @@ def describe_config(model_path, engine="llama"):
     appended so receipts show what was rejected.  None if no flags at all."""
     if engine == "strata":
         return describe_strata_config(model_path)
+    if engine == "bmoe":
+        return " ".join(config.BMOE_FLAGS)
     raw = config.load_model_config_args(model_path)
     valid, dropped = _validate_model_flags(raw)
     parts = [" ".join(valid)] if valid else []
@@ -210,6 +218,15 @@ def strata_python():
     return str(venv) if venv.is_file() else sys.executable
 
 
+def bmoe_command(model_path, port):
+    """bmoe-server startup: <BMOE_DIR>/build/bin/bmoe-server -m MODEL --port N, plus
+    the #334 agent-set session flags. Engine parameters given here outrank the
+    server's saved settings, so the run does not depend on whatever state
+    ~/.local/share/bigmoeonedge last held."""
+    return [str(config.BMOE_SERVER_BIN), "-m", str(model_path), "--port", str(port),
+            *config.BMOE_FLAGS]
+
+
 class ServerManager:
     def __init__(self, model_path, context_mode="fixed", port=None, engine="llama",
                  thinking="off", extra_args=None):
@@ -226,7 +243,9 @@ class ServerManager:
         # -c: the fleet's pins (256k+ with --mmproj and native MTP) only fit an otherwise
         # idle card, and a test must not fail for the desk's VRAM.
         self.extra_args = [str(a) for a in (extra_args or [])]
-        self.port = port or (config.STRATA_PORT if engine == "strata" else config.PORT)
+        default_port = {"bmoe": config.BMOE_PORT,
+                        "strata": config.STRATA_PORT}.get(engine, config.PORT)
+        self.port = port or default_port
         self.ready_timeout = READY_TIMEOUT[engine]
         self.proc = None
         self.pgid = None
@@ -245,6 +264,9 @@ class ServerManager:
         if self.engine == "strata":
             args = strata_command(self.model_path, self.port)
             cwd = str(config.STRATA_DIR)
+        elif self.engine == "bmoe":
+            args = bmoe_command(self.model_path, self.port) + self.extra_args
+            cwd = None
         else:
             args = build_args(self.model_path, self.context_mode, self.port) + self.extra_args
             cwd = None

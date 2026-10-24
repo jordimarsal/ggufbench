@@ -37,6 +37,20 @@ STRATA_DIR = BASE_DIR / "Strata"
 STRATA_PORT = 8080            # its usual port; --port can change it
 # Startup: loads 34-43 GB into RAM (1-3 min), much slower than a llama-server
 STRATA_READY_TIMEOUT = 600
+# --- Third engine: bmoe (BigMoeOnEdge) --------------------------------------------------
+# bmoe-server is BigMoeOnEdge's OpenAI-compatible server — its own streaming-MoE engine,
+# not llama-server. The harness starts it like any other server and speaks the same
+# contract; thinking travels through chat_template_kwargs, the channel issue #334 used.
+BMOE_DIR = Path("/home/jordi/ia/llama/tests/BigMoeOnEdge")
+BMOE_SERVER_BIN = BMOE_DIR / "build" / "bin" / "bmoe-server"
+BMOE_PORT = 8765
+BMOE_READY_TIMEOUT = 300
+# Session flags of the #334 agent-set baseline: the dense 27B fully on the two 5080s,
+# ctx 16384, ubatch 512, overlap off (the engine's default, so it is not passed).
+BMOE_FLAGS = ("--gpu-layers", "-1", "--dense-on-device", "--ctx-size", "16384",
+              "--ubatch", "512")
+BMOE_CTX = 16384
+
 # Thinking: hybrid models (Qwen3) can burn the budget thinking while other
 # setups measure without a thinking chain. `--thinking on|off` controls it
 # via the request body (the same channel the old STRATA_EXTRA_BODY used,
@@ -48,7 +62,7 @@ def thinking_body(engine, mode):
     """Extra body for thinking mode (R1 thinking_batches).
     `off` -> disabled via chat_template_kwargs; `on` -> {} (free). Only touches the
     `extra` channel: prompts, dims and tasks are identical in both modes (R6)."""
-    if engine not in ("llama", "strata"):
+    if engine not in ("llama", "strata", "bmoe"):
         raise ValueError(f"unknown engine: {engine!r}")
     if mode == "off":
         return {"chat_template_kwargs": {"enable_thinking": False}}
