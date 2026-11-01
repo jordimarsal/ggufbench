@@ -110,7 +110,7 @@
         "R4: mateix protocol (dims/langs/levels/thinking); disc electiva de comparació nu-vs-LoRA per runs separades",
         "R5: sense canvis de pesos, plegat ni semàntica de score"
       ],
-      "status": "spec_ready"
+      "status": "in_progress"
     },
     {
       "id": 8,
