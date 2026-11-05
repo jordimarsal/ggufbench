@@ -1,0 +1,28 @@
+APPROVED — Completion Gate: context_receipts
+
+Data: 2026-11-05
+Revisor: Jordi (human gate)
+Decisio: in_progress -> done
+
+Evidencies revisades:
+- Traçabilitat 7/7 PASS (harness/specs/context_receipts/review.md;
+  check-traceability.py --feature context_receipts)
+- Suite completa: 512 tests, 0 errors, 68 skips de plataforma; harness/init.sh
+  verd x4 (batch-1..4.log a harness/logs/context_receipts/)
+- Review APPROVED amb auditoria bàsica confirmada
+  (harness/progress/review_context_receipts.md)
+- Commits: 936b614 (spec) + 5e65413 (B1) + e3e0037 (B2) + 95001ec (B3) +
+  ec2a20a (B4)
+
+Abast lliurat: client.parse_usage (usage -> fallback timings -> None); in_tokens
+a la tracca de les 4 dimensions (omès en errors de transport); agent per torn
+(turn_in_tokens) + suma per episodi (session_in_tokens, creix amb el context
+re-enviat); rollups avg/median per dim (tools, code) i per sessió (agent);
+report.receipts() + secció CLI "Context receipts (tokens sent)" + taula HTML amb
+'?' (miss) per a les files velles; SPEC §4.2/§4.4/§4.7 + ADR-0011 (rebuts =
+metadades, mai condició de pool). Sense canvis de pesos, plegat, claus de pool
+ni semàntica de score.
+
+Nota: el report publicat (gh-pages) es regenerarà amb la propera re-mesura a la
+màquina de benches (aquest checkout no té pool); les files noves ja portaran
+rebuts i les velles es pintaran amb '?'.

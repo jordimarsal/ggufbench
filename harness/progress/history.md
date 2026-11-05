@@ -509,3 +509,45 @@ Completion Gate aprovada per l'humà → feature 8 **`done`**. Tancament executa
 l'estol; re-mesurar l'ON d'**Heretic** al pin nou 147456 (una nit); oferta d'actualitzar
 els tres write-ups (`docs/writeups/*.md`, encara v4) — esperant resposta; i la feature 7
 **`lora_eval`** segueix `spec_ready`, esperant la seva Spec Gate.
+
+## 2026-11-05 — context_receipts: spec aprovada, implementada i tancada `done`
+
+Sessió completa (híbrid, un agent, rols seqüencials) sobre la feature 9 del fil
+dev.to: tokens ENVIATS per crida i per sessió d'agent, al costat del pass rate.
+
+- **Entorn (macOS checkout, abans de tocar feature):** `init.sh` buscava `pytest`
+  (no instal·lat, prohibit per convencions) → unittest canònic (`e6b7af4`);
+  `_sandbox_prefix` deixa el prefix GNU `timeout` quan el binari no existeix i el
+  rellotge de `_safe_run` fa de guard (`273b6a6`); el mock de nvidia-smi ja no
+  intercepta `subprocess.run` globalment (a macOS `platform.platform()` hi xoca
+  via `file`/Mach-O) (`31f4044`). Les 3 features noves del `feature_list.json`
+  comitades a part (`c6fec11`). Gates: 490 tests OK.
+- **Spec Gate:** `context_receipts` (la primera `pending`); 7 R's EARS, 7 tasques,
+  4 lots, 3 ADRs al design. Aprovada per l'humà → `in_progress` (`936b614`).
+- **Tanda 1 (T1+T2, `5e65413`)**: `client.parse_usage` (usage.prompt_tokens →
+  fallback `prompt_tps*prompt_ms/1000` → None) + `in_tokens` a la tracca de
+  tools/code/speed (omès en errors de transport). 500 tests.
+- **Tanda 2 (T3+T4, `e3e0037`)**: `run_agent` registra `turn_in_tokens` per torn i
+  `session_in_tokens` (suma de l'episodi, creix amb el context re-enviat);
+  `grade_agent` ho escriu a l'entrada; rollups avg/median (`avg_in_tokens`,
+  `median_in_tokens` a tools/code; `avg/median_session_in_tokens` a agent) sobre
+  totes les calls amb resposta, totes les runs. 506 tests.
+- **Tanda 3 (T5+T6, `95001ec`)**: `report.receipts()` (única costura de lectura) +
+  secció CLI `=== Context receipts (tokens sent) ===` + taula HTML `Context
+  receipts` amb `?` (classe `miss`) per a les files velles; `_pack` i claus de
+  ordenació intactes. 511 tests.
+- **Tanda 4 (T7, `ec2a20a`)**: SPEC §4.2/§4.4 + nova §4.7; ADR-0011
+  (`0011-context-receipts-not-a-condition.md`); traçabilitat **7/7 PASS**
+  (`harness/specs/context_receipts/review.md`); revisió caminada amb auditoria
+  bàsica (`harness/progress/review_context_receipts.md`, APPROVED). Suite final:
+  **512 tests, 0 errors, 68 skips** de plataforma.
+- **Completion Gate aprovada per l'humà** → feature 9 **`done`** (APPROVAL al
+  directori de la feature). El report publicat es regenerarà amb la propera
+  re-mesura a la màquina de benches (aquest checkout no té pool): les files
+  noves ja portaran rebuts i les velles es pintaran amb '?'.
+- Nota de portafoli: `check-traceability.py --all` encara falla per 2 gaps
+  preexistents d'identificadors morts des de la passada v5
+  (`discriminative_tasks` R4: `test_v3_marks_expert_tier`; `hard_code_tier`
+  R6/R7: `test_sixteen_tasks_four_per_lang` + `test_v3_marks_expert_tier`) —
+  aliens a aquesta feature, pendents d'higiene si l'humà ho vol.
+- retro: 1 dispatch · 0 stalls · 0 restarts

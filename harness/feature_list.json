@@ -146,7 +146,7 @@
         "R5: scoreboard i report.html mostren les columnes de rebuts ('?' quan la fila no té el camp); cap recomputació de scores ni pesos",
         "R6: docs (SPEC §rebuts de context) + suite unittest verda amb fake clients (patró test_graders.py)"
       ],
-      "status": "in_progress"
+      "status": "done"
     },
     {
       "id": 10,
