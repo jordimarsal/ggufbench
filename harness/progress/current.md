@@ -31,14 +31,32 @@
     (top level at the parent dir so the package imports as `ggufbench`).
   - Gates: **490 tests, 0 errors, 67 skips (platform)**; `harness/init.sh` →
     `[OK] Environment ready`.
-- **Spec mode `context_receipts`:** read client/graders/agent/report/html_report
-  seams + test patterns; wrote `harness/specs/context_receipts/{requirements,design,tasks}.md`
-  (7 R's, 7 tasks, 4 batches; ADR-1 receipts-not-a-condition, ADR-2 pure parser in
-  client.py, ADR-3 mean+median rollups). Status → `spec_ready`.
+- **Spec mode `context_receipts`:** spec written and APPROVED by the human
+  (2026-11-05) → `in_progress`.
+- **Batch B1 (T1+T2, `5e65413`):** `client.parse_usage` + `in_tokens` in the
+  tools/code/speed trace entries (omitted on transport errors). Gates: 500 tests
+  (`harness/logs/context_receipts/batch-1.log`).
+- **Batch B2 (T3+T4, `e3e0037`):** agent per-turn `turn_in_tokens` +
+  `session_in_tokens`; mean/median rollups per dim over all calls across runs.
+  Gates: 506 tests (`batch-2.log`).
+- **Batch B3 (T5+T6, `95001ec`):** `report.receipts()` + CLI `Context receipts`
+  table + HTML section ('?' with the `miss` class). Gates: 511 tests
+  (`batch-3.log`).
+- **Batch B4 (T7):** SPEC §4.2/§4.4 + new §4.7; ADR-0011
+  (`harness/decisions/0011-context-receipts-not-a-condition.md`); traceability
+  **7/7 PASS** (`harness/specs/context_receipts/review.md`); review
+  APPROVED (`harness/progress/review_context_receipts.md`). Gates: **512 tests,
+  0 errors, 68 skips** (`batch-4.log`).
+- Nota `--all`: 2 gaps preexistents d'identificadors morts amb la passada v5
+  (`discriminative_tasks` R4, `hard_code_tier` R6/R7) — aliens a aquesta feature,
+  documentats a la review per a higiene de portafoli.
+- mypy: no instal·lat en aquest checkout (CI el cobreix); les funcions públiques
+  noves porten anotacions (convencions §Type hints).
 
 ## Next step
 
-**STOP — human Spec Gate.** On approval: batch mode (B1 = T1+T2 client+graders
-trace), evidence logs to `harness/logs/context_receipts/batch-<n>.log`. Notes:
-`lora_eval` (id 7) still waits on its own Spec Gate; two more pending features
-(grammar_toolcalls_ab, kv_cache_f16_ab) queued behind this one.
+**STOP — human Completion Gate** for `context_receipts` (evidence: 4 batch logs,
+review APPROVED, traceability 7/7). On explicit human approval: create
+`harness/specs/context_receipts/APPROVAL`, set `done` in `feature_list.json`,
+move the summary to `history.md`. Then the queue: `lora_eval` (spec_ready,
+waiting its Spec Gate), `grammar_toolcalls_ab`, `kv_cache_f16_ab` (pending).

@@ -34,7 +34,7 @@
       depends_on: T5
       refs: R5
 
-- [ ] T7: Docs: SPEC §4.2/§4.4/§4.6 + new §4.7 Context receipts; ADR-0011
+- [x] T7: Docs: SPEC §4.2/§4.4/§4.6 + new §4.7 Context receipts; ADR-0011
       (receipts are metadata, not a condition) in harness/decisions/;
       traceability check + harness/init.sh green + request Completion Gate
       depends_on: T6

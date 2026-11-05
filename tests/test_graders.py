@@ -359,6 +359,15 @@ class TestContextReceipts(unittest.TestCase):
         self.assertEqual(r["avg_session_in_tokens"], 200)
         self.assertEqual(r["median_session_in_tokens"], 200)
 
+    def test_spec_documents_the_receipts_pipeline(self):
+        # R6's docs half, mechanically: the SPEC section must name the parser, the
+        # rollups and the metadata-not-a-condition rule (ADR-0011).
+        spec = (Path(__file__).resolve().parents[1] / "docs" / "SPEC.md").read_text()
+        self.assertIn("### 4.7 Context receipts", spec)
+        self.assertIn("parse_usage", spec)
+        self.assertIn("session_in_tokens", spec)
+        self.assertIn("ADR-0011", spec)
+
 
 @unittest.skipUnless(HAS_SANDBOX, "host cannot create isolated namespaces (unshare -Urn); code-execution coverage runs on sandboxed hosts")
 class TestTransientErrors(unittest.TestCase):

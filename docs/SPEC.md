@@ -154,6 +154,9 @@ report(results/models/*.json)           # ACCUMULATED scoreboard of all models
 ### 4.2 client.py — HTTP client
 - `chat(messages, tools=None, max_tokens=..., temperature=...)` → dict.
 - Captures `timings` (gen_tps, prompt_tps, predicted_ms) for speed.
+- `parse_usage(resp)` → in_tokens (tokens SENT per call, context receipts §4.7):
+  `usage.prompt_tokens`, derived from the timings when usage is absent, None
+  when neither source exists.
 - Configurable timeout (default 60s).
 - Readable by the agent loop (supports multi-turn).
 
@@ -215,6 +218,14 @@ per-language (they are language-agnostic). `report.py` uses this `by_lang` for
 Table 2 and the per-language profile. An *excluded* run (server error, no code
 block) is not an attempt: it never enters `by_lang`/`by_level` and it does not
 count as a failure.
+
+**Context receipts** (§4.7): every trace entry built from a response records
+`in_tokens` (tokens SENT by that call) next to `out_tokens`/`gen_tps`; the
+agent entries carry the per-turn list and the episode sum
+(`session_in_tokens`). Dimension results add the rollups
+(`avg_in_tokens`/`median_in_tokens` for tools and code,
+`avg_session_in_tokens`/`median_session_in_tokens` for agent) over every call
+that produced a response, across all runs.
 
 **Task identity is `(dimension, language, id)`**: ids are unique *per dimension*,
 not per language — the easy code tier deliberately mirrors the same id across the
@@ -365,6 +376,21 @@ normalized) — so adding a faster model fairly rescales the rest.
 **Per-language profile** (quick summary): the report extracts, per model, the
 languages where it exceeds the threshold (e.g. ≥75%) and the ones it doesn't — to answer
 directly "in which languages is this model reliable for me".
+
+### 4.7 Context receipts (tokens sent)
+
+Answering "how much context does a model BURN to pass the same tasks?": every
+call records the tokens SENT (`in_tokens`, `client.parse_usage`), the agent
+loop records them per turn and sums them per episode (`session_in_tokens` —
+the loop re-sends the whole conversation each turn, so the sum grows even when
+the answers stay short), and each dimension result carries the rollups. The
+scoreboard (Table 1 area) gains a `=== Context receipts (tokens sent) ===`
+section (tools in/call, code in/call, agent in/session) and `report.html` a
+matching table; a row that predates the field renders '?'.
+
+**Receipts are metadata, not a condition** (ADR-0011): they never enter the
+pool key, the task signature, the scores or the weights; no re-measure is
+required and old rows keep rendering next to new ones.
 
 ## 5. Global score
 
