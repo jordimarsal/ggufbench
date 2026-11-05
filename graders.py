@@ -102,6 +102,7 @@ def grade_tools(client_mod, tasks, max_turns=6, on_task=None, runs=1,
     """
     section_runs = []
     capped = 0
+    in_tokens_all = []  # context receipts: every call that produced a response, across runs
     for _run_idx in range(runs):
         if runs > 1:
             client_mod.run_index = _run_idx  # per-run seed injection; N==1 keeps it None
@@ -139,11 +140,18 @@ def grade_tools(client_mod, tasks, max_turns=6, on_task=None, runs=1,
                           and ("arguments" not in exp
                                or _args_equal(got.get("arguments"), exp["arguments"])))
                 detail = f"got={got} expected={exp}"
+            in_tokens = C.parse_usage(resp)
+            if in_tokens is not None:
+                in_tokens_all.append(in_tokens)
             results.append({"id": t["id"], "passed": passed, "detail": detail[:160],
-                            "_excluded": False, "in_tokens": C.parse_usage(resp)})
+                            "_excluded": False, "in_tokens": in_tokens})
             if on_task:
                 on_task("tools", {"id": t["id"], "passed": passed})
         section_runs.append(results)
+
+    def _receipt_rollup():
+        return {"avg_in_tokens": round(statistics.mean(in_tokens_all), 1) if in_tokens_all else None,
+                "median_in_tokens": round(statistics.median(in_tokens_all), 1) if in_tokens_all else None}
 
     # N==1: byte-compatible — return original trace without aggregation.
     if runs == 1:
@@ -151,7 +159,7 @@ def grade_tools(client_mod, tasks, max_turns=6, on_task=None, runs=1,
         total_excluded_tasks = sum(1 for e in trace if e.pop("_excluded", False))
         score = statistics.mean([e["passed"] for e in trace]) if trace else 0.0
         result = {"passed": score == 1.0, "turns": len(trace), "trace": trace,
-                  "score": score, "by_lang": {}}
+                  "score": score, "by_lang": {}, **_receipt_rollup()}
         if total_excluded_tasks:
             result["excluded"] = total_excluded_tasks
         result["tools_max_tokens"] = max_tokens or config.TOOLS_MAX_TOKENS
@@ -199,7 +207,7 @@ def grade_tools(client_mod, tasks, max_turns=6, on_task=None, runs=1,
     task_scores = [_task_score(te) for te in scored_tasks]
     score = statistics.mean(task_scores) if task_scores else 0.0
     result = {"passed": score == 1.0, "turns": len(results), "trace": trace,
-              "score": score, "by_lang": {}, "runs": runs}
+              "score": score, "by_lang": {}, "runs": runs, **_receipt_rollup()}
     if total_excluded_tasks:
         result["excluded"] = total_excluded_tasks
     # §C13: this branch rebuilds the result dict, and used to drop the probes the N==1
@@ -254,6 +262,7 @@ def grade_code(client_mod, tasks, max_turns=8, on_task=None, model_slug=None, ge
     # — MILLORA §C12). Before this, a row could not say what budget its tasks had.
     stored_caps = {}
     budget_hits = 0
+    in_tokens_all = []  # context receipts: every call that produced a response, across runs
     for _run_idx in range(runs):
         if runs > 1:
             client_mod.run_index = _run_idx  # per-run seed injection; N==1 keeps it None
@@ -297,6 +306,8 @@ def grade_code(client_mod, tasks, max_turns=8, on_task=None, model_slug=None, ge
             out_tokens = (resp.get("usage") or {}).get("completion_tokens")
             # context receipts: tokens SENT by this call, next to the output tokens
             in_tokens = C.parse_usage(resp)
+            if in_tokens is not None:
+                in_tokens_all.append(in_tokens)
             # Probe (2026-10-14): a task that ends within a stone's throw of the cap is a
             # measurement of the cap, not of the model — say it live, not in a post-mortem.
             if out_tokens and out_tokens >= budget - 64:
@@ -383,7 +394,9 @@ def grade_code(client_mod, tasks, max_turns=8, on_task=None, model_slug=None, ge
               "score": score, "excluded": total_excluded_tasks,
               "code_budget": CODE_MAX_TOKENS,
               "code_budget_hits": budget_hits,
-              "code_budget_stored": {cap: len(ts) for cap, ts in sorted(stored_caps.items())}}
+              "code_budget_stored": {cap: len(ts) for cap, ts in sorted(stored_caps.items())},
+              "avg_in_tokens": round(statistics.mean(in_tokens_all), 1) if in_tokens_all else None,
+              "median_in_tokens": round(statistics.median(in_tokens_all), 1) if in_tokens_all else None}
     if runs > 1:
         result["runs"] = runs
     return result
@@ -403,6 +416,7 @@ def grade_agent(client_mod, tasks, max_turns=8, on_task=None, runs=1,
     section_runs = []
     conversations = {}
     empty_total = 0
+    session_vals = []  # context receipts: one tokens-per-episode figure per graded session
     for _run_idx in range(runs):
         if runs > 1:
             client_mod.run_index = _run_idx  # per-run seed injection; N==1 keeps it None
@@ -439,8 +453,12 @@ def grade_agent(client_mod, tasks, max_turns=8, on_task=None, runs=1,
             results.append({"id": t["id"], "lang": t["lang"], "passed": r["success"],
                             "turns": r["turns"], "_excluded": False,
                             "empty_replies": empty,
+                            "in_tokens": r["turn_in_tokens"],
+                            "session_in_tokens": r["session_in_tokens"],
                             "detail": f"turns={r['turns']} tool_calls={r['tool_calls']}"
                                       + (f" empty={empty}" if empty else "")})
+            if r["session_in_tokens"] is not None:
+                session_vals.append(r["session_in_tokens"])
             by_lang.setdefault(t["lang"], []).append(r["success"])
             if on_task:
                 on_task("agent", {"id": t["id"], "lang": t["lang"],
@@ -509,6 +527,8 @@ def grade_agent(client_mod, tasks, max_turns=8, on_task=None, runs=1,
               "by_lang": {l: round(sum(v) / len(v), 2) for l, v in merged.items()},
               "agent_max_tokens": max_tokens or config.AGENT_MAX_TOKENS,
               "agent_empty_replies": empty_total,
+              "avg_session_in_tokens": round(statistics.mean(session_vals), 1) if session_vals else None,
+              "median_session_in_tokens": round(statistics.median(session_vals), 1) if session_vals else None,
               "conversations": conversations}
     if runs > 1:
         result["runs"] = runs

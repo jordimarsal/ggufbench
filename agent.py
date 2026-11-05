@@ -1,6 +1,6 @@
 import json
 
-from . import config, executors
+from . import client as C, config, executors
 
 # Schema of the tools passed to the model.
 TOOLS = [
@@ -128,10 +128,15 @@ def run_agent(client_mod, task, max_turns=8, max_tokens=None):
     tool_calls = 0
     actual_turns = 0
     empty_replies = 0
+    turn_in_tokens = []
     for _turn in range(max_turns):
         actual_turns = _turn + 1
         resp = client_mod.chat(history, tools=TOOLS, tool_choice="auto",
                                max_tokens=max_tokens or config.AGENT_MAX_TOKENS)
+        # Context receipts: tokens SENT this turn. The loop re-sends the whole
+        # conversation every turn, so the sum over turns is the real context cost
+        # of the episode (it grows even when the model's answers stay short).
+        turn_in_tokens.append(C.parse_usage(resp))
         msg = (resp.get("choices", [{}])[0]).get("message", {})
         tcs = msg.get("tool_calls") or []
         history.append(msg)
@@ -154,5 +159,7 @@ def run_agent(client_mod, task, max_turns=8, max_tokens=None):
             result = _exec_tool(name, args, env)
             history.append({"role": "tool", "tool_call_id": tc.get("id", "x"), "content": result})
     ok, _ = env.run_tests()
+    sent = [v for v in turn_in_tokens if v is not None]
     return {"success": ok, "turns": actual_turns, "tool_calls": tool_calls,
-            "empty_replies": empty_replies, "history": history}
+            "empty_replies": empty_replies, "turn_in_tokens": turn_in_tokens,
+            "session_in_tokens": sum(sent) if sent else None, "history": history}

@@ -11,13 +11,13 @@
       depends_on: T1
       refs: R2
 
-- [ ] T3: `agent.run_agent` records per-turn `turn_in_tokens` + `session_in_tokens`
+- [x] T3: `agent.run_agent` records per-turn `turn_in_tokens` + `session_in_tokens`
       sum (growing re-send visible); `grade_agent` writes both into the trace entry
       + tests (test_agent.py pattern, growing fake replies)
       depends_on: T1
       refs: R3
 
-- [ ] T4: Dim-result rollups: `avg_in_tokens`/`median_in_tokens` (tools, code) and
+- [x] T4: Dim-result rollups: `avg_in_tokens`/`median_in_tokens` (tools, code) and
       `avg_session_in_tokens`/`median_session_in_tokens` (agent), over all
       non-excluded calls across runs + tests
       depends_on: T2, T3

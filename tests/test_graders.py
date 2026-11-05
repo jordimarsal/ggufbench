@@ -311,6 +311,54 @@ class TestContextReceipts(unittest.TestCase):
         r = graders.grade_speed(FakeClient([resp]), tasks=[{"id": "s", "prompt": "hi"}])
         self.assertEqual(r["trace"][0]["in_tokens"], 0)
 
+    def test_tools_rollups_mean_and_median(self):
+        # Task 'c' passes without a call and has no usage: no receipt, not collected.
+        tasks = [
+            {"id": "a", "prompt": "x", "tools": [], "expected": {"name": "f", "arguments": {}}},
+            {"id": "b", "prompt": "y", "tools": [], "expected": {"name": "g", "arguments": {}}},
+            {"id": "c", "prompt": "z", "tools": [], "expected": None},
+        ]
+        ra = {"choices": [{"finish_reason": "tool_calls", "message": {"tool_calls": [
+            {"function": {"name": "f", "arguments": "{}"}}]}}],
+            "usage": {"prompt_tokens": 100, "completion_tokens": 2}}
+        rb = {"choices": [{"finish_reason": "tool_calls", "message": {"tool_calls": [
+            {"function": {"name": "g", "arguments": "{}"}}]}}],
+            "usage": {"prompt_tokens": 300, "completion_tokens": 2}}
+        rc = {"choices": [{"message": {"content": "hi"}}]}
+        r = graders.grade_tools(FakeClient([ra, rb, rc]), tasks)
+        self.assertEqual(r["avg_in_tokens"], 200)
+        self.assertEqual(r["median_in_tokens"], 200)
+
+    def test_code_rollups_over_calls_even_when_tasks_are_excluded(self):
+        # A no-code-block call still happened and still cost tokens: the rollup is
+        # over CALLS, not over graded tasks (only transport errors drop out).
+        tasks = [{"id": "b1", "lang": "bash", "prompt": "p", "test_code": "echo x"},
+                 {"id": "b2", "lang": "bash", "prompt": "p", "test_code": "echo x"}]
+        def resp(n):
+            return {"choices": [{"message": {"content": "prose only"}}],
+                    "usage": {"prompt_tokens": n, "completion_tokens": 3}}
+        r = graders.grade_code(FakeClient([resp(100), resp(301)]), tasks, model_slug="rc")
+        self.assertEqual(r["avg_in_tokens"], 200.5)
+        self.assertEqual(r["median_in_tokens"], 200.5)
+
+    def test_agent_trace_and_session_rollups(self):
+        task = lambda tid: {"id": tid, "lang": "python", "goal": "g",
+                            "initial_files": {"solution.py": "x=1",
+                                              "test_solution.py": "assert x==1"},
+                            "max_turns": 4}
+        resp1 = {"choices": [{"message": {"content": "done"}}],
+                 "usage": {"prompt_tokens": 100, "completion_tokens": 1}}
+        resp2 = {"choices": [{"message": {"content": "done"}}],
+                 "usage": {"prompt_tokens": 300, "completion_tokens": 1}}
+        with mock.patch.object(executors, "run",
+                               return_value={"passed": True, "output": "ok"}):
+            r = graders.grade_agent(FakeClient([resp1, resp2]), [task("a1"), task("a2")])
+        self.assertEqual(r["trace"][0]["in_tokens"], [100])
+        self.assertEqual(r["trace"][0]["session_in_tokens"], 100)
+        self.assertEqual(r["trace"][1]["session_in_tokens"], 300)
+        self.assertEqual(r["avg_session_in_tokens"], 200)
+        self.assertEqual(r["median_session_in_tokens"], 200)
+
 
 @unittest.skipUnless(HAS_SANDBOX, "host cannot create isolated namespaces (unshare -Urn); code-execution coverage runs on sandboxed hosts")
 class TestTransientErrors(unittest.TestCase):

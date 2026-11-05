@@ -1,5 +1,6 @@
 import shutil
 import unittest
+from unittest import mock
 from ggufbench import agent, executors
 
 # run_tests for java shells out to javac; skip on machines without the toolchain.
@@ -149,6 +150,62 @@ class TestRunAgentScripted(unittest.TestCase):
         r = agent.run_agent(FakeClient(), task, max_turns=4)
         self.assertTrue(r["success"])
         self.assertEqual(r["tool_calls"], 1)
+
+
+_TASK = {"lang": "python", "goal": "fix add",
+         "initial_files": {"solution.py": "def add(a,b):\n    return a-b\n",
+                           "test_solution.py": "from solution import *\nassert add(1,2)==3\n"},
+         "test_file": "test_solution.py"}
+
+
+class TestRunAgentReceipts(unittest.TestCase):
+    """context_receipts R3: run_agent records the in_tokens of every turn and the
+    episode sum. The agent loop re-sends the whole conversation every turn, so the
+    per-turn sent tokens grow with the history. executors.run is patched: what is
+    under test is the receipt contract, not the sandbox."""
+
+    def _scripted(self, usage_per_turn):
+        """One response per chat call; the last one stops the episode, the rest call
+        list_files. usage_per_turn[i] = prompt_tokens of turn i+1 (None = no usage)."""
+        calls = {"n": 0}
+
+        class FakeClient:
+            def chat(self, messages, tools=None, tool_choice=None, max_tokens=256):
+                calls["n"] += 1
+                u = usage_per_turn[min(calls["n"], len(usage_per_turn)) - 1]
+                resp = {}
+                if u is not None:
+                    resp["usage"] = {"prompt_tokens": u, "completion_tokens": 1}
+                if calls["n"] < len(usage_per_turn):
+                    resp["choices"] = [{"finish_reason": "tool_calls", "message": {
+                        "tool_calls": [{"function": {"name": "list_files",
+                                                     "arguments": "{}"}}]}}]
+                else:
+                    resp["choices"] = [{"finish_reason": "stop",
+                                        "message": {"content": "done"}}]
+                return resp
+
+        return FakeClient()
+
+    def _run(self, usage_per_turn):
+        with mock.patch.object(executors, "run",
+                               return_value={"passed": True, "output": "ok"}):
+            return agent.run_agent(self._scripted(usage_per_turn), _TASK,
+                                   max_turns=len(usage_per_turn))
+
+    def test_turn_list_and_session_sum(self):
+        r = self._run([100, 250, None, 400])
+        self.assertEqual(r["turn_in_tokens"], [100, 250, None, 400])
+        self.assertEqual(r["session_in_tokens"], 750)  # the turn without usage is skipped
+
+    def test_session_none_when_no_usage_anywhere(self):
+        r = self._run([None])
+        self.assertIsNone(r["session_in_tokens"])
+
+    def test_sent_tokens_grow_with_the_re_sent_history(self):
+        r = self._run([120, 340, 610])
+        self.assertEqual(r["turn_in_tokens"], [120, 340, 610])
+        self.assertEqual(r["session_in_tokens"], 1070)
 
 if __name__ == "__main__":
     unittest.main()
