@@ -248,6 +248,70 @@ class TestSpeedGrader(unittest.TestCase):
         self.assertAlmostEqual(r["prompt_tps"], 1000.0)
 
 
+class TestContextReceipts(unittest.TestCase):
+    """context_receipts R2: every trace entry built from a response records in_tokens
+    (tokens SENT per call) next to out_tokens/gen_tps; transport-error entries carry
+    no receipt, exactly as they carry no out_tokens."""
+
+    def test_tools_trace_carries_in_tokens(self):
+        tasks = [{"id": "t1", "prompt": "x", "tools": [],
+                  "expected": {"name": "f", "arguments": {"a": 1}}}]
+        resp = {"choices": [{"finish_reason": "tool_calls", "message": {"tool_calls": [
+            {"function": {"name": "f", "arguments": '{"a":1}'}}]}}],
+            "usage": {"prompt_tokens": 77, "completion_tokens": 9}}
+        r = graders.grade_tools(FakeClient([resp]), tasks)
+        self.assertEqual(r["trace"][0]["in_tokens"], 77)
+
+    def test_tools_entry_without_usage_or_timings_is_none(self):
+        tasks = [{"id": "noop", "prompt": "hi", "tools": [], "expected": None}]
+        resp = {"choices": [{"finish_reason": "stop", "message": {"content": "hi!"}}]}
+        r = graders.grade_tools(FakeClient([resp]), tasks)
+        self.assertIsNone(r["trace"][0]["in_tokens"])
+
+    def test_transport_error_entry_omits_receipt(self):
+        class Boom:
+            def chat(self, *a, **k):
+                raise urllib.error.URLError("simulated 500")
+        tasks = [{"id": "t1", "prompt": "x", "tools": [], "expected": {"name": "f"}}]
+        r = graders.grade_tools(Boom(), tasks)
+        self.assertEqual(r["excluded"], 1)   # N==1: the exclusion lives at result level
+        self.assertNotIn("in_tokens", r["trace"][0])
+
+    def test_code_trace_carries_in_tokens_next_to_out_tokens(self):
+        # Prose-only reply: the task is excluded (no code block) and no executor is
+        # needed, so this runs on hosts without the sandbox too.
+        tasks = [{"id": "b1", "lang": "bash", "prompt": "p", "test_code": "echo x"}]
+        resp = {"choices": [{"message": {"content": "prose only, no fence"}}],
+                "usage": {"prompt_tokens": 1234, "completion_tokens": 5}}
+        r = graders.grade_code(FakeClient([resp]), tasks, model_slug="rc")
+        entry = r["trace"][0]
+        self.assertTrue(entry["excluded"])
+        self.assertEqual(entry["in_tokens"], 1234)
+        self.assertEqual(entry["out_tokens"], 5)
+
+    @unittest.skipUnless(HAS_SANDBOX, "code-execution coverage runs on sandboxed hosts (same as TestCodeBudget)")
+    def test_code_passing_run_records_both_tokens(self):
+        tasks = [{"id": "t3", "lang": "python", "prompt": "p",
+                  "test_code": "from solution import *\nassert f()==1\n"}]
+        resp = {"choices": [{"message": {"content": "```python\ndef f():\n    return 1\n```"}}],
+                "usage": {"prompt_tokens": 88, "completion_tokens": 321}}
+        r = graders.grade_code(FakeClient([resp]), tasks)
+        self.assertEqual(r["trace"][0]["in_tokens"], 88)
+        self.assertEqual(r["trace"][0]["out_tokens"], 321)
+
+    def test_speed_entry_carries_in_tokens(self):
+        # No usage in the response: the timings fallback derives the sent tokens.
+        resp = {"timings": {"predicted_ms": 100,
+                            "prompt_per_second": 1000.0, "prompt_ms": 100.0}}
+        r = graders.grade_speed(FakeClient([resp]), tasks=[{"id": "s", "prompt": "hi"}])
+        self.assertEqual(r["trace"][0]["in_tokens"], 100)
+
+    def test_speed_entry_zero_when_no_source(self):
+        resp = {"timings": {"predicted_ms": 100}}
+        r = graders.grade_speed(FakeClient([resp]), tasks=[{"id": "s", "prompt": "hi"}])
+        self.assertEqual(r["trace"][0]["in_tokens"], 0)
+
+
 @unittest.skipUnless(HAS_SANDBOX, "host cannot create isolated namespaces (unshare -Urn); code-execution coverage runs on sandboxed hosts")
 class TestTransientErrors(unittest.TestCase):
     """A 500/timeout from the server must only fail the affected task, not abort the run."""

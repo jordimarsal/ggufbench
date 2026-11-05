@@ -46,6 +46,21 @@ def parse_timings(resp: dict[str, Any]) -> dict[str, float | None] | None:
             "prompt_ms": p_ms, "completion_ms": c_ms, "total_ms": p_ms + c_ms if p_ms and c_ms else None}
 
 
+def parse_usage(resp: dict[str, Any]) -> int | None:
+    """Tokens SENT per call (in_tokens, context receipts R1): usage.prompt_tokens
+    when the server reports usage; derived from the timings when it does not
+    (prompt_tps * prompt_ms / 1000 ~= prompt_n — the same trade parse_timings makes
+    for predicted_n); None when neither source is present."""
+    n = ((resp or {}).get("usage") or {}).get("prompt_tokens")
+    if n:
+        return int(n)
+    t = (resp or {}).get("timings") or {}
+    ptps, p_ms = t.get("prompt_per_second"), t.get("prompt_ms")
+    if ptps and p_ms:
+        return round(ptps * p_ms / 1000.0)
+    return None
+
+
 def extract_tool_call(resp: dict[str, Any]) -> dict[str, Any] | None:
     try:
         m = resp["choices"][0]["message"]

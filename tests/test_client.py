@@ -36,6 +36,25 @@ class TestClient(unittest.TestCase):
         self.assertEqual(client.first_text(SAMPLE), "")
         self.assertEqual(client.first_text({"choices":[{"message":{"content":"x"}}]}), "x")
 
+
+class TestParseUsage(unittest.TestCase):
+    """context_receipts R1: in_tokens = usage.prompt_tokens, timings fallback
+    (prompt_tps * prompt_ms / 1000), None when neither source is present."""
+
+    def test_usage_prompt_tokens(self):
+        self.assertEqual(client.parse_usage(SAMPLE), 50)
+
+    def test_timings_fallback_without_usage(self):
+        resp = {"timings": {"prompt_per_second": 500.0, "prompt_ms": 100.0}}
+        self.assertEqual(client.parse_usage(resp), 50)
+
+    def test_none_when_neither_source(self):
+        self.assertIsNone(client.parse_usage({}))
+        self.assertIsNone(client.parse_usage(None))
+        self.assertIsNone(client.parse_usage({"usage": {}}))
+        self.assertIsNone(client.parse_usage({"timings": {"prompt_per_second": 500.0}}))
+        self.assertIsNone(client.parse_usage({"timings": {"prompt_ms": 100.0}}))
+
 def _capture(**kwargs):
     """Runs client.chat with urlopen stubbed out and returns what the request
     carried (body, timeout, url) — no network involved."""

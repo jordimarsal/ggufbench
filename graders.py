@@ -28,6 +28,7 @@ def grade_speed(client_mod, tasks, on_task=None):
     results = []
     for task in tasks:
         speed_ms_values, gen_tps_values, prompt_tps_values = [], [], []
+        in_tokens_values = []
         for _ in range(3):
             try:
                 resp = client_mod.chat([{"role": "user", "content": task["prompt"]}],
@@ -41,6 +42,9 @@ def grade_speed(client_mod, tasks, on_task=None):
                     gen_tps_values.append(t["gen_tps"])
                 if t.get("prompt_tps"):
                     prompt_tps_values.append(t["prompt_tps"])
+                u = C.parse_usage(resp)
+                if u is not None:
+                    in_tokens_values.append(u)
             except _TRANSIENT:
                 pass  # sample discarded; another one can compensate
         avg = lambda xs: statistics.mean(xs) if xs else 0
@@ -51,6 +55,8 @@ def grade_speed(client_mod, tasks, on_task=None):
             "speed_ms": int(avg(speed_ms_values)) if speed_ms_values else 0,
             "gen_tps": round(avg(gen_tps_values), 1) if gen_tps_values else 0,
             "prompt_tps": round(avg(prompt_tps_values), 1) if prompt_tps_values else 0,
+            # context receipts: tokens sent per call, averaged like the tps figures
+            "in_tokens": round(avg(in_tokens_values), 1) if in_tokens_values else 0,
         }
         results.append(entry)
         if on_task:
@@ -134,7 +140,7 @@ def grade_tools(client_mod, tasks, max_turns=6, on_task=None, runs=1,
                                or _args_equal(got.get("arguments"), exp["arguments"])))
                 detail = f"got={got} expected={exp}"
             results.append({"id": t["id"], "passed": passed, "detail": detail[:160],
-                            "_excluded": False})
+                            "_excluded": False, "in_tokens": C.parse_usage(resp)})
             if on_task:
                 on_task("tools", {"id": t["id"], "passed": passed})
         section_runs.append(results)
@@ -289,6 +295,8 @@ def grade_code(client_mod, tasks, max_turns=8, on_task=None, model_slug=None, ge
                                      "excluded": True, "detail": detail})
                 continue
             out_tokens = (resp.get("usage") or {}).get("completion_tokens")
+            # context receipts: tokens SENT by this call, next to the output tokens
+            in_tokens = C.parse_usage(resp)
             # Probe (2026-10-14): a task that ends within a stone's throw of the cap is a
             # measurement of the cap, not of the model — say it live, not in a post-mortem.
             if out_tokens and out_tokens >= budget - 64:
@@ -301,7 +309,7 @@ def grade_code(client_mod, tasks, max_turns=8, on_task=None, model_slug=None, ge
                          + f"no code block ({t['lang']}, not counted); reply: {snippet}"[:160]
                 results.append({"id": t["id"], "lang": t["lang"], "level": t.get("level", "easy"),
                                 "passed": False, "_excluded": True, "detail": detail,
-                                "out_tokens": out_tokens})
+                                "out_tokens": out_tokens, "in_tokens": in_tokens})
                 if on_task:
                     on_task("code", {"id": t["id"], "lang": t["lang"], "passed": False,
                                      "excluded": True, "detail": detail})
@@ -310,7 +318,7 @@ def grade_code(client_mod, tasks, max_turns=8, on_task=None, model_slug=None, ge
                               extra_files=t.get("extra_files"))
             results.append({"id": t["id"], "lang": t["lang"], "level": t.get("level", "easy"),
                             "passed": r["passed"], "_excluded": False, "detail": r["output"][:160],
-                            "out_tokens": out_tokens})
+                            "out_tokens": out_tokens, "in_tokens": in_tokens})
             by_lang.setdefault(t["lang"], []).append(r["passed"])
             if on_task:
                 on_task("code", {"id": t["id"], "lang": t["lang"], "excluded": False,

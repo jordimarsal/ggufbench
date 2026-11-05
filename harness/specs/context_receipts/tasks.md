@@ -1,11 +1,11 @@
 # Tasks: context_receipts
 
-- [ ] T1: `client.parse_usage(resp)` (usage.prompt_tokens → timings fallback → None)
+- [x] T1: `client.parse_usage(resp)` (usage.prompt_tokens → timings fallback → None)
       + tests (test_client.py pattern: hit, fallback, both absent)
       depends_on: (none)
       refs: R1
 
-- [ ] T2: `grade_tools` / `grade_code` / `grade_speed` write `in_tokens` into every
+- [x] T2: `grade_tools` / `grade_code` / `grade_speed` write `in_tokens` into every
       entry built from a response (omitted on transport-error entries), next to
       out_tokens/gen_tps + fake-client tests
       depends_on: T1
