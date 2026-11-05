@@ -157,6 +157,26 @@ class TestSandbox(unittest.TestCase):
         self.assertTrue(r["passed"])
         self.assertEqual(r.get("sandbox"), "none")
 
+    def test_prefix_skips_timeout_binary_when_missing(self):
+        # macOS dev hosts ship no GNU timeout: the prefix degrades to the
+        # sandbox part only and _safe_run's subprocess clock keeps guarding
+        # (regression: FileNotFoundError crashed every degraded run there).
+        with mock.patch.object(executors.shutil, "which", return_value=None):
+            executors.SANDBOX_AVAILABLE = False
+            self.assertEqual(executors._sandbox_prefix(5), [])
+            executors.SANDBOX_AVAILABLE = True
+            self.assertEqual(executors._sandbox_prefix(5), ["unshare", "-Urn"])
+
+    def test_prefix_keeps_timeout_binary_when_present(self):
+        # The normal Linux bench host: timeout stays first in the prefix.
+        with mock.patch.object(executors.shutil, "which",
+                               side_effect=lambda name: f"/usr/bin/{name}"):
+            executors.SANDBOX_AVAILABLE = False
+            self.assertEqual(executors._sandbox_prefix(5), ["timeout", "5"])
+            executors.SANDBOX_AVAILABLE = True
+            self.assertEqual(executors._sandbox_prefix(5),
+                             ["timeout", "5", "unshare", "-Urn"])
+
     @mock.patch.object(executors, '_probe_sandbox', return_value=True)
     @mock.patch('subprocess.run')
     def test_available_returns_unshare(self, mock_run, mock_probe):

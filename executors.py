@@ -32,7 +32,9 @@ the -U creates the user namespace that grants CAP_SYS_ADMIN for the -n; root-map
 
 def _sandbox_prefix(timeout: int) -> list[str]:
     """Sandboxing command prefix: timeout + network blocked when unshare is available."""
-    prefix = ["timeout", str(timeout)]
+    # GNU timeout is missing on some dev hosts (macOS): skip it there —
+    # _safe_run's subprocess timeout stays as the clock (same semantics, coarser kill).
+    prefix = ["timeout", str(timeout)] if shutil.which("timeout") is not None else []
     # unshare -Urn blocks the network; the -U userns is what lets an unprivileged user create the -n netns.
     if _probe_sandbox():
         prefix += ["unshare", "-Urn"]
