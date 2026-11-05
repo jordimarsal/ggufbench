@@ -3,61 +3,42 @@
 > This file is cleared on session close and moved to `history.md`.
 > Keep it updated in real time while you work — not at the end.
 
-- **Feature in progress:** _none_ (all 8 `done`; `lora_eval` = feature 7 `spec_ready`,
-  waiting on the human Spec Gate)
-- **Started:** _—_ (ad-hoc docs work, 2026-10-16 nit: write-ups refresh)
-- **Agent:** in-session
+- **Feature in progress:** `context_receipts` (id 9) — **spec_ready, waiting on
+  the human Spec Gate**
+- **Started:** 2026-11-05
+- **Agent:** in-session (hybrid)
 
 ## Plan
 
-_Describe in 3-5 bullets what you will do before touching code._
+- Fix the dev environment on this macOS checkout until `harness/init.sh` is green.
+- Spec mode for `context_receipts` (lowest `pending` id): requirements/design/tasks.
+- Mark `spec_ready` and STOP at the Spec Gate (no implementation before approval).
 
 ## Log
 
-_Note each significant step: files created, decisions, blockers._
-
-- **Ad-hoc (humà: «actualitza els write-ups»)** — refresc dels tres
-  `docs/writeups/which-local-model-for-coding-agents.{md,ca,es.md}` contra el taulell v5,
-  sense canvis de codi:
-  - títol: «Nine GGUFs» → «Six GGUFs and a Strata engine» (flota viva = 6 GGUF + Strata);
-  - conjunt: v3 16/60(32/16/12)/42 → **v5 18/72(32/20/20)/72** (13 projectes multi-fitxer,
-    32K de pressupost de codi), files mesurades la nit del 10-14/15;
-  - taula amb columna `think` (top 10, igual que el README) + nota del ★ (C8);
-  - secció thinking reescrita amb dades v5: latència 280–1060 ms vs 19–85 ms, **101 vs 6
-    tirades excloses** de 1.512 per mode (2 vs 14 tasques excloses del tot), i el guany real
-    al codi difícil (UD-Q3 79→93 global, 92 difícil/91 expert; Ornith +10, strata +6,
-    Heretic +4; agent d'Heretic 97%);
-  - empats: deu files dins de 5 centèsimes, veïns a 1–2 centèsimes, mida comparable a la
-    dispersió per tirada (stdevs calculats del pool: ±0.2–1.4);
-  - fàcils 91–100% off vs difícil/expert 47–87%; recomanacions concretes per dimensió;
-  - lletra petita: files ON de gemma/strata pendents de passada justa + pestanya Retired.
-- Verificat: 3 fitxers de 73 línies, 8 encapçalaments i les mateixes 10 files a les tres
-  llengües (conjunts numèrics iguals; `1.512`/`1,512` és el separador de milers).
-- **Handle**: els write-ups es queden amb **`jordimarsal`** — un intent de passar-los a
-  `jordimp` (`80aa7d5`) es va revertir el mateix dia a petició de l'humà (`b56f8ec`).
-  No canviar el handle sense una petició explícita.
-- **2026-10-16 (tarda) — CI vermella (#49, #50), ad-hoc**: els dos jobs de `ci.yml`
-  fallaven a `main`. Diagnòstic amb `gh run view --log-failed`:
-  1. *test*: 3 tests de `test_graders.py` executen codi real (``grade_code`` /
-     `run_tests`) sense el guard `skipUnless(HAS_SANDBOX)` i toquen el fail-closed
-     nou de `executors._run_in` (els runners de GitHub bloquegen `unshare -Urn`).
-     Guardats: `TestCodeBudgetTravels` (classe), `TestCapProbes.test_code_budget_hit_is_counted`
-     i `test_agent_turn_answered_empty_is_counted` (mètode).
-  2. *Latent*: `TestSandbox.tearDown` (test_executors) deixava `SANDBOX_AVAILABLE=None`
-     i desactivava el fail-closed per a tota la suite posterior — el test d'agent només
-     passava a CI per aquest bypass. `tearDown` ara re-sonda i restaura el valor real.
-  3. *mypy*: `counts` i `axes` a `report.py` sense anotació (`var-annotated`, mypy 2.4).
-- Verificat: suite local 488 OK (amb smoke real: GPUs lliures); simulació fidel de CI
-  (`/tmp/opencode/ci_sim.py`: probe d'unshare que falla i fa caché, smoke exclòs com a
-  CI) 487 tests, 0 errors, 64 skips; mypy net.
-- Nota: el smoke local fa skip quan Strata és en marxa (port 8080); amb el desk aturat
-  arrenca un servidor real — no interpretar un failure del smoke com a regressió de codi
-  (mirar ports/GPUs primer).
+- **Env fixes (macOS checkout, committed before any feature work):**
+  - `c6fec11` chore(harness): the uncommitted `feature_list.json` edit (the 3 new
+    pending features from the human) committed as its own change.
+  - `273b6a6` fix(executors): `_sandbox_prefix` skips the GNU `timeout` prefix when
+    the binary is missing (macOS) — `_safe_run`'s subprocess clock keeps guarding;
+    regression tests added (`test_prefix_skips/keeps_timeout_binary_*`).
+  - `31f4044` fix(tests): the nvidia-smi mock in `test_run_cli.py` intercepted
+    `subprocess.run` globally; on macOS `platform.platform()` shells out to `file`
+    (Mach-O) and choked on the fake. New `_only_nvidia` helper delegates
+    non-nvidia-smi calls to the real `subprocess.run`.
+  - `e6b7af4` chore(harness): `init.sh` ran `pytest` (not installed; conventions
+    forbid it) — now the canonical `python3 -m unittest discover -s tests -t ..`
+    (top level at the parent dir so the package imports as `ggufbench`).
+  - Gates: **490 tests, 0 errors, 67 skips (platform)**; `harness/init.sh` →
+    `[OK] Environment ready`.
+- **Spec mode `context_receipts`:** read client/graders/agent/report/html_report
+  seams + test patterns; wrote `harness/specs/context_receipts/{requirements,design,tasks}.md`
+  (7 R's, 7 tasks, 4 batches; ADR-1 receipts-not-a-condition, ADR-2 pure parser in
+  client.py, ADR-3 mean+median rollups). Status → `spec_ready`.
 
 ## Next step
 
-_If the session is interrupted, this is what the next session should do first._
-
-_Pending from the 2026-10-16 close (details in `history.md`, tail): gemma ON + Strata ON
-deserve a pass at the fleet's caps; Heretic ON re-measure at 147456 (one night); the
-write-ups refresh offer awaits the human; `lora_eval` waits on its Spec Gate._
+**STOP — human Spec Gate.** On approval: batch mode (B1 = T1+T2 client+graders
+trace), evidence logs to `harness/logs/context_receipts/batch-<n>.log`. Notes:
+`lora_eval` (id 7) still waits on its own Spec Gate; two more pending features
+(grammar_toolcalls_ab, kv_cache_f16_ab) queued behind this one.
