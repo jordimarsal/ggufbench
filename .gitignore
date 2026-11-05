@@ -1,5 +1,6 @@
 __pycache__/
 *.pyc
+.DS_Store
 results/runs/
 results/models/
 results/token_budgets.json
