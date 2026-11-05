@@ -239,6 +239,7 @@ def _rows(pool):
             "slug": config.slug(r["model"]),
             "retired": _is_retired(r.get("model")),
             "sc": R._scores(r),
+            "receipts": R.receipts(r),  # context receipts: '?' when the row predates them
             "global": R._global_score(r, config.WEIGHTS, min_speed),
             "spread": R.run_spread(r, config.WEIGHTS, min_speed),
             "engine": r.get("engine", "llama"),
@@ -388,6 +389,22 @@ def _dim_bars(rows, key, fmt):
     return "".join(out)
 
 
+def _receipt_row(r):
+    """One <tr> of the Context receipts table: tokens SENT per call (tools/code) and
+    per agent session. '?' = the row predates the field: informational metadata,
+    never scored (same tolerance as the '—' of the unmeasured dimensions)."""
+    def cell(v):
+        if v is None:
+            return '<td class="miss">?</td>'
+        return f"<td>{v:.1f}</td>"
+    rc = r["receipts"]
+    retired = ' class="retired"' if r["retired"] else ""
+    return (f'<tr{retired}>'
+            f'<td class="name" title="{_esc(r["name"])}">{_esc(r["name"])}</td>'
+            f'{cell(rc["tools_in_tokens"])}{cell(rc["code_in_tokens"])}'
+            f'{cell(rc["agent_session_in_tokens"])}</tr>')
+
+
 _LANGS = ["python", "bash", "java", "typescript"]
 
 
@@ -521,6 +538,12 @@ def _sections(rows, sort, *, board, optimal):
     <div><h2>gen (output)</h2>{_dim_bars(rows, "gen_tps", lambda v: f"{v:.0f} t/s")}</div>
     <div><h2>prompt (input)</h2>{_dim_bars(rows, "prompt_tps", lambda v: f"{v:.0f} t/s")}</div>
   </div>
+</section>
+
+<section>
+  <h2>Context receipts</h2>
+  <table><thead><tr><th>Model</th><th>tools in/call</th><th>code in/call</th><th>agent in/session</th></tr></thead>
+  <tbody>{''.join(_receipt_row(r) for r in rows)}</tbody></table>
 </section>
 
 <section>

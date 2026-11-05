@@ -126,6 +126,38 @@ class TestReport(unittest.TestCase):
         self.assertIn("48.5", out)     # gen_tps
         self.assertIn("2600.0", out)   # prompt_tps
 
+    def test_receipts_helper_reads_the_rollups(self):
+        r = mk("m")
+        r["tools"]["avg_in_tokens"] = 10.0
+        r["code"]["median_in_tokens"] = 99.0
+        r["agent"]["avg_session_in_tokens"] = 1000.0
+        rc = report.receipts(r)
+        self.assertEqual(rc["tools_in_tokens"], 10.0)
+        self.assertEqual(rc["code_in_tokens"], None)   # the board shows the AVG, not the median
+        self.assertEqual(rc["agent_session_in_tokens"], 1000.0)
+
+    def test_render_has_context_receipts_section(self):
+        r = mk("alpha", speed_ms=100)
+        r["tools"]["avg_in_tokens"] = 412.5
+        r["code"]["avg_in_tokens"] = 9988.0
+        r["agent"]["avg_session_in_tokens"] = 20711.0
+        report.save_result(r)
+        out = report.render(report.load_pool(), W)
+        self.assertIn("Context receipts (tokens sent)", out)
+        self.assertIn("tools in/call", out)
+        self.assertIn("agent in/session", out)
+        self.assertIn("412.5", out)
+        self.assertIn("9988.0", out)
+        self.assertIn("20711.0", out)
+
+    def test_render_receipts_mark_legacy_rows_with_a_question_mark(self):
+        # A row that predates the field renders '?' (R5): no crash, no invented 0.
+        report.save_result(mk("old", speed_ms=100))
+        out = report.render(report.load_pool(), W)
+        self.assertIn("Context receipts (tokens sent)", out)
+        self.assertIn("?", out)
+        self.assertIsNone(report.receipts(report.load_pool()[0])["code_in_tokens"])
+
     def test_lang_profile(self):
         r = mk("m", code_lang={"python": 1.0, "java": 0.0}, agent_lang={"python": 0.5})
         prof = report.lang_profile(pool=[r], lang="python")

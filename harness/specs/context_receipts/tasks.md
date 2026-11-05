@@ -23,12 +23,12 @@
       depends_on: T2, T3
       refs: R4
 
-- [ ] T5: `report.receipts(r)` + CLI scoreboard `=== Context receipts (tokens sent) ===`
+- [x] T5: `report.receipts(r)` + CLI scoreboard `=== Context receipts (tokens sent) ===`
       table ('?' for legacy rows) + test_report tests; score paths untouched
       depends_on: T4
       refs: R5
 
-- [ ] T6: HTML: `_rows` carries receipts; `Context receipts` table section after
+- [x] T6: HTML: `_rows` carries receipts; `Context receipts` table section after
       Tokens per second, '?' with the `miss` class; `_pack`/sort keys untouched
       + test_html_report tests
       depends_on: T5

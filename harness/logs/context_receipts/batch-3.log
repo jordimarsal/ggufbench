@@ -1,0 +1,94 @@
+── 1. Checking harness files ──────────────────────────
+[0;32m[OK][0m    Exists AGENTS.md
+[0;32m[OK][0m    Exists .claude/ or .opencode/
+[0;32m[OK][0m    Exists harness/CHECKPOINTS.md
+[0;32m[OK][0m    Exists harness/feature_list.json
+[0;32m[OK][0m    Exists harness/progress/current.md
+[0;32m[OK][0m    Exists docs/architecture.md
+[0;32m[OK][0m    Exists docs/conventions.md
+[0;32m[OK][0m    Exists docs/verification.md
+[0;32m[OK][0m    Exists docs/specs.md
+[0;32m[OK][0m    Exists harness/specs/
+
+── 2. Validating harness/feature_list.json ────────────
+[OK]    harness/feature_list.json valid (11 features)
+[OK]    Feature in progress: context_receipts
+
+── 3. Running tests ──────────────────────────────────
+Running: python3 -m unittest discover -s tests -t .. 2>&1
+sssssssssss...ssss...s...............................s............................................................ssssssssssssss....[ggufbench] WARNING: running without network isolation (unshare -Urn unavailable; sandbox='none')
+.......ss.ss    ⚠️  cap: tool call for 't1' hit the 128-token limit
+.    ⚠️  cap: tool call for 't1' hit the 256-token limit
+    ⚠️  cap: tool call for 't1' hit the 256-token limit
+    ⚠️  cap: tool call for 't1' hit the 256-token limit
+.ssssssssssss....s........sssssssss.sssss......sss......................................................................................................../var/folders/p1/xpj71zhj6sn5cx2rt5lsxlgh0000gp/T/tmp0cn8fks5/results/report.html
+
+=== fake
+    228k → NO    
+    220k → OK    
+  → max measured: 225280  (0s)
+.
+============================================================
+fake                                                    225280
+
+Wrote /var/folders/p1/xpj71zhj6sn5cx2rt5lsxlgh0000gp/T/tmppcgpvqqk/probe.json
+
+=== fake
+    228k → NO    
+    212k → OK    
+    220k → OK    
+  → max measured: 225280  (0s)
+.
+============================================================
+fake                                                    225280
+
+Wrote /var/folders/p1/xpj71zhj6sn5cx2rt5lsxlgh0000gp/T/tmpnplykuq9/probe.json
+
+=== fake
+    228k → OK    
+  → max measured: 233472  (0s)
+.
+============================================================
+fake                                                    233472
+
+Wrote /var/folders/p1/xpj71zhj6sn5cx2rt5lsxlgh0000gp/T/tmpgg5lq5gh/probe.json
+
+=== fake
+    228k → NO    
+    220k → NO    
+  → max measured: none  (0s)
+.
+============================================================
+fake                                                         ?
+
+Wrote /var/folders/p1/xpj71zhj6sn5cx2rt5lsxlgh0000gp/T/tmp7rm4xi9c/probe.json
+
+=== fake
+    228k → TIGHT 
+    220k → OK    
+  → max measured: 225280  (0s)
+....................................................................................................................................usage: ggufbench [-h] [--models MODELS] [--engine {llama,strata,bmoe}]
+                 [--context {fixed,adapted}] [--dims DIMS] [--lang LANG]
+                 [--level {easy,hard,expert}] [--thinking {on,off}] [--quick]
+                 [--runs N] [--tools-max-tokens N] [--agent-max-tokens N] [-v]
+                 [--task] [--info] [--scoreboard] [--sort KEY] [--html]
+                 [--compare SLUG,THINK SLUG,THINK] [--forget FORGET] [--json]
+                 [--port PORT] [--weights WEIGHTS]
+ggufbench: error: argument --sort: invalid choice: 'vibes' (choose from 'global', 'tools', 'code', 'agent', 'speed', 'version')
+.............................⚠️ profile flag not in allow-list, dropped: --jinja
+.⚠️ profile flag not in allow-list, dropped: --jinja
+⚠️ profile flag not in allow-list, dropped: --frobnicate
+................sss...........................
+----------------------------------------------------------------------
+Ran 511 tests in 4.441s
+
+OK (skipped=68)
+
+============================================================
+fake                                                    225280
+
+Wrote /var/folders/p1/xpj71zhj6sn5cx2rt5lsxlgh0000gp/T/tmpraa94d9p/probe.json
+[0;32m[OK][0m    All tests pass
+
+── 4. Summary ────────────────────────────────────────
+[0;32m[OK][0m    Environment ready. You can start working.

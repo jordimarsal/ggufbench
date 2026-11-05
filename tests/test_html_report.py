@@ -141,6 +141,26 @@ class TestRender(unittest.TestCase):
         html = html_report.render([_mk()])   # old pool without by_level
         self.assertNotIn("code by level", html)
 
+    def test_context_receipts_section_renders_values(self):
+        m = _mk()
+        m["tools"]["avg_in_tokens"] = 412.5
+        m["code"]["avg_in_tokens"] = 9988.0
+        m["agent"]["avg_session_in_tokens"] = 20711.0
+        html = html_report.render([m])
+        self.assertIn("Context receipts", html)
+        self.assertIn("tools in/call", html)
+        self.assertIn("agent in/session", html)
+        self.assertIn("412.5", html)
+        self.assertIn("9988.0", html)
+        self.assertIn("20711.0", html)
+
+    def test_context_receipts_legacy_row_renders_a_question_mark(self):
+        # A row that predates the field: '?' cells with the miss class, never 0.
+        html = html_report.render([_mk()])
+        self.assertIn("Context receipts", html)
+        self.assertIn('<td class="miss">?</td>', html)
+        self.assertNotIn("<td>0.0</td>", html)
+
     def test_escaped_flags(self):
         """model_config_flags is free text from the .txt: it must arrive escaped."""
         m = _mk()

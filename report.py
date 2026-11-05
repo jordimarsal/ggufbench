@@ -266,6 +266,19 @@ def _scores(r: dict[str, Any]) -> dict[str, float]:
     }
 
 
+def receipts(r: dict[str, Any]) -> dict[str, float | None]:
+    """Context receipts of a row (feature context_receipts): tokens SENT per call
+    for tools/code and tokens per agent session (the rollups the graders write).
+    None when the row predates the field — renderers print '?'; this is recorded
+    metadata: scores, weights and pool keys never read it. (Unrelated to the
+    per-run receipt FILES under results/runs/.)"""
+    return {
+        "tools_in_tokens": (r.get("tools") or {}).get("avg_in_tokens"),
+        "code_in_tokens": (r.get("code") or {}).get("avg_in_tokens"),
+        "agent_session_in_tokens": (r.get("agent") or {}).get("avg_session_in_tokens"),
+    }
+
+
 def _global_score(r: dict[str, Any], weights: dict[str, float],
                   min_speed: float) -> float:
     """Weighted sum 0..1. Normalized speed: the fastest model (fewest ms) -> 1.0."""
@@ -460,6 +473,7 @@ def _render_global_rows(pool, weights, title, sort="global"):
                  "global": f"{g:.2f}" + suffixes["global"]}
         rows.append({"name": config.slug(r["model"]), "mode": _think_mark(r), "excl": excl,
                      "sc": sc, "g": g, "cells": cells, "suffixes": suffixes,
+                     "receipts": receipts(r),
                      "set": set_label(r), "key": key(r)})
     rows.sort(key=lambda row: row["key"])
     nw = max((len(row["name"]) for row in rows), default=5)
@@ -492,6 +506,20 @@ def _render_global_rows(pool, weights, title, sort="global"):
         gen = f"{row['sc']['gen_tps']:.1f}" if row["sc"]["gen_tps"] else "—"
         prom = f"{row['sc']['prompt_tps']:.1f}" if row["sc"]["prompt_tps"] else "—"
         out.append(f"{row['name']:40.40} {gen:>10} {prom:>12}")
+    # Context receipts (tokens SENT): per call for tools/code, per session for agent.
+    # '?' = the row predates the field; the column is informational, never scored.
+    out.append("")
+    out.append("=== Context receipts (tokens sent) ===")
+    rheader = (f"{'MODEL':{nw}} {'tools in/call':>13} {'code in/call':>12} "
+               f"{'agent in/session':>16}")
+    out.append(rheader)
+    out.append("-" * len(rheader))
+    for row in rows:
+        rc = row["receipts"]
+        cell = lambda v: (f"{v:.1f}" if v is not None else "?")
+        out.append(f"{row['name']:40.40} {cell(rc['tools_in_tokens']):>13} "
+                   f"{cell(rc['code_in_tokens']):>12} "
+                   f"{cell(rc['agent_session_in_tokens']):>16}")
     return out
 
 
