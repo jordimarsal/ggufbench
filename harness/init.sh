@@ -117,7 +117,10 @@ elif [ -f "pyproject.toml" ] && [ -f "uv.lock" ] && command -v uv >/dev/null 2>&
   # pinned toolchain are used (a bare python3 -m pytest fails: no pytest).
   TEST_CMD="uv run pytest tests 2>&1"
 elif [ -d "tests" ] && command -v python3 >/dev/null 2>&1; then
-  TEST_CMD="python3 -m pytest -q tests 2>&1"
+  # Pure-stdlib project (docs/conventions.md: no pytest): the suite is unittest
+  # discovery with the top level at the parent dir, so the package imports as
+  # `ggufbench` (workspace-root rule) regardless of a local pytest install.
+  TEST_CMD="python3 -m unittest discover -s tests -t .. 2>&1"
 fi
 
 if [ -n "$TEST_CMD" ]; then
