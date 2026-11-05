@@ -284,12 +284,27 @@ class TestEnvironmentProbe(unittest.TestCase):
         return subprocess.CompletedProcess(args=[], returncode=returncode,
                                            stdout=stdout, stderr="")
 
+    def _only_nvidia(self, *, result=None, exc=None):
+        """Patch helper intercepting ONLY nvidia-smi calls (raising `exc` or
+        returning `result`): stdlib internals that also shell out on some
+        platforms (macOS `file` via platform.platform()) must reach the real
+        subprocess.run or they choke on the fake."""
+        real = subprocess.run
+
+        def _delegate(cmd, **kwargs):
+            if cmd and cmd[0] == "nvidia-smi":
+                if exc is not None:
+                    raise exc
+                return result
+            return real(cmd, **kwargs)
+
+        return mock.patch.object(run.subprocess, "run", side_effect=_delegate)
+
     def test_nvidia_smi_output_is_shaped(self):
         # One line per GPU: name compacted (vendor prefix out, VRAM in), driver hoisted.
         out = ("NVIDIA GeForce RTX 5080, 16311 MiB, 580.82.09\n"
                "NVIDIA GeForce RTX 5080, 16311 MiB, 580.82.09\n")
-        with mock.patch.object(run.subprocess, "run",
-                               return_value=self._fake_nvidia_smi(out)):
+        with self._only_nvidia(result=self._fake_nvidia_smi(out)):
             env = run._probe_environment()
         self.assertEqual(env["gpu"], ["RTX 5080 16GB", "RTX 5080 16GB"])
         self.assertEqual(env["driver"], "580.82.09")
@@ -305,9 +320,8 @@ class TestEnvironmentProbe(unittest.TestCase):
                  self._fake_nvidia_smi("", returncode=1)]
         for exc in cases:
             with self.subTest(exc=type(exc).__name__):
-                kwargs = {"side_effect": exc} if isinstance(exc, Exception) \
-                    else {"return_value": exc}
-                with mock.patch.object(run.subprocess, "run", **kwargs):
+                kwargs = {"exc": exc} if isinstance(exc, Exception) else {"result": exc}
+                with self._only_nvidia(**kwargs):
                     env = run._probe_environment()
                 self.assertEqual(env["gpu"], [])
                 self.assertIsNone(env["driver"])
