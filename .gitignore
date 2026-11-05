@@ -1,10 +1,9 @@
 __pycache__/
 *.pyc
 .DS_Store
+# Rebuts crus per run: es queden locals (els episodes dels agents poden ser
+# centenars de MB). La veritat versionada és el pool (results/models/pool.jsonl).
 results/runs/
-results/models/
-results/token_budgets.json
-results/report.html
 harness/backup/
 docs/MILLORA.md
-results/compare.html
+results/re-measure-logs/
