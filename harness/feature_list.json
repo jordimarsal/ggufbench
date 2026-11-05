@@ -132,6 +132,49 @@
         "R12: autònom com ara: cap recurs extern, <=1 script, pestanyes commutables sense JS"
       ],
       "status": "done"
+    },
+    {
+      "id": 9,
+      "name": "context_receipts",
+      "title": "Rebuts de context: tokens ENVIATS per crida i per sessió d'agent, al costat del pass rate",
+      "description": "Demanda d'un lector (dev.to, 2026-11): un model local pot aprovar les mateixes tasques costant més en context re-enviat, i els tokens/sessió haurien de viure al costat del pass rate. Avui la tracca registra out_tokens (completion_tokens, graders.py) i les timings (gen_tps, prompt_tps, prompt_ms via client.parse_timings), però prompt_tokens (tokens ENVIATS per crida) no es compta enlloc: cap columna de marcador, cap agregat per sessió al bucle d'agent (que re-envia tota la conversa cada torn, on el cost creix). La feature registra in_tokens per crida (usage.prompt_tokens de la resposta; fallback derivat prompt_tps*prompt_ms/1000 si no hi ha usage), agrega per dimensió (mitjana per crida a tools/code) i per episodi d'agent (suma de torns = tokens enviats per sessió), i afegeix columnes de rebuts al scoreboard i al report.html. Les files velles sense el camp es pinten com '?' (mateix estil tolerant que les dimensions no mesurades): cap trencament de comparabilitat, pass/time intactes. NO-goals: no és dimensió puntuada (els quatre pesos no es toquen fins re-mesura); fora d'abast l'experiment A/B amb grammar (constrained decoding) i el re-run f16-vs-q8_0 del cache en tasques llargues (són protocols de mesura, no features del harness).",
+      "acceptance": [
+        "R1: client.py exposa parse_usage(resp): in_tokens = usage.prompt_tokens, fallback round(prompt_tps*prompt_ms/1000) amb timings, null si no hi ha cap dels dos; patró test_client.py",
+        "R2: cada entrada de tracca de les 4 dimensions porta in_tokens al costat d'out_tokens/gen_tps (tools, code, agent i speed)",
+        "R3: el bucle d'agent (agent.py + grade_agent) acumula la suma per episodi (session_in_tokens) i registra in_tokens per torn; la suma reflecteix el context re-enviat creixent",
+        "R4: rollups al resultat de dimensió (mateix patró que els agregats gen_tps): mitjana/mediana in_tokens per crida a tools/code, tokens per sessió a agent",
+        "R5: scoreboard i report.html mostren les columnes de rebuts ('?' quan la fila no té el camp); cap recomputació de scores ni pesos",
+        "R6: docs (SPEC §rebuts de context) + suite unittest verda amb fake clients (patró test_graders.py)"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": 10,
+      "name": "grammar_toolcalls_ab",
+      "title": "A/B de tool calls amb grammar (constrained decoding) vs lliure: opcional i etiquetat",
+      "description": "Segona demanda del fil dev.to: si s'enforça els arguments de tool amb una gramàtica (GBNF/JSON), els models febles milloren de manera desproporcionada? Avui el harness no fa servir cap construcció (--jinja és només plantilla de servidor; els arguments van a json.loads post-hoc i els malformats fallen el grading) perquè afegir grammar mesuraria la grammar, no el model: la resposta del post ho defensa com a decisió. Aquesta feature fa l'experiment POSSIBLE sense tocar el marcador base: mode opt-in que afegeix el camp grammar (JSON genèric per als arguments) a les peticions de tools, files etiquetades com a condició diferent (mateix patró d'extensió de clau que lora_eval) i comparativa A/B per model. La hipòtesi a contrastar és que el lift de pass-rate cau quan el model ja és fort.",
+      "acceptance": [
+        "R1: opt-in per CLI (--grammar) o perfil .txt; per defecte el comportament és l'actual (sense grammar) i el marcador base no canvia",
+        "R2: només les peticions de tools (grade_tools) inclouen el camp grammar (JSON genèric per als arguments); code, agent i speed intactes",
+        "R3: el resultat registra el mode; el pool clava per (slug, thinking, lora, grammar); cap fila amb grammar barrejada amb el marcador base",
+        "R4: dues runs del mateix pool (lliure vs grammar) produeixen una taula A/B de pass tools per model amb el delta",
+        "R5: sense canvis de pesos, plegat ni semàntica de score; suite unittest verda amb fake client que verifica la presència/absència del camp"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": 11,
+      "name": "kv_cache_f16_ab",
+      "title": "A/B del KV cache q8_0 vs f16 en tasques llargues: aïllar l'error de quantització",
+      "description": "Tercera demanda del fil dev.to: amb KV cache a q8_0, degrada algun model específicament a les tasques llargues multi-fitxer, on l'error de quantització es compon sobre un pressupost de 32K? Resposta honesta del post: no aïllat (els fracassos visibles eren esgotament de pressupost, no error de cache). El harness ja suporta l'override per perfil (models/<model>.txt amb --cache-type-k/v, server.py elimina el baseline corresponent), però és per-model i el tipus de cache del baseline és una CONDICIO del marcador (§C10, ADR-0008). La feature fa de la variant f16 una run etiquetada de tot el pool (mateix patró de clau estesa que thinking_batches/lora_eval) amb comparativa centrada en les tasques llargues (agent multi-fitxer + code hard/expert), on el composat és plausible.",
+      "acceptance": [
+        "R1: run.py accepta override de cache a nivell de run (--cache-type-k/v) sense editar models/*.txt; el servidor arrenca amb l'override",
+        "R2: cada fila registra el tipus de cache efectiu; el pool clava per (slug, thinking, lora, cache); cap mescla amb el pool base q8_0",
+        "R3: comparativa A/B de les tasques llargues (agent multi-fitxer, code hard/expert): pass i out_tokens per les dues variants",
+        "R4: el baseline del marcador publicat segueix sent q8_0/q8_0 (ADR-0008); f16 és variant etiquetada, mai substitut",
+        "R5: writeup amb la conclusió (degradació sí/no i on) + suite unittest verda (override aplicat, clau de pool, no-mescla)"
+      ],
+      "status": "pending"
     }
   ]
 }
