@@ -14,21 +14,55 @@ No cloud, no APIs, no puzzles. The scoreboard answers one question:
 
 ## Scoreboard
 
-**Three task sets live in the pool** — the suite grew and older rows were measured under
-earlier ones. A score is comparable **only inside a set**, so every table below is one set
-and the full report marks each row with its `SET` badge (`label·task-set`, e.g.
-`v3·16/60/60`). Read columns down a table, never rows across tables.
+**Four task signatures live in the pool** — the suite grew and older rows were measured
+under earlier ones. A score is comparable **only inside a signature**, and since
+2026-11-05 also only inside one harness build: the fleet was re-measured under llama.cpp
+**0.9.0-dev+b1c902f02** (Strata 0.1.57), so the fresh rows and the October rows (0.6.0
+build, recovered from the published report of 2026-10-21) are two different conditions.
+Every table below is one set **and** one build; the full report marks each row with its
+`SET` badge (`v5·18/72/72`) and opens with a mixed-conditions banner whenever the pool
+spans more than one. Read columns down a table, never rows across tables.
 
-Common to every row: llama-server 0.6.0-dev+4413a19, **3 runs per task, seeds 42/43/44**
-(mean ± stdev), 2× RTX 5080. `excl.` = excluded with a recorded reason. 13 models were
-retired (9 on 2026-10-13, 1 on 10-14, 3 on 10-15 — `harness/retired.json` has the why):
-their rows stay in the full report behind its **Retired** tab — record only, they count
-for neither the headline KPIs nor the recommendations. Rows at a model's maximum context
-were measured with the desktop idle; the report prints each row's flags (`-c` included),
-and Heretic's pin has since come down to its day-safe 147456 (2026-10-16,
-`harness/tools/probe-context.py`).
+Common to the fresh rows: 1 run per task (single-run numbers, no ±), fixed seed/temp,
+2× RTX 5080. `excl.` = excluded with a recorded reason. 13 models were retired
+(9 on 2026-10-13, 1 on 10-14, 3 on 10-15 — `harness/retired.json` has the why): their
+rows stay in the full report behind its **Retired** tab — record only, they count for
+neither the headline KPIs nor the recommendations. The October rows came back as
+**recovered mean scores** (the pool was rebuilt from the published report of 10-21,
+`results/models/recovery/`): same scores, but the per-run spread and the raw traces of
+that era are gone.
 
-**Current set — 18 tools · 72 code · 72 agent** (v5, 2026-10-14 · fleet re-measured 10-14/15)
+**Current set — 18 tools · 72 code · 72 agent, re-measured under llama.cpp 0.9.0**
+(v5, fresh rows 2026-11-05/06 · every row records its context receipts)
+
+| model | think | tools | code | agent | speed | global |
+|---|---|---|---|---|---|---|
+| qwen36-35b-distill-mxfp4_moe | off | 100% | 71% | 93% | 16ms | **0.87** |
+| minicpm-v-4.7-35b-a3b q4_k_m | on | 100% | 84% *(10 excl.)* | 92% | 23ms | **0.87** |
+| minicpm-v-4.7-35b-a3b q4_k_m | off | 100% | 80% *(2 excl.)* | 90% | 21ms | **0.86** |
+| qwen3.8-27b-ud-q3_k_xl | off | 100% | 81% | 94% | 36ms | **0.83** |
+| ornith-1.5-35b-a3b-apex-mtp-quality | off | 100% | 74% | 91% | 26ms | **0.82** |
+| qwen3.8-27b-ud-q3_k_xl | on | 100% | 90% *(3 excl.)* | 96% | 686ms | **0.81** |
+| qwen3.8-27b-heretic-q4_k_m | off ★ | 100% | 81% | 93% | 66ms | **0.80** |
+| gemma-4-26b-a4b-it-ud-q5_k_xl | off | 89% | 83% | 89% | 32ms | **0.80** |
+| strata-iq3_xxs *(strata engine)* | off | 89% | 83% | 90% | 36ms | **0.80** |
+| qwen3.8-27b-heretic-q4_k_m | on | 78% | 97% *(7 excl.)* | 64% | 1036ms | **0.69** |
+
+The whole fleet re-measured OFF in one evening (2026-11-05, 0.9.0 build), plus the three
+fair-caps ON passes the October board owed (MiniCPM, UD-Q3, Heretic — caps 1024/8192).
+This is also the first batch measured with **context receipts** in the pool: tokens sent
+per call (tools ≈ 290-340, code ≈ 185-225) and per agent session (3.4K-9.1K) travel with
+every row — see the *Context receipts* section of the report. The ON reading: UD-Q3's
+fair ON pass is now the fleet's best agent (96%) with code 90%, and MiniCPM ON ties its
+own OFF at the top; Heretic's ON pass came out clearly worse than its October ON row
+(agent 97→64%, tools 100→78%, 7 code exclusions) and replaces it in the pool. Sessions
+re-send more context ON than OFF (UD-Q3 5.1K→9.1K tokens) except where the episode dies
+early (Heretic ON, empty replies). The remaining ON rows (Ornith, qwen36, gemma, Strata)
+are still the October 0.6.0 measurements — Ornith/gemma/qwen36 at the old call caps,
+Strata with its 51 empty replies — and stay owed a fair pass.
+
+**Superseded — v5 under llama.cpp 0.6.0, the 2026-10-14/15 fleet** (recovered mean
+scores, no per-run spread; superseded by the table above)
 
 | model | think | tools | code | agent | speed | global |
 |---|---|---|---|---|---|---|
@@ -47,17 +81,14 @@ and Heretic's pin has since come down to its day-safe 147456 (2026-10-16,
 | qwen36-35b-distill-mxfp4_moe | on | 93% ±6 | 70% ±4 *(1 excl.)* | 91% ±2 | 280ms | 0.72 ±2 |
 | strata-iq3_xxs *(strata engine)* | on | 78% ±0 | 91% ±3 *(4 excl.)* | 77% ±2 | 406ms | 0.70 ±1 |
 
-Six GGUFs and Strata, both thinking modes: that is the fleet re-measure at this set (the
-night of 2026-10-14/15). Thinking ON pays for its own thinking tokens in the speed probe —
-every ON row but MiniCPM's runs 280-1060ms against 19-85ms OFF (its own lands at 23ms) —
-and it costs quality in every model as well, with MiniCPM the only tie. Where it does buy
-something is the hard code tier: UD-Q3 +14 points over its own OFF (79→93), Ornith +10,
-strata +6, Heretic +4, and Heretic's agent reaches 97%, the fleet's best. Two ON rows are
-still owed a fair pass, and the report says so in its condition note: gemma was measured at
-the earlier call caps (256/2048 instead of 1024/8192) and Strata at 512 with 51 empty
-replies. The rest of the pool below is **superseded**; part of it also predates the grader
-fix of 2026-10-14 (§D10 in `docs/MILLORA.md`: shared task ids were attributed across
-languages), so read its code/agent numbers with that in mind.
+Six GGUFs and Strata, both thinking modes under the 0.6.0 build: that was the fleet
+re-measure of the night of 2026-10-14/15. Thinking ON paid for its own thinking tokens in
+the speed probe (every ON row but MiniCPM's ran 280-1060ms against 19-85ms OFF) and cost
+quality in every model, with MiniCPM the only tie; where it bought something was the hard
+code tier (UD-Q3 +14 points over its own OFF). The rest of the pool below is **superseded
+too**; part of it also predates the grader fix of 2026-10-14 (§D10 in `docs/MILLORA.md`:
+shared task ids were attributed across languages), so read its code/agent numbers with
+that in mind.
 
 **Superseded — 16 tools · 60 code · 60 agent** (v4: the two rows of 2026-10-14)
 
@@ -137,9 +168,9 @@ python3 -m ggufbench.run --compare "qwen3_8-27b-ud-q5_k_m,off" "qwen3_8-27b-ud-q
 | dim | what it measures | how |
 |---|---|---|
 | **speed** | prompt processing + generation tok/s | real server timings, 3 samples |
-| **tools** | 16 tool-call tasks (arguments, multi-call, error handling) | graded in a sandbox |
-| **code** | 60 coding tasks across python/bash/java/typescript (32 easy + 16 hard + 12 expert) | tests must pass, `excl.` recorded |
-| **agent** | 60 multi-step tasks: fix bugs, build features, use folder context | turn + tool-call accounting |
+| **tools** | 18 tool-call tasks (arguments, multi-call, error handling) | graded in a sandbox |
+| **code** | 72 coding tasks across python/bash/java/typescript (32 easy + 20 hard + 20 expert) | tests must pass, `excl.` recorded |
+| **agent** | 72 multi-step tasks: fix bugs, build features, use folder context | turn + tool-call accounting |
 
 ## One harness, receipts included
 
@@ -149,6 +180,9 @@ python3 -m ggufbench.run --compare "qwen3_8-27b-ud-q5_k_m,off" "qwen3_8-27b-ud-q
 - single reasoning budget (32768 tokens); exclusions are recorded with a reason,
   never silent
 - every call leaves a receipt: timings, tool calls, per-task traces
+- context receipts too: tokens SENT per call and per agent session (the agent loop
+  re-sends the whole conversation every turn — the report shows the cost next to the
+  pass rate, never in the score)
 - thinking modes measured separately (`off` / `on`) — never mixed in one number
 - 100% local: no cloud, no APIs, no telemetry
 
