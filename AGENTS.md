@@ -120,6 +120,12 @@ tools, code, agent — to pick the best model for opencode.
 Design: `docs/SPEC.md` · improvement roadmap: `docs/MILLORA.md` · architecture:
 `docs/architecture.md`.
 
+**«La Banu»** = the bench machine: the Linux box with the 2× RTX 5080 where the models
+and the servers live (`/home/jordi/ia/llama/`). This repo has two active checkouts and
+the work flows from both: the Banu runs the measurements (`bench(...)` commits, pool
+upserts, gh-pages publishes), this macOS checkout does spec/feature/docs work. Pull
+before touching `results/` — the Banu pushes while you work (it has happened twice).
+
 ### Commands — ALWAYS from the workspace root (`/home/jordi/ia/llama/`)
 
 The package is imported as `ggufbench`; running from inside the directory fails with

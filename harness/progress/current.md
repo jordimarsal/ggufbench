@@ -19,6 +19,12 @@ _Note each significant step: files created, decisions, blockers._
 
 - Session 2026-11-05 closed: `context_receipts` shipped and marked `done`
   (full summary in `history.md`).
+- **2026-11-06 — glossary + scoreboard sync:** «la Banu» written into `AGENTS.md`
+  (project section) = the bench machine, the other active checkout — decided with
+  the human after using the nickname undefined in session. Same session: README
+  scoreboard refreshed with the 0.9.0 re-measure + recovered pool, 2 `model`
+  fields normalized, `results/compare.html` back in `.gitignore` (summary in
+  `history.md` at close).
 
 ## Next step
 
