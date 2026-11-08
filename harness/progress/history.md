@@ -551,3 +551,23 @@ dev.to: tokens ENVIATS per crida i per sessió d'agent, al costat del pass rate.
   R6/R7: `test_sixteen_tasks_four_per_lang` + `test_v3_marks_expert_tier`) —
   aliens a aquesta feature, pendents d'higiene si l'humà ho vol.
 - retro: 1 dispatch · 0 stalls · 0 restarts
+
+---
+
+## 2026-11-08 — cli_entry_point (feature 12, done)
+
+- **Què:** el repo ara és instal·lable: `[project.scripts] ggufbench =
+  "ggufbench.run:main"` + mapping `packages=["ggufbench"]`/`package-dir
+  {ggufbench="."}` (l'arrel ÉS el paquet; el `py_modules` del pla original era
+  inviable pels imports relatius). Motivació: pas 0 de la fase 4b d'estol — el
+  nodelet executa el binari (`$ESTOL_GGUF_BIN`).
+- **Com:** 5 tests nous a `tests/test_packaging.py` (contracte del pyproject,
+  mapping, regressió `python3 -m ggufbench.run --scoreboard` des de l'arrel del
+  workspace, invariant de geometria `__file__`, zero dependències). Instal·lació
+  `uv tool install --editable` des del checkout de bench: `ggufbench --scoreboard`
+  llegeix el pool real; BASE_DIR/MODELS_DIR/RESULTS_DIR/SERVER_BIN idèntics a abans.
+- **Evidència:** `harness/logs/cli_entry_point/batch-1.log` (517 tests OK,
+  traceability 4/4 PASS, instal·lació verificada). Commits `0ccc4b0` + `3fdaf97`.
+- **Pendent fora d'abast:** cap subcomanda `run`/`report` — el contracte per al
+  nodelet és `ggufbench --models <path>`; `--json` decididament NO al lane (inundaria
+  el ring buffer de 200 línies del log del job).
