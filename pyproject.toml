@@ -8,5 +8,19 @@ version = "0.1.0"
 description = "Local model benchmarking (llama.cpp + Strata)"
 requires-python = ">=3.12"
 
+[project.scripts]
+# The estol nodelet's bench lane calls this binary ($ESTOL_GGUF_BIN). Same
+# contract as `python3 -m ggufbench.run` from the workspace root.
+ggufbench = "ggufbench.run:main"
+
+[tool.setuptools]
+# The repo root IS the package (flat layout, empty __init__.py, relative
+# imports `from . import config`): py_modules is not an option — declare the
+# package explicitly and map it onto '.', so only the root *.py files ship.
+packages = ["ggufbench"]
+
+[tool.setuptools.package-dir]
+ggufbench = "."
+
 [project.optional-dependencies]
 dev = ["pytest", "pytest-benchmark", "mypy"]

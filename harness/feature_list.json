@@ -175,6 +175,19 @@
         "R5: writeup amb la conclusió (degradació sí/no i on) + suite unittest verda (override aplicat, clau de pool, no-mescla)"
       ],
       "status": "pending"
+    },
+    {
+      "id": 12,
+      "name": "cli_entry_point",
+      "title": "Entry point de paquet `ggufbench` perquè el nodelet de estol pugui executar benchmarks",
+      "description": "La CLI ja existeix com a mòduls (run.py, invocada `python3 -m ggufbench.run` des de l'arrel del workspace), però el repo no és instal·lable: cap [project.scripts] ni packaging al pyproject. El nodelet d'estol (fase 4b, drafts/10-estol-malla-equips.md §15) necessita un binari estable al PATH ($ESTOL_GGUF_BIN) per engegar benchmarks com a job. Es declara el script de consola sobre el paquet (layout pla: l'arrel del repo ÉS el paquet, imports relatius) i es verifica que la instal·lació editable des del checkout de bench manté la resolució de rutes (MODELS_DIR/RESULTS_DIR per __file__).",
+      "acceptance": [
+        "R1: pyproject declara [project.scripts] ggufbench = ggufbench.run:main; el mòdul i l'atribut existeixen (test)",
+        "R2: `python3 -m ggufbench.run --scoreboard` des de l'arrel del workspace continua funcionant igual (test de regressió)",
+        "R3: `uv tool install --editable` del checkout de bench exposa `ggufbench --scoreboard` llegint el pool real (verificació manual, no GPU)",
+        "R4: suite unittest verda completa (harness/init.sh)"
+      ],
+      "status": "in_progress"
     }
   ]
 }
