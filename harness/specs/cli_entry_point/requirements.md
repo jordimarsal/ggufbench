@@ -16,7 +16,9 @@ coberta per `tests/test_run_cli.py`) però només és invocable com
 - **R3:** QUAN s'instal·la editable des del checkout de bench (`~/ia/llama/ggufbench`),
   EL SISTEMA resoldrà `MODELS_DIR`/`RESULTS_DIR`/`SERVER_BIN` al mateix lloc que avui
   (via `__file__`, mai site-packages).
-- **R4:** EL SISTEMA mantindrà la suite unittest completa verda, sense GPU.
+- **R4:** EL SISTEMA s'instal·larà sense dependències de tercers (stdlib pur: el venv de
+  l'eina queda hermètic) i la suite unittest completa passarà verda, sense GPU
+  (gate `harness/init.sh`; evidència al log del batch).
 
 ## Fora d'abast
 

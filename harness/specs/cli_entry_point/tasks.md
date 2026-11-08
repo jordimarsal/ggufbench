@@ -7,5 +7,5 @@
 - [x] T2: `pyproject.toml` amb `[project.scripts]` + mapping de paquet — GREEN.
 - [x] T3: regressió `python3 -m ggufbench.run --scoreboard` (R2) dins el mateix fitxer
       de tests.
-- [ ] T4: `harness/init.sh` verd (R4) + verificació d'instal·lació al checkout de bench
+- [x] T4: `harness/init.sh` verd (R4) + verificació d'instal·lació al checkout de bench
       (R3, sortida al log del batch).

@@ -187,7 +187,7 @@
         "R3: `uv tool install --editable` del checkout de bench exposa `ggufbench --scoreboard` llegint el pool real (verificació manual, no GPU)",
         "R4: suite unittest verda completa (harness/init.sh)"
       ],
-      "status": "in_progress"
+      "status": "done"
     }
   ]
 }

@@ -45,5 +45,24 @@ class TestModuleInvocation(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stderr[-2000:])
 
 
+class TestInstallGeometry(unittest.TestCase):
+    """R3: the config paths derive from __file__ — inside the checkout — in this
+    checkout AND in the editable tool install (the same invariant, checked where
+    the code happens to live)."""
+
+    def test_paths_resolve_inside_the_checkout(self):
+        from ggufbench import config
+
+        self.assertEqual(config.BASE_DIR, REPO.parent)
+        self.assertEqual(config.RESULTS_DIR, REPO / "results")
+        self.assertEqual(config.MODELS_DIR, REPO.parent / "models")
+
+    def test_install_pulls_no_third_party_dependencies(self):
+        """R4: stdlib only — the tool venv stays hermetic (no deps to resolve,
+        nothing to break under uv tool install)."""
+        pyproject = tomllib.loads((REPO / "pyproject.toml").read_text(encoding="utf-8"))
+        self.assertEqual(pyproject["project"].get("dependencies", []), [])
+
+
 if __name__ == "__main__":
     unittest.main()
