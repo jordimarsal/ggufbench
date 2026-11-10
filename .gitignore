@@ -11,4 +11,5 @@ results/compare.html
 
 # sonar-scanner artifacts
 .scannerwork/
+.scannerwork-fleet.log
 .coverage
