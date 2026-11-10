@@ -140,7 +140,7 @@ def sort_key(sort, weights, min_speed):
             return (-(sc["agent"] or 0), -_global_score(r, weights, min_speed))
         if sort == "speed":
             return (sc["speed_ms"] or 1e9, -_global_score(r, weights, min_speed))
-        return (-_global_score(r, weights, min_speed),)
+        return (-_global_score(r, weights, min_speed), 0)
     return key
 
 
