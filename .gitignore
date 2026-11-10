@@ -8,3 +8,7 @@ harness/backup/
 docs/MILLORA.md
 results/re-measure-logs/
 results/compare.html
+
+# sonar-scanner artifacts
+.scannerwork/
+.coverage
