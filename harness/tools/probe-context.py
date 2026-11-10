@@ -173,7 +173,7 @@ def main(argv=None) -> int:
     ap.add_argument("--timeout", type=int, default=240, help="seconds to wait per load")
     ap.add_argument("--margin-mib", type=int, default=1200,
                     help="free VRAM a load must leave to count as usable (default 1200)")
-    ap.add_argument("--log-dir", default="/tmp/opencode", help="where the load logs go")
+    ap.add_argument("--log-dir", default=str(Path.home() / ".cache" / "opencode"), help="where the load logs go")
     ap.add_argument("--json", default=None, help="write the table as JSON here")
     args = ap.parse_args(argv)
 

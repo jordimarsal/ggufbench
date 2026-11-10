@@ -158,7 +158,7 @@ def grade_tools(client_mod, tasks, max_turns=6, on_task=None, runs=1,
         trace = [dict(e) for e in section_runs[0]]
         total_excluded_tasks = sum(1 for e in trace if e.pop("_excluded", False))
         score = statistics.mean([e["passed"] for e in trace]) if trace else 0.0
-        result = {"passed": score == 1.0, "turns": len(trace), "trace": trace,
+        result = {"passed": score >= 1.0, "turns": len(trace), "trace": trace,
                   "score": score, "by_lang": {}, **_receipt_rollup()}
         if total_excluded_tasks:
             result["excluded"] = total_excluded_tasks
@@ -206,7 +206,7 @@ def grade_tools(client_mod, tasks, max_turns=6, on_task=None, runs=1,
 
     task_scores = [_task_score(te) for te in scored_tasks]
     score = statistics.mean(task_scores) if task_scores else 0.0
-    result = {"passed": score == 1.0, "turns": len(results), "trace": trace,
+    result = {"passed": score >= 1.0, "turns": len(results), "trace": trace,
               "score": score, "by_lang": {}, "runs": runs, **_receipt_rollup()}
     if total_excluded_tasks:
         result["excluded"] = total_excluded_tasks
@@ -388,7 +388,7 @@ def grade_code(client_mod, tasks, max_turns=8, on_task=None, model_slug=None, ge
 
     task_scores = [_task_score(te) for te in scored_tasks]
     score = statistics.mean(task_scores) if task_scores else 0.0
-    result = {"passed": score == 1.0, "turns": len(results), "trace": trace,
+    result = {"passed": score >= 1.0, "turns": len(results), "trace": trace,
               "by_lang": {l: round(sum(ps)/len(ps), 2) for l, ps in by_lang.items()},
               "by_level": {l: round(sum(ps)/len(ps), 2) for l, ps in by_level.items()},
               "score": score, "excluded": total_excluded_tasks,
@@ -522,7 +522,7 @@ def grade_agent(client_mod, tasks, max_turns=8, on_task=None, runs=1,
     for _sr_results, sr_by_lang in section_runs:
         for lang, outcomes in sr_by_lang.items():
             merged.setdefault(lang, []).extend(outcomes)
-    result = {"passed": score == 1.0, "turns": total_turns,
+    result = {"passed": score >= 1.0, "turns": total_turns,
               "trace": trace, "score": score,
               "by_lang": {l: round(sum(v) / len(v), 2) for l, v in merged.items()},
               "agent_max_tokens": max_tokens or config.AGENT_MAX_TOKENS,

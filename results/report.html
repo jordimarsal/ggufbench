@@ -55,7 +55,7 @@ tr:hover td{background:rgba(59,130,246,.07)}
 .pos{font:600 13px var(--mono);color:var(--muted);text-align:right}
 .pos.top{color:var(--accent)}
 .name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.name small{display:block;color:var(--muted);font-weight:400;font:11px var(--mono)}
+.name small{display:block;color:var(--muted);font:11px var(--mono);font-weight:400}
 .badge{display:inline-block;font:10.5px/1 var(--mono);border-radius:5px;padding:3px 6px;
   border:1px solid var(--border);color:var(--muted)}
 .retired .name,.retired .num,.retired .gval,.retired td,.retired small,.retired summary,.retired .pos{color:var(--muted)!important;font-weight:400}
@@ -470,8 +470,8 @@ harness default flags</pre></details>
   function num(el, key) {
     var v = el.getAttribute("data-" + key);
     if (v === null || v === "") { return null; }
-    var n = parseFloat(v);
-    return isNaN(n) ? null : n;
+    var n = Number.parseFloat(v);
+    return Number.isNaN(n) ? null : n;
   }
   function key(el, k) {
     var g = num(el, "g");

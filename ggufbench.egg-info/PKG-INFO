@@ -1,0 +1,11 @@
+Metadata-Version: 2.4
+Name: ggufbench
+Version: 0.1.0
+Summary: Local model benchmarking (llama.cpp + Strata)
+Requires-Python: >=3.12
+License-File: LICENSE
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: pytest-benchmark; extra == "dev"
+Requires-Dist: mypy; extra == "dev"
+Dynamic: license-file
