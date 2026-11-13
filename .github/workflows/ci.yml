@@ -36,5 +36,5 @@ jobs:
         # relative imports only resolve from there. Explicit module list = the
         # typed contract (D3: the score can never mix types); mypy.ini (permissive)
         # is passed explicitly because mypy only auto-finds it in the cwd.
-        run: cd "$(dirname "$GITHUB_WORKSPACE")" && mypy --config-file ggufbench/mypy.ini ggufbench/client.py ggufbench/report.py ggufbench/config.py
+        run: cd "$(dirname "$GITHUB_WORKSPACE")" && mypy --config-file ggufbench/mypy.ini ggufbench/client.py ggufbench/report.py ggufbench/config.py ggufbench/debrief_export.py
 

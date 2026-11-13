@@ -10,6 +10,9 @@ SERVER_BIN = BASE_DIR / "llama-server"
 RESULTS_DIR = BENCH_DIR / "results"
 RESULTS_MODELS = RESULTS_DIR / "models"
 RESULTS_RUNS = RESULTS_DIR / "runs"
+# debrief evidence tree: one <run-id>/results.json per run, in the contract the
+# debrief MCP reads. Tracked in git so every clone ships the receipts.
+DEBRIEF_DIR = BENCH_DIR / "artifacts" / "ggufbench"
 TOKEN_BUDGETS = RESULTS_DIR / "token_budgets.json"
 POOL_FILE = RESULTS_MODELS / "pool.jsonl"
 # Retired-fleet registry (tracked, unlike results/ and models/): stems of the models

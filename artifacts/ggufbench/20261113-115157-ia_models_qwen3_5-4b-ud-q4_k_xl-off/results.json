@@ -1,10 +1,10 @@
 {
  "ggufbench": "0.1.0",
- "engine_build": "llama.cpp-0.9.0+cd959ba",
+ "engine_build": "llama-0.9.0+cd959ba",
  "baseline": "ed3153c0",
  "rows": [
   {
-   "model": "Qwen3.5-4B-UD-Q4_K_XL",
+   "model": "ia_models_qwen3_5-4b-ud-q4_k_xl",
    "task": "tools",
    "outcome": "pass",
    "reason": "tools 1/1 tasks passed (score 1.00)",

@@ -3,9 +3,10 @@ import json
 import datetime
 import os
 import statistics
+import sys
 from typing import Any
 
-from . import config
+from . import config, debrief_export
 
 
 def task_signature(result):
@@ -205,6 +206,12 @@ def save_result(result):
         for r in pool:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
     (config.RESULTS_RUNS / f"{ts}-{slug}-{mode}.json").write_text(json.dumps(result, indent=2, ensure_ascii=False))
+    # Evidence export (debrief contract): never let it take a benchmark run down —
+    # the receipt above is already safely on disk.
+    try:
+        debrief_export.export(result, f"{ts}-{slug}-{mode}.json")
+    except OSError as err:
+        print(f"✗ debrief export: {err}", file=sys.stderr, flush=True)
 
 
 def load_pool():
