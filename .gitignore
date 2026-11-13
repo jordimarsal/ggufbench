@@ -13,3 +13,6 @@ results/compare.html
 .scannerwork/
 .scannerwork-fleet.log
 .coverage
+
+# debrief evidence moved to the central tree (GGUFBENCH_DEBRIEF_DIR)
+artifacts/
