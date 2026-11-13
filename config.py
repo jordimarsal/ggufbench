@@ -1,5 +1,6 @@
 import contextlib
 import json
+import os
 from enum import Enum
 from pathlib import Path
 
@@ -11,8 +12,10 @@ RESULTS_DIR = BENCH_DIR / "results"
 RESULTS_MODELS = RESULTS_DIR / "models"
 RESULTS_RUNS = RESULTS_DIR / "runs"
 # debrief evidence tree: one <run-id>/results.json per run, in the contract the
-# debrief MCP reads. Tracked in git so every clone ships the receipts.
-DEBRIEF_DIR = BENCH_DIR / "artifacts" / "ggufbench"
+# debrief MCP reads. GGUFBENCH_DEBRIEF_DIR redirects it to the central evidence
+# tree (the debrief checkout's artifacts/ggufbench) so every project's receipts
+# live in one place; unset keeps them in-repo, tracked, self-contained.
+DEBRIEF_DIR = Path(os.environ.get("GGUFBENCH_DEBRIEF_DIR", "") or BENCH_DIR / "artifacts" / "ggufbench")
 TOKEN_BUDGETS = RESULTS_DIR / "token_budgets.json"
 POOL_FILE = RESULTS_MODELS / "pool.jsonl"
 # Retired-fleet registry (tracked, unlike results/ and models/): stems of the models
