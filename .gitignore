@@ -13,3 +13,6 @@ results/compare.html
 .scannerwork/
 .scannerwork-fleet.log
 .coverage
+
+# Artefactes debrief (rebut per run en el contracte results.json; es queden locals)
+artifacts/
