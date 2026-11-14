@@ -110,6 +110,11 @@
       "stem": "Qwen3.5-4B-UD-Q4_K_XL",
       "date": "2026-11-14",
       "reason": "smoke row, never a fleet candidate: a 2026-11-13 pipeline test (speed+tools only, 1/?/? — code and agent were never run) launched from a different workspace root (~/ia/models/, hence the ia/models/ prefix in its model field), and the GGUF was deleted after the test without passing through the registry — it sat on the board as a live phantom (global 0.31, tools 1.00 at 15.7 t/s). Registered so the row renders gray in the Retired tab. Human decision 2026-11-14."
+    },
+    {
+      "stem": "strata-iq2_xs-ablit",
+      "date": "2026-11-14",
+      "reason": "dominated by its own censored twin on every axis. Strata config of the Huihui-abliterated Qwen3.8-Flash-Next in IQ2_XS (65 GB in 2 shards + refusal-direction control vector): 0.77 global (tools 0.89 / code 0.76 / agent 0.86) at 97.4 t/s vs the IQ3_XXS's 0.83 (0.89 / 0.83 / 0.90) at 139 t/s — the lower bitrate is SLOWER, the RCO mix (IQ1_M/IQ2_XXS blocks) pays in dequant. Its one possible edge — permissiveness — does not exist: the refusal stress probe (33 disallowed asks in 8 categories) scored it 33/33 complied, exactly like the twin, because Strata ships the speed-projection control vector in the default config and its own docs describe it as a refusal-direction projection. The one censored control in the rig (UD-Q3, original alignment) went 1/33 with 27 disclaimers and hard refusals on ransomware/credential-stuffing, so the instrument does differentiate. Benign set: 0/36 refused both. Human decision 2026-11-14."
     }
   ]
 }
