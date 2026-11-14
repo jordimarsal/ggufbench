@@ -24,8 +24,8 @@ Every table below is one set **and** one build; the full report marks each row w
 spans more than one. Read columns down a table, never rows across tables.
 
 Common to the fresh rows: 1 run per task (single-run numbers, no ±), fixed seed/temp,
-2× RTX 5080. `excl.` = excluded with a recorded reason. 18 models were retired
-(9 on 2026-10-13, 1 on 10-14, 3 on 10-15, 5 on 2026-11-14 — `harness/retired.json` has
+2× RTX 5080. `excl.` = excluded with a recorded reason. 22 models were retired
+(9 on 2026-10-13, 1 on 10-14, 3 on 10-15, 9 on 2026-11-14 — `harness/retired.json` has
 the why): their
 rows stay in the full report behind its **Retired** tab — record only, they count for
 neither the headline KPIs nor the recommendations. The October rows came back as

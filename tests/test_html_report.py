@@ -1,3 +1,4 @@
+import json
 import shutil
 import tempfile
 import unittest
@@ -813,6 +814,31 @@ class TestRetiredGray(unittest.TestCase):
         self._isolated(models_dir=Path("/nonexistent-xyz"),
                        retired_file=Path("/nonexistent-xyz/retired.json"))
         self.assertEqual(html_report._retired_stems(), set())
+
+    def test_recovered_slug_rows_of_pruned_models_gray_too(self):
+        """Regression: pool rows do not always carry the file name. The October
+        recovery wrote slugs ('qwen3_8-27b-ud-q5_k_m') and the smoke row of 11-13
+        carries a foreign workspace root ('ia/models/...gguf'); an exact stem
+        comparison kept every one of those pruned-model rows on the live board.
+        The match is slug-based for exactly this reason."""
+        with tempfile.TemporaryDirectory() as d:
+            reg = Path(d) / "retired.json"
+            reg.write_text(json.dumps({"retired": [
+                {"stem": "Qwen3.8-27B-UD-Q5_K_M", "date": "2026-10-15"},
+                {"stem": "Qwen3.5-4B-UD-Q4_K_XL", "date": "2026-11-14"},
+            ]}))
+            self._isolated(models_dir=Path(d), retired_file=reg)
+            recovered = _mk(name="models/qwen3_8-27b-ud-q5_k_m")
+            smoke = _mk(name="ia/models/Qwen3.5-4B-UD-Q4_K_XL.gguf")
+            alive = _mk(name="models/Qwen3.8-27B-UD-Q3_K_XL.gguf")
+            self.assertTrue(html_report._is_retired(recovered["model"]))
+            self.assertTrue(html_report._is_retired(smoke["model"]))
+            self.assertFalse(html_report._is_retired(alive["model"]))
+            html = html_report.render([recovered, smoke, alive])
+        self.assertIn('<div class="trow retired">', html)
+        live_part = html.split('<div class="pane-retired">', 1)[0]
+        self.assertNotIn("qwen3_8-27b-ud-q5_k_m", live_part)
+        self.assertNotIn("Qwen3.5-4B-UD-Q4_K_XL", live_part)
 
     def test_registry_greys_rows_without_archived_profiles(self):
         """The regression this fixes: the profiles under models/retired/ were deleted

@@ -74,8 +74,20 @@ def _archived_profile_stems():
 
 
 def _is_retired(model):
-    """A row is retired when its model file stem lives in models/retired/."""
-    return os.path.splitext(os.path.basename(model or ""))[0] in _retired_stems()
+    """A row is retired when its model file stem lives in models/retired/ or the
+    retired registry.
+
+    The match is slug-based (config.slug on both sides): pool rows do not always
+    carry the file name — the October recovery wrote slugs ('qwen3_8-27b-ud-q5_k_m')
+    and some rows carry a workspace-relative path ('models/', 'ia/models/') — so an
+    exact stem comparison missed every recovered row of a pruned model and kept a
+    fleet that cannot run again on the live board."""
+    stem = os.path.splitext(os.path.basename(model or ""))[0]
+    stems = _retired_stems()
+    if stem in stems:
+        return True
+    slug = config.slug(stem)
+    return any(config.slug(s) == slug for s in stems)
 
 
 # Sanitizer: strips sensitive local paths from user-derived text before HTML escaping.
