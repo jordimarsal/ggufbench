@@ -1,5 +1,5 @@
 {
-  "note": "Models pruned from the fleet (2026-10-13): the .gguf and its profile are gone, so the model cannot be run again — its pool rows stay as a measurement record and render gray in report.html. This file is the registry: models/ lives outside the repo and the archived profiles under models/retired/ were later deleted (they were duplicated information, see models/retired/README.md), which silently un-grayed the record. Stems match the .gguf file name without extension (what the pool row carries).",
+  "note": "Models pruned from the fleet: the .gguf and its profile are gone, so the model cannot be run again — its pool rows stay as a measurement record and render gray in report.html. This file is the registry: models/ lives outside the repo and the archived profiles under models/retired/ were later deleted (they were duplicated information, see models/retired/README.md), which silently un-grayed the record. Stems match the .gguf file name without extension (what the pool row carries).",
   "retired": [
     {
       "stem": "Qwen3-Coder-30B-A3B-Instruct-UD-Q4_K_XL",
@@ -65,6 +65,46 @@
       "stem": "strata-swift-iq3_xxs",
       "date": "2026-10-15",
       "reason": "a distinct finetune of the 125B (Swift 1.5, -63% thinking) but dead weight as configured: its Strata config carried no --vram-reserve-mib, so with the 2026-10-15 calibration (adapt-every 1 / adapt-swaps 160) the expert cache filled the card and the engine refused to load it — 'only 40-58 MiB of VRAM free at the start of this request ... add --vram-reserve-mib 1216', Strata/strata-swift-iq3_xxs.log — and its pool row still was the v3 one. Retired instead of fixed + re-measured. Frees ~72 GB (two GGUF shards + pack). Human decision 2026-10-15."
+    },
+    {
+      "stem": "DeepSeek-V4-Pro-Qwen3.5-9B-UNCENSORED-heretic.Q4_K_M",
+      "date": "2026-11-14",
+      "reason": "0.67 global (tools 0.94 / code 0.49 / agent 0.72) at 115 t/s. The code failures are capability, not refusals: bash 2/18 and Java 6/12, `solution.sh: line N` and compile errors — a 9B that cannot hold a 100-line script. Its one asset was 115 t/s with 94% tool-calling, and the router slot is already covered by porter-qwen3.5-2b. Refusal probe: 0/36 refused, 1 partial, format 86.1%. Human decision 2026-11-14."
+    },
+    {
+      "stem": "gemma-4-26B-A4B-it-ultra-uncensored-heretic-Q4_K_M",
+      "date": "2026-11-14",
+      "reason": "dominated by the fleet's own gemma base on every axis: 0.76 vs 0.80 global, tools 83% vs 89%, agent 78% vs 89%, code 81% vs 83%. The abliteration cost is visible in tools (-6 points) and it is a Q4 at 15.6 GB against the base's Q5 at 19.8 GB, so the smaller footprint is quantisation, not efficiency. 143 t/s is its only edge and speed was never gemma's problem. Refusal probe: 0/36 refused, format 91.7%. Human decision 2026-11-14."
+    },
+    {
+      "stem": "GLM-4.7-Flash-Uncen-Hrt-NEO-CODE-MAX-imat-D_AU-Q4_K_M",
+      "date": "2026-11-14",
+      "reason": "abandoned mid-run at 58 min and 39/162 tasks (24%, projected ~4h). Not slow — 114 t/s sustained across 32k-token generations, 171 t/s median on short ones — but it does not stop: 12 of 45 generations passed 20k tokens, 391,293 tokens in 57 min, one of them the full 32,721-token context for `sum_list`, which then failed with a syntax error. Tools 2/18, every failure `hit the 128-token limit` because it reasons before emitting the call — a harness-cap interaction, not proven model incapacity (re-test needs a higher --tools-max-tokens). The code dimension had no such excuse: 0/20. Refusal probe (36 prompts, 74 s): 0/36 refused, 1 partial, format 100%. Human decision 2026-11-14."
+    },
+    {
+      "stem": "Qwen3.8-27B-TurboFCFusion-735-882-Here-Uncen-NEO-CODER-MAX-MTP-IQ4_XS",
+      "date": "2026-11-14",
+      "reason": "second quantisation of the finetune already retired on 2026-10-15 (Q4_K_S), and it lands in the same place: 0.81 global (tools 100% / code 85% / agent 92%) at 44.5 t/s, the slowest of the 2026-11-14 batch. Its one asset, code 85%, is 2 points over Huihui-abliterated at the same speed class (53.7 t/s) and 9 over SC117 at a third of the speed, so the uncensored-coder niche is covered. Format retention is also the worst of the batch: 83.3% (politics 3/6, profanity 4/6) — a coder that drops structure on prose. Human decision 2026-11-14."
+    },
+    {
+      "stem": "Qwen3.8-27B-UD-IQ4_XS",
+      "date": "2026-11-14",
+      "reason": "orphan: no models/<stem>.txt profile and no pool row — never measured under the current harness, and superseded as daily driver by UD-Q3_K_XL (12.2 GB, 0.83 global, vision via mmproj). Left behind by the 2026-10 quantisation sweep. Human decision 2026-11-14."
+    },
+    {
+      "stem": "Qwen3.8-27B-Heretic-Q4_K_M",
+      "date": "2026-11-14",
+      "reason": "replaced by Huihui-Qwen3.8-27B-abliterated (same base, same quant family): 0.82 vs 0.81 global OFF at 65 vs 60 t/s with 3.1 GB less (12.7 vs 15.8), code 83% vs 81%, agent tied 93%, and identical refusal profile (0/36 refused, 94.4% format both). Its one edge — the ON code row (0.88, 97% code) — costs 2.4 h of wall clock per pass against 17 min OFF, and Huihui covers the uncensored-code niche at fleet OFF speed. The external MTP draft trick (nerkior/mtp-Qwen3.8-27B-Q4_0, 1.7x in the 10-16 A/B) went with it. Human decision 2026-11-14."
+    },
+    {
+      "stem": "Ornith-1.5-35B-A3B-APEX-MTP-Quality",
+      "date": "2026-11-14",
+      "reason": "dominated OFF by the SC117 Qwen3.6-35B it was meant to be compared against: 0.86 vs 0.84 global (tools tied 100%, code 76% vs 74%, agent tied 91%) at 161 vs 152 t/s with 6.4 GB less (16.2 vs 22.6). Its best row is thinking ON (0.88, 94/87/96) — the mode the fleet does not run. Only ground it keeps: the 262k daytime context pin vs SC117's measured 183k (which reaches 365k on a quiet machine, margin 1200). Its repo mmproj is not combinable with MTP anyway (arch qwen35moe). Human decision 2026-11-14."
+    },
+    {
+      "stem": "nerkior/mtp-Qwen3.8-27B-Q4_0",
+      "date": "2026-11-14",
+      "reason": "external MTP draft head of the Qwen3.8-27B family (1.6 GB, base-model cap — not a chat model). It only ever paid off attached to the Heretic (1.7x, A/B of 10-16); orphaned by its retirement. Huihui carries its own native head and the 11-14 sweep showed it does not draft (n3/n4/n6 move nothing). Human decision 2026-11-14."
     }
   ]
 }
