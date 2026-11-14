@@ -105,6 +105,11 @@
       "stem": "nerkior/mtp-Qwen3.8-27B-Q4_0",
       "date": "2026-11-14",
       "reason": "external MTP draft head of the Qwen3.8-27B family (1.6 GB, base-model cap — not a chat model). It only ever paid off attached to the Heretic (1.7x, A/B of 10-16); orphaned by its retirement. Huihui carries its own native head and the 11-14 sweep showed it does not draft (n3/n4/n6 move nothing). Human decision 2026-11-14."
+    },
+    {
+      "stem": "Qwen3.5-4B-UD-Q4_K_XL",
+      "date": "2026-11-14",
+      "reason": "smoke row, never a fleet candidate: a 2026-11-13 pipeline test (speed+tools only, 1/?/? — code and agent were never run) launched from a different workspace root (~/ia/models/, hence the ia/models/ prefix in its model field), and the GGUF was deleted after the test without passing through the registry — it sat on the board as a live phantom (global 0.31, tools 1.00 at 15.7 t/s). Registered so the row renders gray in the Retired tab. Human decision 2026-11-14."
     }
   ]
 }
