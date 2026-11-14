@@ -24,8 +24,9 @@ Every table below is one set **and** one build; the full report marks each row w
 spans more than one. Read columns down a table, never rows across tables.
 
 Common to the fresh rows: 1 run per task (single-run numbers, no ±), fixed seed/temp,
-2× RTX 5080. `excl.` = excluded with a recorded reason. 13 models were retired
-(9 on 2026-10-13, 1 on 10-14, 3 on 10-15 — `harness/retired.json` has the why): their
+2× RTX 5080. `excl.` = excluded with a recorded reason. 18 models were retired
+(9 on 2026-10-13, 1 on 10-14, 3 on 10-15, 5 on 2026-11-14 — `harness/retired.json` has
+the why): their
 rows stay in the full report behind its **Retired** tab — record only, they count for
 neither the headline KPIs nor the recommendations. The October rows came back as
 **recovered mean scores** (the pool was rebuilt from the published report of 10-21,
@@ -33,33 +34,52 @@ neither the headline KPIs nor the recommendations. The October rows came back as
 that era are gone.
 
 **Current set — 18 tools · 72 code · 72 agent, re-measured under llama.cpp 0.9.0**
-(v5, fresh rows 2026-11-05/06 · every row records its context receipts)
+(v5, fresh rows 2026-11-05/06 + the 2026-11-14 abliterated pass · every row records its
+context receipts · the live fleet, both thinking modes)
 
-| model | think | tools | code | agent | speed | global |
+| model | think | tools | code | agent | gen t/s | global |
 |---|---|---|---|---|---|---|
-| qwen36-35b-distill-mxfp4_moe | off | 100% | 71% | 93% | 16ms | **0.87** |
-| minicpm-v-4.7-35b-a3b q4_k_m | on | 100% | 84% *(10 excl.)* | 92% | 23ms | **0.87** |
-| minicpm-v-4.7-35b-a3b q4_k_m | off | 100% | 80% *(2 excl.)* | 90% | 21ms | **0.86** |
-| qwen3.8-27b-ud-q3_k_xl | off | 100% | 81% | 94% | 36ms | **0.83** |
-| ornith-1.5-35b-a3b-apex-mtp-quality | off | 100% | 74% | 91% | 26ms | **0.82** |
-| qwen3.8-27b-ud-q3_k_xl | on | 100% | 90% *(3 excl.)* | 96% | 686ms | **0.81** |
-| qwen3.8-27b-heretic-q4_k_m | off ★ | 100% | 81% | 93% | 66ms | **0.80** |
-| gemma-4-26b-a4b-it-ud-q5_k_xl | off | 89% | 83% | 89% | 32ms | **0.80** |
-| strata-iq3_xxs *(strata engine)* | off | 89% | 83% | 90% | 36ms | **0.80** |
-| qwen3.8-27b-heretic-q4_k_m | on | 78% | 97% *(7 excl.)* | 64% | 1036ms | **0.69** |
+| qwen36-35b-distill-mxfp4_moe | off ★ | 100% | 71% | 93% | 244 t/s | **0.89** |
+| minicpm-v-4.7-35b-a3b q4_k_m | on | 100% | 84% *(10 excl.)* | 92% | 171 t/s | **0.89** |
+| minicpm-v-4.7-35b-a3b q4_k_m | off ★ | 100% | 80% *(2 excl.)* | 90% | 184 t/s | **0.88** |
+| ornith-1.5-35b-a3b-apex-mtp-quality | on | 94% | 87% *(1 excl.)* | 96% | 150 t/s | **0.88** |
+| qwen3.8-27b-heretic-q4_k_m | on | 100% | 97% *(7 excl.)* | 97% | 69 t/s | **0.88** |
+| strata-iq3_xxs *(strata engine)* | on | 94% | 87% *(4 excl.)* | 94% | 149 t/s | **0.87** |
+| qwen3.8-27b-ud-q3_k_xl | on | 100% | 90% *(3 excl.)* | 96% | 98 t/s | **0.87** |
+| qwen3.6-35b-apex-i-compact *(SC117, abliterated)* | off | 100% | 76% | 91% | 161 t/s | **0.86** |
+| qwen36-35b-distill-mxfp4_moe | on | 94% | 74% *(4 excl.)* | 89% | 209 t/s | **0.85** |
+| qwen3.8-27b-ud-q3_k_xl | off | 100% | 81% | 94% | 110 t/s | **0.85** |
+| ornith-1.5-35b-a3b-apex-mtp-quality | off | 100% | 74% | 91% | 152 t/s | **0.84** |
+| strata-iq3_xxs *(strata engine)* | off | 89% | 83% | 90% | 139 t/s | **0.83** |
+| gemma-4-26b-a4b-it-ud-q5_k_xl | on | 94% | 79% | 89% | 133 t/s | **0.83** |
+| huihui-qwen3.8-27b-abliterated *(abliterated)* | off | 100% | 83% | 93% | 65 t/s | **0.82** |
+| gemma-4-26b-a4b-it-ud-q5_k_xl | off ★ | 89% | 83% | 89% | 125 t/s | **0.82** |
+| qwen3.8-27b-heretic-q4_k_m | off | 100% | 81% | 93% | 60 t/s | **0.81** |
+
+Speed here is **generation throughput**, and the global normalizes it against the best
+t/s in the pool (SPEC §5): a row with no recorded t/s scores 0 for speed and is never
+ranked first. Probe latency (completion ms) stays a display-only metric in its own pane
+of the report.
 
 The whole fleet re-measured OFF in one evening (2026-11-05, 0.9.0 build), plus the three
 fair-caps ON passes the October board owed (MiniCPM, UD-Q3, Heretic — caps 1024/8192).
 This is also the first batch measured with **context receipts** in the pool: tokens sent
 per call (tools ≈ 290-340, code ≈ 185-225) and per agent session (3.4K-9.1K) travel with
-every row — see the *Context receipts* section of the report. The ON reading: UD-Q3's
-fair ON pass is now the fleet's best agent (96%) with code 90%, and MiniCPM ON ties its
-own OFF at the top; Heretic's ON pass came out clearly worse than its October ON row
-(agent 97→64%, tools 100→78%, 7 code exclusions) and replaces it in the pool. Sessions
+every row — see the *Context receipts* section of the report. The ON reading: MiniCPM ON
+ties its own OFF at the top; UD-Q3's fair ON pass is its own best row (code 90%, agent
+96%); Heretic ON holds its October quality at the fair caps (code 97%, agent 97%, 7 code
+exclusions) — the fleet's best code row, at ~8× the wall clock of its OFF. Sessions
 re-send more context ON than OFF (UD-Q3 5.1K→9.1K tokens) except where the episode dies
-early (Heretic ON, empty replies). The remaining ON rows (Ornith, qwen36, gemma, Strata)
-are still the October 0.6.0 measurements — Ornith/gemma/qwen36 at the old call caps,
-Strata with its 51 empty replies — and stay owed a fair pass.
+early. The remaining ON rows (Ornith, qwen36, gemma, Strata) are still the October 0.6.0
+measurements — Ornith/gemma/qwen36 at the old call caps, Strata with its 51 empty
+replies — and stay owed a fair pass.
+
+The 2026-11-14 pass adds the two abliterated candidates, measured at identical conditions
+(thinking off, fixed 32k context, no MTP): **SC117 Qwen3.6-35B** — 0.86 at 161 t/s,
+refusal probe 0/36 with 94.4% format compliance — and **Huihui Qwen3.8-27B** — 0.82 at
+65 t/s with `--split-mode tensor` (an MTP sweep showed the draft head adds nothing on
+either model; the Huihui gain is entirely the tensor split). Five suboptimal GGUFs were
+deleted the same day; the numbers behind it live in `harness/retired.json`.
 
 **Superseded — v5 under llama.cpp 0.6.0, the 2026-10-14/15 fleet** (recovered mean
 scores, no per-run spread; superseded by the table above)
@@ -116,6 +136,12 @@ re-pass is planned. The rows stay in the full report.
 
 `★` = optimal thinking mode by data (not worse quality within 0.02 and no more wall
 clock; docs/MILLORA.md §C8).
+
+The superseded tables keep their numbers **as published in October**: their speed column
+is probe latency (ms) and their globals were computed under the old latency
+normalization. The live report recomputes every global with today's rule — throughput
+normalization (SPEC §5) — and scores those recovered rows 0 on speed, because the October
+recovery kept no t/s. For the superseded rows, the report is the source of truth.
 
 ### Task-set lineage
 
