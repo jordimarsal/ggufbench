@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Head-to-head — ggufbench compare</title>
+<style>
+:root{
+  --bg:#0b1220; --card:#101a2e; --card2:#0d1526; --border:#1e2a44;
+  --text:#e7eef9; --muted:#93a4be; --primary:#3b82f6; --primary2:#60a5fa;
+  --accent:#f59e0b; --good:#34d399; --bad:#f87171;
+  /* Minor titles / metadata headings (task-set block headers). Amber, because in this
+     page that is already the "condition / caveat" colour of the mixed-conditions banner:
+     the set of tasks a row ran is a caveat, not a score. One variable to retune it. */
+  --label:#f59e0b;
+  --mono:'Fira Code',ui-monospace,'Cascadia Mono','JetBrains Mono',monospace;
+  --sans:'Fira Sans','Segoe UI',system-ui,-apple-system,sans-serif;
+}
+*{box-sizing:border-box}
+html{scrollbar-color:var(--border) var(--bg)}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 var(--sans)}
+a{color:var(--primary2)}
+header{position:sticky;top:0;z-index:5;background:rgba(11,18,32,.94);backdrop-filter:blur(6px);
+  border-bottom:1px solid var(--border);padding:14px 22px}
+h1{margin:0;font-size:19px;letter-spacing:.2px}
+h1 small{color:var(--muted);font-weight:400}
+.sub{color:var(--muted);font-size:12.5px;margin-top:3px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chip{font:11.5px/1 var(--mono);color:var(--muted);border:1px solid var(--border);
+  border-radius:999px;padding:5px 9px;background:var(--card2)}
+.chip b{color:var(--text);font-weight:600}
+a.chip{background:var(--primary);color:#fff;border-color:transparent;font-weight:600}
+a.chip:hover{background:var(--primary2);border-color:transparent}
+main{max-width:1180px;margin:0 auto;padding:18px 22px 40px;display:grid;gap:16px}
+.banner{border:1px solid #6b4b0a;background:#1c1503;color:#fcd34d;border-radius:10px;
+  padding:10px 14px;font-size:13px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 14px}
+.kpi .v{font:600 22px/1.15 var(--mono);color:var(--primary2)}
+.kpi .l{color:var(--muted);font-size:12px;margin-top:2px}
+section{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+h2{margin:0 0 10px;font-size:14px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{color:var(--muted);text-align:left;font-weight:600;font-size:11.5px;text-transform:uppercase;
+  letter-spacing:.5px;padding:6px 8px;border-bottom:1px solid var(--border)}
+td{padding:6px 8px;border-bottom:1px solid var(--border)}
+tr:hover td{background:rgba(59,130,246,.07)}
+.num{font-family:var(--mono);text-align:right;white-space:nowrap}
+.trow{display:flex;gap:10px;align-items:baseline;padding:5px 4px;border-bottom:1px solid var(--border)}
+.trow:last-child{border-bottom:0}
+.trow:hover{background:rgba(59,130,246,.07)}
+.trow .name{flex:1;min-width:0}
+.trow .num,.trow .gval{margin-left:auto}
+.pos{font:600 13px var(--mono);color:var(--muted);text-align:right}
+.pos.top{color:var(--accent)}
+.name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.name small{display:block;color:var(--muted);font-weight:400;font:11px var(--mono)}
+.badge{display:inline-block;font:10.5px/1 var(--mono);border-radius:5px;padding:3px 6px;
+  border:1px solid var(--border);color:var(--muted)}
+.retired .name,.retired .num,.retired .gval,.retired td,.retired small,.retired summary,.retired .pos{color:var(--muted)!important;font-weight:400}
+.retired .heat{background:#232f45!important;color:var(--muted)!important}
+.retired .badge{background:transparent!important;color:var(--muted)!important;border-color:var(--border)!important;font-weight:400}
+.badge.strata{color:#0b1220;background:var(--accent);border-color:var(--accent);font-weight:700}
+.badge.set{color:var(--primary2);border-color:#2b4a7a}
+.sortbar{display:flex;gap:8px;align-items:center;margin:0 0 8px;font-size:12px;color:var(--muted)}
+.sortbar select{background:var(--card2);color:var(--text);border:1px solid var(--border);
+  border-radius:7px;padding:4px 6px;font:12px var(--mono)}
+.sortbar select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+/* report_polish: Board/Retired panes. Native radios + :checked — the page keeps its
+   single script and both panes are reachable with JS off (ADR-0010). */
+.tabs{display:grid;gap:12px;position:relative}
+.tabs>input{position:absolute;opacity:0;pointer-events:none}
+.tabbar{display:flex;gap:6px}
+.tabbar label{cursor:pointer;font:12px/1 var(--mono);color:var(--muted);border:1px solid var(--border);
+  border-radius:999px;padding:6px 10px;background:var(--card2)}
+.tabbar label b{color:var(--text)}
+#tab-board:checked~.tabbar label[for="tab-board"],#tab-retired:checked~.tabbar label[for="tab-retired"]{
+  color:#fff;background:var(--primary);border-color:transparent}
+#tab-board:focus-visible~.tabbar label[for="tab-board"],#tab-retired:focus-visible~.tabbar label[for="tab-retired"]{
+  outline:2px solid var(--accent);outline-offset:2px}
+#tab-board:checked~.pane-retired{display:none}
+#tab-retired:checked~.pane-board{display:none}
+.pane-board,.pane-retired{display:grid;gap:16px}
+.setblock{border:1px solid var(--border);border-radius:9px;background:var(--card2);
+  padding:8px 10px;margin-bottom:8px}
+.setblock h3{margin:0 0 6px;font:600 12px var(--mono);letter-spacing:.3px;color:var(--label)}
+.setblock h3 .setmeta{color:var(--label);opacity:.75;font-weight:400}
+.gval{font:600 15px var(--mono);text-align:right;color:var(--primary2)}
+.gval.top{color:var(--accent)}
+.gval small,.kpi .v small{color:var(--muted);font-weight:400;font-size:11px}
+.heat{font:600 12px var(--mono);text-align:center;border-radius:6px;padding:4px 6px}
+.miss{color:var(--muted);font-family:var(--mono)}
+details{border:1px solid var(--border);border-radius:9px;background:var(--card2);
+  margin-bottom:8px;overflow:hidden}
+summary{cursor:pointer;padding:9px 12px;font-weight:600;list-style:none;display:flex;
+  gap:10px;align-items:center;flex-wrap:wrap}
+summary::-webkit-details-marker{display:none}
+summary::after{content:'+';margin-left:auto;color:var(--muted);font-family:var(--mono)}
+details[open] summary::after{content:'–'}
+summary:hover,summary:focus-visible{background:rgba(59,130,246,.09)}
+pre{margin:0;padding:10px 12px;border-top:1px solid var(--border);white-space:pre-wrap;
+  word-break:break-word;font:11.5px/1.55 var(--mono);color:var(--muted)}
+footer{color:var(--muted);font-size:12.5px;max-width:1180px;margin:0 auto;padding:0 22px 40px}
+code{font-family:var(--mono);color:var(--primary2)}
+:where(a,summary):focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+@media (max-width:900px){.grid2{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:no-preference){
+  tr:hover td,.trow:hover,summary:hover{transition:background .18s ease}
+}
+@media print{header{position:static}body{background:#fff;color:#000}}
+
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.card h2{font-size:15px;text-transform:none;letter-spacing:0;color:var(--text)}
+.meta{margin-top:10px}
+.meta .l{color:var(--muted);font-size:10.5px;text-transform:uppercase;letter-spacing:.5px}
+.meta .mv{font:12px/1.5 var(--mono);word-break:break-word;margin-top:2px}
+.mrow{display:grid;grid-template-columns:minmax(190px,1.3fr) 120px 120px minmax(170px,1fr);
+  gap:10px;align-items:baseline;padding:7px 4px;border-bottom:1px solid var(--border)}
+.mrow:last-child{border-bottom:0}
+.mrow:hover{background:rgba(59,130,246,.07)}
+.mlabel{min-width:0}
+.mlabel b{font-weight:600}
+.mlabel small{display:block;color:var(--muted);font-size:11px;font-weight:400}
+.mval{font:600 14px var(--mono);text-align:right;white-space:nowrap}
+.mval small{font:400 10.5px var(--mono);color:var(--muted)}
+.mval.good{color:var(--good)}
+.mval.bad{color:var(--bad)}
+.mval.tie,.mval.miss{color:var(--muted);font-weight:400}
+.verdict{font-size:12.5px;color:var(--muted);min-width:0}
+.verdict.good{color:var(--good);font-weight:600}
+.tie{color:var(--muted)}
+.good{color:var(--good)}
+.bad{color:var(--bad)}
+.secbadge{font:600 11.5px var(--mono);border:1px solid var(--border);border-radius:999px;
+  padding:3px 9px;margin-left:10px;vertical-align:2px}
+.secbadge.good{color:var(--good);border-color:var(--good)}
+.picker{display:flex;gap:6px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.picker .l{color:var(--muted);font-size:12px}
+.picker select{background:#16233d;color:var(--text);border:1px solid var(--border);
+  border-radius:8px;padding:6px 8px;font:12px var(--mono);max-width:330px}
+.picker select option{background:var(--card);color:var(--text)}
+.picker button{background:var(--card2);color:var(--text);border:1px solid var(--border);
+  border-radius:8px;padding:6px 10px;cursor:pointer;font:12px var(--mono)}
+.picker button:hover,.picker select:hover{border-color:var(--primary)}
+@media (max-width:900px){.cards{grid-template-columns:1fr}
+  .mrow{grid-template-columns:1fr 96px 96px}
+  .mrow .verdict{grid-column:1/-1}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Head-to-head <small>· ggufbench model-vs-model compare</small></h1>
+  <div class="sub">Generated 06/11/2026 20:35 · scores from the harness functions (same math as the CLI) ·
+single sample per task (<b>n=1</b>, fixed seed/temp): this page orders, it does not certify close calls</div>
+  <div class="chips"><span class="chip">weights <b>tools 0.3 · code 0.3 · agent 0.25 · speed 0.15</b></span>
+  <span class="chip">better <b><span class="good">green</span></b> / worse <b><span class="bad">red</span></b> · ties stay neutral</span></div>
+  <div class="picker">
+    <span class="l">pick a pair</span>
+    <select id="sel-a" aria-label="model A"><option value="0">gemma-4-26b-a4b-it-ud-q5_k_xl · think:off</option><option value="1">gemma-4-26b-a4b-it-ud-q5_k_xl · think:on</option><option value="2">huihui-ornith-1_5-35b-a3b-abliterated_i1-iq3_s · think:off</option><option value="3">huihui-ornith-1_5-35b-a3b-abliterated_i1-iq3_s · think:on</option><option value="4">lfm2_5-24b-a2b-q4_k_m · think:off</option><option value="5">minicpm-v-4_7-35b-a3b-q4_k_m · think:off</option><option value="6">minicpm-v-4_7-35b-a3b-q4_k_m · think:on</option><option value="7">muse-glimmer-30b-kquant-dynamic-q4_k_xl · think:off</option><option value="8">nvidia-nemotron-3_5-lightning-30b-a3b-iq4_xs · think:off</option><option value="9">ornith-1_5-35b-a3b-abliterated-mtpv2-ud-iq4_xs · think:off</option><option value="10">ornith-1_5-35b-a3b-abliterated-mtpv2-ud-iq4_xs · think:on</option><option value="11">ornith-1_5-35b-a3b-apex-mtp-quality · think:off</option><option value="12">ornith-1_5-35b-a3b-apex-mtp-quality · think:on</option><option value="13">qwen3-coder-30b-a3b-instruct-ud-q4_k_xl · think:off</option><option value="14">qwen3-vl-8b-instruct-1m-q6_k · think:off</option><option value="15">qwen3-vl-8b-instruct-1m-q6_k · think:on</option><option value="16" selected>qwen36-35b-distill-mxfp4_moe · think:off</option><option value="17">qwen36-35b-distill-mxfp4_moe · think:on</option><option value="18">qwen3_8-27b-coder390-efficientthink-q4lynnstyle-mtp · think:off</option><option value="19">qwen3_8-27b-coder390-efficientthink-q4lynnstyle-mtp · think:on</option><option value="20">qwen3_8-27b-heretic-q4_k_m · think:off</option><option value="21">qwen3_8-27b-heretic-q4_k_m · think:on</option><option value="22">qwen3_8-27b-turbofcfusion-735-882-here-uncen-neo-coder-max-mtp-q4_k_s · think:off</option><option value="23">qwen3_8-27b-turbofcfusion-735-882-here-uncen-neo-coder-max-mtp-q4_k_s · think:on</option><option value="24">qwen3_8-27b-ud-q3_k_xl · think:off</option><option value="25">qwen3_8-27b-ud-q3_k_xl · think:on</option><option value="26">qwen3_8-27b-ud-q4_k_m · think:off</option><option value="27">qwen3_8-27b-ud-q4_k_xl · think:off</option><option value="28">qwen3_8-27b-ud-q5_k_m · think:off</option><option value="29">qwen3_8-27b-ud-q5_k_m · think:on</option><option value="30">strata-iq3_xxs · think:off</option><option value="31">strata-iq3_xxs · think:on</option><option value="32">strata-iq3_xxs-q8ple · think:off</option></select>
+    <button id="swap" type="button" title="swap A ⇄ B">⇄ swap</button>
+    <select id="sel-b" aria-label="model B"><option value="0">gemma-4-26b-a4b-it-ud-q5_k_xl · think:off</option><option value="1">gemma-4-26b-a4b-it-ud-q5_k_xl · think:on</option><option value="2">huihui-ornith-1_5-35b-a3b-abliterated_i1-iq3_s · think:off</option><option value="3">huihui-ornith-1_5-35b-a3b-abliterated_i1-iq3_s · think:on</option><option value="4">lfm2_5-24b-a2b-q4_k_m · think:off</option><option value="5">minicpm-v-4_7-35b-a3b-q4_k_m · think:off</option><option value="6">minicpm-v-4_7-35b-a3b-q4_k_m · think:on</option><option value="7">muse-glimmer-30b-kquant-dynamic-q4_k_xl · think:off</option><option value="8">nvidia-nemotron-3_5-lightning-30b-a3b-iq4_xs · think:off</option><option value="9">ornith-1_5-35b-a3b-abliterated-mtpv2-ud-iq4_xs · think:off</option><option value="10">ornith-1_5-35b-a3b-abliterated-mtpv2-ud-iq4_xs · think:on</option><option value="11">ornith-1_5-35b-a3b-apex-mtp-quality · think:off</option><option value="12">ornith-1_5-35b-a3b-apex-mtp-quality · think:on</option><option value="13">qwen3-coder-30b-a3b-instruct-ud-q4_k_xl · think:off</option><option value="14">qwen3-vl-8b-instruct-1m-q6_k · think:off</option><option value="15">qwen3-vl-8b-instruct-1m-q6_k · think:on</option><option value="16">qwen36-35b-distill-mxfp4_moe · think:off</option><option value="17" selected>qwen36-35b-distill-mxfp4_moe · think:on</option><option value="18">qwen3_8-27b-coder390-efficientthink-q4lynnstyle-mtp · think:off</option><option value="19">qwen3_8-27b-coder390-efficientthink-q4lynnstyle-mtp · think:on</option><option value="20">qwen3_8-27b-heretic-q4_k_m · think:off</option><option value="21">qwen3_8-27b-heretic-q4_k_m · think:on</option><option value="22">qwen3_8-27b-turbofcfusion-735-882-here-uncen-neo-coder-max-mtp-q4_k_s · think:off</option><option value="23">qwen3_8-27b-turbofcfusion-735-882-here-uncen-neo-coder-max-mtp-q4_k_s · think:on</option><option value="24">qwen3_8-27b-ud-q3_k_xl · think:off</option><option value="25">qwen3_8-27b-ud-q3_k_xl · think:on</option><option value="26">qwen3_8-27b-ud-q4_k_m · think:off</option><option value="27">qwen3_8-27b-ud-q4_k_xl · think:off</option><option value="28">qwen3_8-27b-ud-q5_k_m · think:off</option><option value="29">qwen3_8-27b-ud-q5_k_m · think:on</option><option value="30">strata-iq3_xxs · think:off</option><option value="31">strata-iq3_xxs · think:on</option><option value="32">strata-iq3_xxs-q8ple · think:off</option></select>
+    <noscript><span class="l">(static page: regenerate with <code>--compare</code> for another pair)</span></noscript>
+  </div>
+</header>
+<main>
+<div id="cmp-body">
+<div class="banner"><b>Mixed conditions.</b> These two rows were not measured under identical conditions (2026-11-05 · tasks v5 vs 2026-11-06 · tasks v5): the harness evolves, compare with care (docs/MILLORA.md §C7/C9/C10).</div>
+<div class="cards"><section class="card"><h2>qwen36-35b-distill-mxfp4_moe <span class="badge">think:off</span> <span class="badge">llama 0.9.0-dev+b1c902f</span></h2><div class="kpi"><div class="v">0.87</div><div class="l">global · rank #1 of 34 · measured 2026-11-05 · set 18/72/72</div></div><div class="meta"><div class="l">model_config_flags</div><div class="mv">--spec-type draft-mtp -c 262144</div></div><div class="meta"><div class="l">environment</div><div class="mv">RTX 5080 16GB × 2 · Linux · 60 GB RAM</div></div></section><section class="card"><h2>qwen36-35b-distill-mxfp4_moe <span class="badge">think:on</span> <span class="badge">llama 0.9.0-dev+b1c902f</span></h2><div class="kpi"><div class="v">0.73</div><div class="l">global · rank #29 of 34 · measured 2026-11-06 · set 18/72/72</div></div><div class="meta"><div class="l">model_config_flags</div><div class="mv">--spec-type draft-mtp -c 262144</div></div><div class="meta"><div class="l">environment</div><div class="mv">RTX 5080 16GB × 2 · Linux · 60 GB RAM</div></div></section></div>
+<section>
+  <h2>Global <span class="secbadge good" title="mean of the metric deltas won by qwen36-35b-distill-mxfp4_moe (think:off) in this section">+60%</span></h2>
+  <div class="mrow"><div class="mlabel"><b>Weighted global</b><small>tools .30 · code .30 · agent .25 · speed .15</small></div><div class="mval good">0.87</div><div class="mval bad">0.73</div><div class="verdict good">Higher weighted global. +18%</div></div>
+  <div class="mrow"><div class="mlabel"><b>Pool rank</b><small>position in the accumulated scoreboard; lower wins</small></div><div class="mval good">#1</div><div class="mval bad">#29</div><div class="verdict good">Higher pool rank. +97%</div></div>
+  <div class="mrow"><div class="mlabel"><b>Wall clock (total run)</b><small>time to complete the whole benchmark in this mode (C8); lower wins</small></div><div class="mval good">4m 17s</div><div class="mval bad">12m 19s</div><div class="verdict good">Less wall clock. +65%</div></div>
+</section><section>
+  <h2>Speed <span class="secbadge good" title="mean of the metric deltas won by qwen36-35b-distill-mxfp4_moe (think:off) in this section">+42%</span></h2>
+  <div class="mrow"><div class="mlabel"><b>Prompt + reply latency</b><small>speed-task round trip; lower is better</small></div><div class="mval good">16 ms</div><div class="mval bad">244 ms</div><div class="verdict good">Faster prompt + reply latency. +93%</div></div>
+  <div class="mrow"><div class="mlabel"><b>Generation throughput</b><small>output tokens/s</small></div><div class="mval good">244 t/s</div><div class="mval bad">209 t/s</div><div class="verdict good">Faster generation. +17%</div></div>
+  <div class="mrow"><div class="mlabel"><b>Prompt processing</b><small>input tokens/s</small></div><div class="mval good">244 t/s</div><div class="mval bad">209 t/s</div><div class="verdict good">Faster prompt processing. +17%</div></div>
+</section><section>
+  <h2>Tools <span class="secbadge good" title="mean of the metric deltas won by qwen36-35b-distill-mxfp4_moe (think:off) in this section">+5.9%</span></h2>
+  <div class="mrow"><div class="mlabel"><b>Tool-calling score</b><small>8 graded tasks: arguments, multi-call, error handling</small></div><div class="mval good">100%</div><div class="mval bad">94%</div><div class="verdict good">Better tool-calling. +5.9%</div></div>
+</section><section>
+  <h2>Code <span class="secbadge good" title="mean of the metric deltas won by qwen36-35b-distill-mxfp4_moe (think:on) in this section">+11%</span></h2>
+  <div class="mrow"><div class="mlabel"><b>Code overall</b><small>all levels; (N excl.) = excluded with a recorded reason</small></div><div class="mval bad">71%</div><div class="mval good">74% <small>(4 excl.)</small></div><div class="verdict good">Better code overall. +3.8%</div></div>
+  <div class="mrow"><div class="mlabel"><b>Easy tier</b><small>base tasks</small></div><div class="mval tie">94%</div><div class="mval tie">94% <small>(1 excl.)</small></div><div class="verdict"><span class="tie">tie</span></div></div>
+  <div class="mrow"><div class="mlabel"><b>Hard tier</b><small>_hard tasks</small></div><div class="mval bad">60%</div><div class="mval good">71% <small>(3 excl.)</small></div><div class="verdict good">Better on hard code. +18%</div></div>
+  <div class="mrow"><div class="mlabel"><b>Expert tier</b><small>_expert tasks (multi-file)</small></div><div class="mval tie">45%</div><div class="mval tie">45%</div><div class="verdict"><span class="tie">tie</span></div></div>
+</section><section>
+  <h2>Agent <span class="secbadge good" title="mean of the metric deltas won by qwen36-35b-distill-mxfp4_moe (think:off) in this section">+4.5%</span></h2>
+  <div class="mrow"><div class="mlabel"><b>Agent score</b><small>turn + tool-call accounting over the agent tasks</small></div><div class="mval good">93%</div><div class="mval bad">89%</div><div class="verdict good">Better agent work. +4.5%</div></div>
+</section>
+</div>
+</main>
+<footer>
+  Regenerate with <code>python3 -m ggufbench.run --compare "slug,think" "slug,think"</code>
+  (think defaults to off) from the workspace root. Section badges are the mean of the metric
+  deltas won inside the section. Ranking relative to this hardware and this harness: not at all
+  comparable with public benchmarks (HumanEval, BFCL, SWE-bench). More: <code>docs/SPEC.md</code> ·
+  <code>docs/MILLORA.md</code>.
+</footer>
+<script id="cmp-data" type="application/json">[{"s":"gemma-4-26b-a4b-it-ud-q5_k_xl","t":"off","e":"llama","b":"0.9.0-dev+b1c902f","d":"2026-11-05","f":"-c 262144","v":"v5","sig":"18/72/72","base":"ed3153c0","env":"RTX 5080 16GB × 2 · Linux · 60 GB RAM","g":0.8010890151515151,"r":15,"n":34,"ms":32,"gt":125.0,"pt":285.7,"w":558.8,"tools":0.8888888888888888,"code":0.8333333333333334,"cex":0,"lv":{"easy":[1.0,0],"hard":[0.75,0],"expert":[0.65,0]},"agent":0.8939393939393939},{"s":"gemma-4-26b-a4b-it-ud-q5_k_xl","t":"on","e":"llama","b":"0.9.0-dev+b1c902f","d":"2026-11-06","f":"-c 262144","v":"v5","sig":"18/72/72","base":"ed3153c0","env":"RTX 5080 16GB × 2 · Linux · 60 GB RAM","g":0.7458816425120772,"r":28,"n":34,"ms":690,"gt":133.2,"pt":262.3,"w":2622.8,"tools":0.9444444444444444,"code":0.7916666666666666,"cex":0,"lv":{"easy":[0.84,0],"hard":[0.85,0],"expert":[0.65,0]},"agent":0.8888888888888888},{"s":"huihui-ornith-1_5-35b-a3b-abliterated_i1-iq3_s","t":"off","e":"llama","b":"0.6.0-dev+4413a19","d":"","f":"","v":"v3","sig":"12/60/28","base":"e5c9ed59","env":"","g":0.7650128571428572,"r":23,"n":34,"ms":28,"gt":0,"pt":0,"w":null,"tools":0.9167,"code":0.7167,"cex":0,"lv":{"easy":[null,0],"hard":[null,0],"expert":[null,0]},"agent":0.8214},{"s":"huihui-ornith-1_5-35b-a3b-abliterated_i1-iq3_s","t":"on","e":"llama","b":"unknown","d":"","f":"","v":"v3","sig":"8/60/24","base":"e5c9ed59","env":"","g":0.8040137096774194,"r":12,"n":34,"ms":403,"gt":0,"pt":0,"w":null,"tools":1.0,"code":0.9,"cex":0,"lv":{"easy":[null,0],"hard":[null,0],"expert":[null,0]},"agent":0.9167},{"s":"lfm2_5-24b-a2b-q4_k_m","t":"off","e":"llama","b":"0.6.0-dev+4413a19","d":"","f":"","v":"v5","sig":"18/72/72","base":"e5c9ed59","env":"","g":0.5861949290780142,"r":32,"n":34,"ms":423,"gt":0,"pt":0,"w":null,"tools":0.7778,"code":0.7384,"cex":0,"lv":{"easy":[null,0],"hard":[null,0],"expert":[null,0]},"agent":0.5069},{"s":"minicpm-v-4_7-35b-a3b-q4_k_m","t":"off","e":"llama","b":"0.9.0-dev+b1c902f","d":"2026-11-05","f":"-c 262144","v":"v5","sig":"18/72/72","base":"ed3153c0","env":"RTX 5080 16GB × 2 · Linux · 60 GB RAM","g":0.8574948240165632,"r":3,"n":34,"ms":21,"gt":183.9,"pt":275.6,"w":467.3,"tools":1,"code":0.8,"cex":2,"lv":{"easy":[0.9,2],"hard":[0.8,0],"expert":[0.65,0]},"agent":0.8985507246376812},{"s":"minicpm-v-4_7-35b-a3b-q4_k_m","t":"on","e":"llama","b":"0.9.0-dev+b1c902f","d":"2026-11-06","f":"-c 262144","v":"v5","sig":"18/72/72","base":"ed3153c0","env":"RTX 5080 16GB × 2 · Linux · 60 GB RAM","g":0.8655621785881252,"r":2,"n":34,"ms":23,"gt":170.9,"pt":249.1,"w":1103.4,"tools":1,"code":0.8387096774193549,"cex":10,"lv":{"easy":[0.92,6],"hard":[0.78,2],"expert":[0.78,2]},"agent":0.9166666666666666},{"s":"muse-glimmer-30b-kquant-dynamic-q4_k_xl","t":"off","e":"llama","b":"0.4.0-dev","d":"","f":"","v":"v3","sig":"12/60/28","base":"e5c9ed59","env":"","g":0.5752049431818181,"r":33,"n":34,"ms":1408,"gt":0,"pt":0,"w":null,"tools":0.3333,"code":0.8056,"cex":0,"lv":{"easy":[null,0],"hard":[null,0],"expert":[null,0]},"agent":0.9286},{"s":"nvidia-nemotron-3_5-lightning-30b-a3b-iq4_xs","t":"off","e":"llama","b":"0.4.0-dev","d":"","f":"","v":"v3","sig":"12/60/28","base":"e5c9ed59","env":"","g":0.74873,"r":27,"n":34,"ms":13,"gt":0,"pt":0,"w":null,"tools":0.8333,"code":0.4383,"cex":6,"lv":{"easy":[null,0],"hard":[null,0],"expert":[null,0]},"agent":0.869},{"s":"ornith-1_5-35b-a3b-abliterated-mtpv2-ud-iq4_xs","t":"off","e":"llama","b":"0.6.0-dev+4413a19","d":"","f":"","v":"v3","sig":"12/60/28","base":"e5c9ed59","env":"","g":0.7607013793103448,"r":25,"n":34,"ms":29,"gt":0,"pt":0,"w":null,"tools":0.9167,"code":0.75,"cex":0,"lv":{"easy":[null,0],"hard":[null,0],"expert":[null,0]},"agent":0.7738},{"s":"ornith-1_5-35b-a3b-abliterated-mtpv2-ud-iq4_xs","t":"on","e":"llama","b":"unknown","d":"","f":"","v":"v3","sig":"8/60/24","base":"e5c9ed59","env":"","g":0.7852460766721044,"r":19,"n":34,"ms":613,"gt":0,"pt":0,"w":null,"tools":0.875,"code":0.9333,"cex":0,"lv":{"easy":[null,0],"hard":[null,0],"expert":[null,0]},"agent":0.9583},{"s":"ornith-1_5-35b-a3b-apex-mtp-quality","t":"off","e":"llama","b":"0.9.0-dev+b1c902f","d":"2026-11-05","f":"--spec-type draft-mtp -c 262144","v":"v5","sig":"18/72/72","base":"ed3153c0","env":"RTX 5080 16GB × 2 · Linux · 60 GB RAM","g":0.8237745098039215,"r":9,"n":34,"ms":26,"gt":152.4,"pt":255.3,"w":342.7,"tools":1,"code":0.7361111111111112,"cex":0,"lv":{"easy":[0.94,0],"hard":[0.7,0],"expert":[0.45,0]},"agent":0.9117647058823529},{"s":"ornith-1_5-35b-a3b-apex-mtp-quality","t":"on","e":"llama","b":"0.9.0-dev+b1c902f","d":"2026-11-06","f":"--spec-type draft-mtp -c 262144","v":"v5","sig":"18/72/72","base":"ed3153c0","env":"RTX 5080 16GB × 2 · Linux · 60 GB RAM","g":0.78962150736132,"r":18,"n":34,"ms":412,"gt":150.3,"pt":236.4,"w":2564.2,"tools":0.9444444444444444,"code":0.8732394366197183,"cex":1,"lv":{"easy":[0.94,0],"hard":[0.79,1],"expert":[0.85,0]},"agent":0.9583333333333334},{"s":"qwen3-coder-30b-a3b-instruct-ud-q4_k_xl","t":"off","e":"llama","b":"0.4.0-dev","d":"","f":"","v":"v3","sig":"12/60/28","base":"e5c9ed59","env":"","g":0.4510833333333333,"r":34,"n":34,"ms":18,"gt":0,"pt":0,"w":null,"tools":0.9167,"code":0.2258,"cex":29,"lv":{"easy":[null,0],"hard":[null,0],"expert":[null,0]},"agent":0.0},{"s":"qwen3-vl-8b-instruct-1m-q6_k","t":"off","e":"llama","b":"0.6.0-dev+4413a19","d":"","f":"","v":"v5","sig":"18/72/72","base":"e5c9ed59","env":"","g":0.6966777027027027,"r":31,"n":34,"ms":37,"gt":0,"pt":0,"w":null,"tools":1.0,"code":0.6065,"cex":0,"lv":{"easy":[null,0],"hard":[null,0],"expert":[null,0]},"agent":0.6481},{"s":"qwen3-vl-8b-instruct-1m-q6_k","t":"on","e":"llama","b":"unknown","d":"","f":"","v":"v3","sig":"8/60/24","base":"e5c9ed59","env":"","g":0.7914427027027027,"r":17,"n":34,"ms":37,"gt":0,"pt":0,"w":null,"tools":1.0,"code":0.7333,"cex":0,"lv":{"easy":[null,0],"hard":[null,0],"expert":[null,0]},"agent":0.875},{"s":"qwen36-35b-distill-mxfp4_moe","t":"off","e":"llama","b":"0.9.0-dev+b1c902f","d":"2026-11-05","f":"--spec-type draft-mtp -c 262144","v":"v5","sig":"18/72/72","base":"ed3153c0","env":"RTX 5080 16GB × 2 · Linux · 60 GB RAM","g":0.8665178571428571,"r":1,"n":34,"ms":16,"gt":243.5,"pt":244.0,"w":256.6,"tools":1,"code":0.7083333333333334,"cex":0,"lv":{"easy":[0.94,0],"hard":[0.6,0],"expert":[0.45,0]},"agent":0.9285714285714286},{"s":"qwen36-35b-distill-mxfp4_moe","t":"on","e":"llama","b":"0.9.0-dev+b1c902f","d":"2026-11-06","f":"--spec-type draft-mtp -c 262144","v":"v5","sig":"18/72/72","base":"ed3153c0","env":"RTX 5080 16GB × 2 · Linux · 60 GB RAM","g":0.7341355941283617,"r":29,"n":34,"ms":244,"gt":208.9,"pt":209.0,"w":738.6,"tools":0.9444444444444444,"code":0.7352941176470589,"cex":4,"lv":{"easy":[0.94,1],"hard":[0.71,3],"expert":[0.45,0]},"agent":0.8888888888888888},{"s":"qwen3_8-27b-coder390-efficientthink-q4lynnstyle-mtp","t":"off","e":"llama","b":"0.4.0-dev","d":"","f":"","v":"v3","sig":"12/60/28","base":"e5c9ed59","env":"","g":0.773256304347826,"r":22,"n":34,"ms":46,"gt":0,"pt":0,"w":null,"tools":0.9167,"code":0.7556,"cex":0,"lv":{"easy":[null,0],"hard":[null,0],"expert":[null,0]},"agent":0.9167},{"s":"qwen3_8-27b-coder390-efficientthink-q4lynnstyle-mtp","t":"on","e":"llama","b":"0.4.0-dev","d":"","f":"","v":"v3","sig":"8/60/24","base":"e5c9ed59","env":"","g":0.837863436123348,"r":4,"n":34,"ms":681,"gt":0,"pt":0,"w":null,"tools":1.0,"code":0.95,"cex":0,"lv":{"easy":[null,0],"hard":[null,0],"expert":[null,0]},"agent":1.0},{"s":"qwen3_8-27b-heretic-q4_k_m","t":"off","e":"llama","b":"0.9.0-dev+b1c902f","d":"2026-11-05","f":"-c 147456 --split-mode tensor","v":"v5","sig":"18/72/72","base":"ed3153c0","env":"RTX 5080 16GB × 2 · Linux · 60 GB RAM","g":0.8036064874093043,"r":13,"n":34,"ms":66,"gt":60.5,"pt":110.1,"w":1020.3,"tools":1,"code":0.8055555555555556,"cex":0,"lv":{"easy":[0.97,0],"hard":[0.75,0],"expert":[0.6,0]},"agent":0.9295774647887324},{"s":"qwen3_8-27b-heretic-q4_k_m","t":"on","e":"llama","b":"0.9.0-dev+b1c902f","d":"2026-11-06","f":"-c 147456 --split-mode tensor","v":"v5","sig":"18/72/72","base":"ed3153c0","env":"RTX 5080 16GB × 2 · Linux · 60 GB RAM","g":0.835268141444612,"r":5,"n":34,"ms":1053,"gt":69.3,"pt":68.8,"w":8529.3,"tools":1,"code":0.9692307692307692,"cex":7,"lv":{"easy":[1.0,1],"hard":[0.94,3],"expert":[0.94,3]},"agent":0.9705882352941176},{"s":"qwen3_8-27b-turbofcfusion-735-882-here-uncen-neo-coder-max-mtp-q4_k_s","t":"off","e":"llama","b":"0.6.0-dev+4413a19","d":"","f":"","v":"v5","sig":"18/72/72","base":"e5c9ed59","env":"","g":0.8064913043478261,"r":11,"n":34,"ms":46,"gt":0,"pt":0,"w":null,"tools":1.0,"code":0.787,"cex":0,"lv":{"easy":[null,0],"hard":[null,0],"expert":[null,0]},"agent":0.912},{"s":"qwen3_8-27b-turbofcfusion-735-882-here-uncen-neo-coder-max-mtp-q4_k_s","t":"on","e":"llama","b":"unknown","d":"","f":"","v":"v3","sig":"8/60/24","base":"e5c9ed59","env":"","g":0.8257323550087874,"r":8,"n":34,"ms":1707,"gt":0,"pt":0,"w":null,"tools":1.0,"code":0.9153,"cex":1,"lv":{"easy":[null,0],"hard":[null,0],"expert":[null,0]},"agent":1.0},{"s":"qwen3_8-27b-ud-q3_k_xl","t":"off","e":"llama","b":"0.9.0-dev+b1c902f","d":"2026-11-05","f":"--spec-type draft-mtp --mmproj ~/jordi/ia/llama/models/mmproj-F16.gguf -c 262144 --spec-draft-n-max 4","v":"v5","sig":"18/72/72","base":"ed3153c0","env":"RTX 5080 16GB × 2 · Linux · 60 GB RAM","g":0.8313405797101449,"r":7,"n":34,"ms":36,"gt":110.2,"pt":142.4,"w":612.4,"tools":1,"code":0.8055555555555556,"cex":0,"lv":{"easy":[0.97,0],"hard":[0.7,0],"expert":[0.65,0]},"agent":0.9420289855072463},{"s":"qwen3_8-27b-ud-q3_k_xl","t":"on","e":"llama","b":"0.9.0-dev+b1c902f","d":"2026-11-06","f":"--spec-type draft-mtp --mmproj ~/jordi/ia/llama/models/mmproj-F16.gguf -c 262144 --spec-draft-n-max 4","v":"v5","sig":"18/72/72","base":"ed3153c0","env":"RTX 5080 16GB × 2 · Linux · 60 GB RAM","g":0.8115382177715806,"r":10,"n":34,"ms":686,"gt":97.6,"pt":98.9,"w":8434.9,"tools":1,"code":0.8985507246376812,"cex":3,"lv":{"easy":[0.94,0],"hard":[0.83,2],"expert":[0.89,1]},"agent":0.9565217391304348},{"s":"qwen3_8-27b-ud-q4_k_m","t":"off","e":"llama","b":"0.4.0-dev","d":"","f":"","v":"v3","sig":"12/60/28","base":"e5c9ed59","env":"","g":0.7634657894736842,"r":24,"n":34,"ms":38,"gt":0,"pt":0,"w":null,"tools":0.9167,"code":0.6833,"cex":0,"lv":{"easy":[null,0],"hard":[null,0],"expert":[null,0]},"agent":0.9286},{"s":"qwen3_8-27b-ud-q4_k_xl","t":"off","e":"llama","b":"0.4.0-dev","d":"","f":"","v":"v3","sig":"12/60/28","base":"e5c9ed59","env":"","g":0.7527342857142857,"r":26,"n":34,"ms":35,"gt":0,"pt":0,"w":null,"tools":0.9167,"code":0.7222,"cex":0,"lv":{"easy":[null,0],"hard":[null,0],"expert":[null,0]},"agent":0.8214},{"s":"qwen3_8-27b-ud-q5_k_m","t":"off","e":"llama","b":"0.4.0-dev","d":"","f":"","v":"v3","sig":"12/60/28","base":"e5c9ed59","env":"","g":0.7748109756097561,"r":21,"n":34,"ms":41,"gt":0,"pt":0,"w":null,"tools":0.9167,"code":0.7833,"cex":0,"lv":{"easy":[null,0],"hard":[null,0],"expert":[null,0]},"agent":0.869},{"s":"qwen3_8-27b-ud-q5_k_m","t":"on","e":"llama","b":"unknown","d":"","f":"","v":"v3","sig":"8/60/24","base":"e5c9ed59","env":"","g":0.8317973308270676,"r":6,"n":34,"ms":665,"gt":0,"pt":0,"w":null,"tools":1.0,"code":0.9643,"cex":4,"lv":{"easy":[null,0],"hard":[null,0],"expert":[null,0]},"agent":0.9583},{"s":"strata-iq3_xxs","t":"off","e":"strata","b":"0.1.57","d":"2026-11-05","f":"qwen3.8-flash-next-iq3_xxs --pack ~/jordi/ia/llama/Strata-data/packs/iq3_xxs --native ~/jordi/ia/llama/Strata-data/models/IQ3_XXS/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS-00001-of-00002.gguf --ple-gguf ~/jordi/ia/llama/Strata-data/models/IQ3_XXS/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS-00002-of-00002.gguf --expert-profile ~/jordi/ia/llama/Strata/data/expert-profile.bin --expert-cache auto --vram-reserve-mib 1000 --prefill auto --spec 4 --mtp ~/jordi/ia/llama/Strata-data/mtp/rt --max-context 131072 --kv int8 --control-vector-scaled ~/jordi/ia/llama/Strata/data/experimental-speed-projection/Qwen3.8-Flash-Next-experimental-speed-projection.gguf:1.0 --control-vector-layer-range 4 44 --cvec-mode project --cvec-dir per-layer --pcie-frac 0.35 --spec-min-p 0.30 --adapt-every 1 --adapt-swaps 80 --adapt-decay 0.97","v":"v5","sig":"18/72/72","base":"ed3153c0","env":"RTX 5080 16GB × 2 · Linux · 60 GB RAM","g":0.7965277777777777,"r":16,"n":34,"ms":36,"gt":138.9,"pt":89.7,"w":687.8,"tools":0.8888888888888888,"code":0.8333333333333334,"cex":0,"lv":{"easy":[0.97,0],"hard":[0.9,0],"expert":[0.55,0]},"agent":0.9027777777777778},{"s":"strata-iq3_xxs","t":"on","e":"strata","b":"0.1.57","d":"2026-11-06","f":"qwen3.8-flash-next-iq3_xxs --pack ~/jordi/ia/llama/Strata-data/packs/iq3_xxs --native ~/jordi/ia/llama/Strata-data/models/IQ3_XXS/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS-00001-of-00002.gguf --ple-gguf ~/jordi/ia/llama/Strata-data/models/IQ3_XXS/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS-00002-of-00002.gguf --expert-profile ~/jordi/ia/llama/Strata/data/expert-profile.bin --expert-cache auto --vram-reserve-mib 1000 --prefill auto --spec 4 --mtp ~/jordi/ia/llama/Strata-data/mtp/rt --max-context 131072 --kv int8 --control-vector-scaled ~/jordi/ia/llama/Strata/data/experimental-speed-projection/Qwen3.8-Flash-Next-experimental-speed-projection.gguf:1.0 --control-vector-layer-range 4 44 --cvec-mode project --cvec-dir per-layer --pcie-frac 0.35 --spec-min-p 0.30 --adapt-every 1 --adapt-swaps 80 --adapt-decay 0.97","v":"v5","sig":"18/72/72","base":"ed3153c0","env":"RTX 5080 16GB × 2 · Linux · 60 GB RAM","g":0.7846380595789405,"r":20,"n":34,"ms":398,"gt":149.0,"pt":107.7,"w":3723.7,"tools":0.9444444444444444,"code":0.8676470588235294,"cex":4,"lv":{"easy":[0.94,0],"hard":[0.88,3],"expert":[0.74,1]},"agent":0.9444444444444444},{"s":"strata-iq3_xxs-q8ple","t":"off","e":"llama","b":"?","d":"","f":"","v":"v5","sig":"18/72/72","base":"e5c9ed59","env":"","g":0.8014183333333332,"r":14,"n":34,"ms":45,"gt":0,"pt":0,"w":null,"tools":0.9259,"code":0.8333,"cex":0,"lv":{"easy":[null,0],"hard":[null,0],"expert":[null,0]},"agent":0.9213}]</script>
+<script>
+(function () {
+  "use strict";
+  var POOL = JSON.parse(document.getElementById("cmp-data").textContent);
+  // Mirror of _COMPARE_SECTIONS in html_report.py — keep both in sync.
+  // [label, description, valueKey, exclKey, lowerIsBetter, fmt, verdictPhrase]
+  var SECTIONS = [
+    ["Global", [
+      ["Weighted global", "tools .30 · code .30 · agent .25 · speed .15", "g", null, false, "score2", "Higher weighted global."],
+      ["Pool rank", "position in the accumulated scoreboard; lower wins", "r", null, true, "rank", "Higher pool rank."],
+      ["Wall clock (total run)", "time to complete the whole benchmark in this mode (C8); lower wins", "w", null, true, "secs", "Less wall clock."]]],
+    ["Speed", [
+      ["Prompt + reply latency", "speed-task round trip; lower is better", "ms", null, true, "ms", "Faster prompt + reply latency."],
+      ["Generation throughput", "output tokens/s", "gt", null, false, "tps", "Faster generation."],
+      ["Prompt processing", "input tokens/s", "pt", null, false, "tps", "Faster prompt processing."]]],
+    ["Tools", [
+      ["Tool-calling score", "8 graded tasks: arguments, multi-call, error handling", "tools", null, false, "pct", "Better tool-calling."]]],
+    ["Code", [
+      ["Code overall", "all levels; (N excl.) = excluded with a recorded reason", "code", "cex", false, "pct", "Better code overall."],
+      ["Easy tier", "base tasks", "lv.easy", "lv.easy.x", false, "pct", "Better on easy code."],
+      ["Hard tier", "_hard tasks", "lv.hard", "lv.hard.x", false, "pct", "Better on hard code."],
+      ["Expert tier", "_expert tasks (multi-file)", "lv.expert", "lv.expert.x", false, "pct", "Better on expert code."]]],
+    ["Agent", [
+      ["Agent score", "turn + tool-call accounting over the agent tasks", "agent", null, false, "pct", "Better agent work."]]]
+  ];
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c];
+    });
+  }
+  function getv(p, k) {
+    if (k.slice(0, 3) === "lv.") {
+      var e = p.lv[k.slice(3)];
+      return (e && e[0] != null) ? e[0] : null;
+    }
+    var v = p[k];
+    if (k === "ms" || k === "gt" || k === "pt" || k === "r" || k === "w") return v ? v : null;
+    return (v == null) ? null : v;
+  }
+  function getx(p, k) {
+    if (!k) return 0;
+    if (k === "cex") return p.cex || 0;
+    var e = p.lv[k.slice(3, -2)]; // "lv.easy.x" -> "easy"
+    return (e && e[1]) || 0;
+  }
+  function fmt(kind, v, ex) {
+    var s;
+    if (kind === "score2") s = v.toFixed(2);
+    else if (kind === "rank") s = "#" + v;
+    else if (kind === "ms") s = v + " ms";
+    else if (kind === "secs") { var t = Math.round(v), m = Math.floor(t / 60);
+      s = m ? m + "m " + String(t % 60).padStart(2, "0") + "s" : t + "s"; }
+    else if (kind === "tps") s = Math.round(v) + " t/s";
+    else s = Math.round(v * 100) + "%";
+    return ex ? s + " <small>(" + ex + " excl.)</small>" : s;
+  }
+  function sign(d) {
+    var s = Math.abs(d) >= 10 ? d.toFixed(0) : d.toFixed(1);
+    return (d >= 0 ? "+" : "") + s + "%";
+  }
+  function card(p) {
+    var think = p.t === "—" ? "" : ' <span class="badge">think:' + esc(p.t) + "</span>";
+    var eng = ' <span class="badge' + (p.e === "strata" ? " strata" : "") + '">'
+      + esc(p.e) + " " + esc(p.b) + "</span>";
+    var rank = p.r ? "rank #" + p.r + " of " + p.n : "unranked (row not in pool)";
+    var env = p.env ? esc(p.env) : '<span class="miss">not recorded (pre-C5 row)</span>';
+    var flags = p.f ? esc(p.f) : "harness default flags";
+    return '<section class="card"><h2>' + esc(p.s) + think + eng + "</h2>"
+      + '<div class="kpi"><div class="v">' + p.g.toFixed(2)
+      + (p.gs == null ? "" : " <small>±" + Math.round(p.gs * 100) + "</small>") + "</div>"
+      + '<div class="l">global · ' + rank + " · measured " + esc(p.d)
+      + " · set " + esc(p.sig) + "</div></div>"
+      + '<div class="meta"><div class="l">model_config_flags</div><div class="mv">' + flags + "</div></div>"
+      + '<div class="meta"><div class="l">environment</div><div class="mv">' + env + "</div></div></section>";
+  }
+  function axisClauses(a, b) {
+    // Mirror of _cmp_axis_clauses in html_report.py — keep both in sync (§C9/C10).
+    var out = [];
+    if (a.sig !== b.sig) {
+      out.push("the task sets differ (" + esc(a.sig) + " vs " + esc(b.sig)
+        + " tasks), which the version label alone cannot tell apart");
+    }
+    if (a.e !== b.e || a.b !== b.b) {
+      out.push("the engine builds differ (" + esc(a.e) + " " + esc(a.b) + " vs "
+        + esc(b.e) + " " + esc(b.b) + ")");
+    }
+    if (a.base !== b.base) {
+      out.push("the baseline flags differ (" + esc(a.base) + " vs " + esc(b.base) + ")");
+    }
+    return out;
+  }
+  function mixedBanner(a, b) {
+    var clauses = axisClauses(a, b);
+    if (a.d === b.d && a.v === b.v && !clauses.length) return "";
+    var diff = "";
+    for (var i = 0; i < clauses.length; i++) {
+      diff += (i === 0 ? " — and " : ", and ") + clauses[i];
+    }
+    return '<div class="banner"><b>Mixed conditions.</b> These two rows were not measured under '
+      + "identical conditions (" + esc(a.d) + " · tasks " + esc(a.v) + " vs " + esc(b.d)
+      + " · tasks " + esc(b.v) + ")" + diff + ": the harness evolves, compare with care"
+      + " (docs/MILLORA.md §C7/C9/C10).</div>";
+  }
+  function sections(A, B) {
+    var out = "";
+    for (var s = 0; s < SECTIONS.length; s++) {
+      var metrics = SECTIONS[s][1], rows = "", wins = [0, 0], ds = [[], []];
+      for (var j = 0; j < metrics.length; j++) {
+        var m = metrics[j];
+        var va = getv(A, m[2]), vb = getv(B, m[2]);
+        var ca = "mval", cb = "mval", vcls = "", verdict;
+        if (va == null || vb == null) {
+          if (va == null) ca = "mval miss";
+          if (vb == null) cb = "mval miss";
+          verdict = '<span class="miss">—</span>';
+        } else if (va === vb) {
+          ca = cb = "mval tie";
+          verdict = '<span class="tie">tie</span>';
+        } else {
+          var aWins = m[4] ? va < vb : va > vb, w = aWins ? 0 : 1;
+          var wval = aWins ? va : vb, lval = aWins ? vb : va;
+          ca = aWins ? "mval good" : "mval bad";
+          cb = aWins ? "mval bad" : "mval good";
+          wins[w]++;
+          var dtxt = "";
+          if (lval !== 0) {
+            var d = (m[4] ? (lval - wval) : (wval - lval)) / lval * 100;
+            ds[w].push(d);
+            dtxt = " " + sign(d);
+          }
+          vcls = " good";
+          verdict = esc(m[6]) + dtxt;
+        }
+        rows += '<div class="mrow"><div class="mlabel"><b>' + esc(m[0]) + "</b><small>" + esc(m[1])
+          + '</small></div><div class="' + ca + '">' + (va == null ? "—" : fmt(m[5], va, getx(A, m[3])))
+          + '</div><div class="' + cb + '">' + (vb == null ? "—" : fmt(m[5], vb, getx(B, m[3])))
+          + '</div><div class="verdict' + vcls + '">' + verdict + "</div></div>";
+      }
+      var badge = "";
+      if (wins[0] !== wins[1]) {
+        var side = wins[0] > wins[1] ? 0 : 1;
+        if (ds[side].length) {
+          var mean = ds[side].reduce(function (acc, d) { return acc + d; }, 0) / ds[side].length;
+          var wp = side === 0 ? A : B;
+          badge = ' <span class="secbadge good" title="mean of the metric deltas won by '
+            + esc(wp.s) + " (think:" + esc(wp.t) + ') in this section">' + sign(mean) + "</span>";
+        }
+      }
+      out += "<section><h2>" + esc(SECTIONS[s][0]) + badge + "</h2>" + rows + "</section>";
+    }
+    return out;
+  }
+  var selA = document.getElementById("sel-a"),
+      selB = document.getElementById("sel-b");
+  function render() {
+    var A = POOL[selA.value], B = POOL[selB.value];
+    document.getElementById("cmp-body").innerHTML =
+      mixedBanner(A, B) + '<div class="cards">' + card(A) + card(B) + "</div>" + sections(A, B);
+  }
+  // NOTE: options are server-rendered into the selects (same POOL order as the
+  // JSON below), so the picker must NOT append them again — that doubled every
+  // entry in JS-enabled browsers.
+  function byLabel(lab) {
+    if (!lab) return -1;
+    var kv = lab.split(",");
+    for (var i = 0; i < POOL.length; i++)
+      if (POOL[i].s === kv[0] && POOL[i].t === kv[1]) return i;
+    return -1;
+  }
+  function sync() {
+    try {
+      history.replaceState(null, "",
+        "?a=" + encodeURIComponent(POOL[selA.value].s + "," + POOL[selA.value].t)
+        + "&b=" + encodeURIComponent(POOL[selB.value].s + "," + POOL[selB.value].t));
+    } catch (e) { /* file:// may refuse URL rewrites: the page still re-renders */ }
+  }
+  function changed() { render(); sync(); }
+  selA.addEventListener("change", changed);
+  selB.addEventListener("change", changed);
+  document.getElementById("swap").addEventListener("click", function () {
+    var t = selA.value;
+    selA.value = selB.value;
+    selB.value = t;
+    changed();
+  });
+  var params = new URLSearchParams(location.search);
+  var qa = byLabel(params.get("a")), qb = byLabel(params.get("b"));
+  if (qa >= 0 && qb >= 0 && qa !== qb) {
+    selA.value = String(qa);
+    selB.value = String(qb);
+    render();
+  }
+})();
+</script>
+</body>
+</html>
