@@ -89,20 +89,20 @@ class TestReport(unittest.TestCase):
         self.assertIn("100%", out)  # code
 
     def test_global_score_weighted(self):
-        r = mk("m", speed_ms=100, tools=1.0, code=1.0, agent=1.0)
-        # single model -> min_speed = its own -> speed_score = 1.0 -> global = 1.0
+        r = mk("m", gen_tps=100, tools=1.0, code=1.0, agent=1.0)
+        # single model -> max_tps = its own -> speed_score = 1.0 -> global = 1.0
         g = report._global_score(r, W, 100)
         self.assertAlmostEqual(g, 1.0)
 
     def test_global_score_missing_speed(self):
-        r = mk("m", speed_ms=None, tools=1.0, code=1.0, agent=1.0)
-        # without speed_ms -> speed_score = 0; the rest adds up to 0.85
+        r = mk("m", gen_tps=None, tools=1.0, code=1.0, agent=1.0)
+        # without a recorded throughput -> speed_score = 0; the rest adds up to 0.85
         g = report._global_score(r, W, 100)
         self.assertAlmostEqual(g, 0.85)
 
     def test_speed_normalization_fastest_is_best(self):
-        a = mk("a", speed_ms=100, tools=1.0, code=1.0, agent=1.0)  # fast
-        b = mk("b", speed_ms=200, tools=1.0, code=1.0, agent=1.0)  # slow
+        a = mk("a", gen_tps=100, tools=1.0, code=1.0, agent=1.0)  # 100 t/s
+        b = mk("b", gen_tps=50, tools=1.0, code=1.0, agent=1.0)   # 50 t/s
         report.save_result(a)
         report.save_result(b)
         ga = report._global_score(a, W, 100)
@@ -110,6 +110,15 @@ class TestReport(unittest.TestCase):
         self.assertAlmostEqual(ga, 1.0)     # the fastest -> speed_score 1.0
         self.assertAlmostEqual(gb, 0.925)   # speed_score 0.5
         self.assertGreater(ga, gb)
+
+    def test_unmeasured_throughput_never_wins_speed(self):
+        """A 1 ms reply with 0 t/s is a missing measurement, not the fastest model.
+        Normalizing latency used to hand it the full 0.15 of the weight (SPEC §5:
+        speed normalizes against the best tps)."""
+        blank = mk("blank", speed_ms=1, gen_tps=None, tools=1.0, code=1.0, agent=1.0)
+        real = mk("real", speed_ms=100, gen_tps=100, tools=1.0, code=1.0, agent=1.0)
+        self.assertGreater(report._global_score(real, W, 100),
+                           report._global_score(blank, W, 100))
 
     def test_render_sorted_by_global_desc(self):
         report.save_result(mk("slow", speed_ms=300, tools=0.2, code=0.2, agent=0.2))
@@ -400,9 +409,9 @@ class TestReport(unittest.TestCase):
         self.assertEqual(report._set_size("?/60/60"), -1)   # a dimension not measured
 
     def _pool_for_sorting(self):
-        a = mk("a", speed_ms=100, tools=0.5, code=1.0, agent=0.5)
-        b = mk("b", speed_ms=10, tools=1.0, code=0.5, agent=1.0)
-        c = mk("c", speed_ms=50, tools=0.9, code=0.9, agent=0.9)
+        a = mk("a", speed_ms=100, gen_tps=100, tools=0.5, code=1.0, agent=0.5)
+        b = mk("b", speed_ms=10, gen_tps=300, tools=1.0, code=0.5, agent=1.0)
+        c = mk("c", speed_ms=50, gen_tps=200, tools=0.9, code=0.9, agent=0.9)
         a["task_signature"], b["task_signature"], c["task_signature"] = "16/60/60", "12/60/28", "16/60/60"
         return [a, b, c]
 
@@ -416,12 +425,12 @@ class TestReport(unittest.TestCase):
         self.assertEqual(first("tools"), "b")     # tools 1.0
         self.assertEqual(first("code"), "a")      # code 1.0
         self.assertEqual(first("agent"), "b")     # agent 1.0
-        self.assertEqual(first("speed"), "b")     # 10 ms (lower is better)
-        self.assertEqual(first("global"), "b")    # 0.85
+        self.assertEqual(first("speed"), "b")     # 300 t/s (throughput, SPEC §5)
+        self.assertEqual(first("global"), "c")    # 0.87 (b 0.85, a 0.63)
 
     def test_sort_by_version_groups_the_sets(self):
         # 'version' is not a metric: the biggest set comes first and the global orders
-        # inside each group (a/c = 16/60/60 with global 0.59/0.795, b = 12/60/28 at 0.85).
+        # inside each group (a/c = 16/60/60 with global 0.63/0.87, b = 12/60/28 at 0.85).
         pool = self._pool_for_sorting()
         table1 = report.render(pool, W, sort="version").split("=== Tokens per second")[0]
         rows = [n for n in table1.splitlines() if n and n[0] in "abc" and " " in n[:4]]
@@ -649,7 +658,8 @@ class TestRunSpread(unittest.TestCase):
         # SET column (§C9 follow-up): label·task-set, right after THINK. The exact
         # alignment is pinned by test_mixed_pool_keeps_the_columns_aligned.
         self.assertIn("— x·2/3/2 ", row)
-        self.assertTrue(row.endswith("100ms    0.84 ±26"), row)
+        self.assertIn("10 t/s", row)          # the speed column is throughput
+        self.assertTrue(row.endswith("0.84 ±26"), row)
 
     def test_single_run_row_has_no_spread(self):
         # Today's pool: no section carries 'runs' -> run_spread is None and no cell changes.

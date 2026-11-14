@@ -156,7 +156,10 @@ def _order_rows(rows, sort):
     if sort == "agent":
         return sorted(rows, key=lambda r: (-(r["sc"]["agent"] or 0), -r["global"]))
     if sort == "speed":
-        return sorted(rows, key=lambda r: (r["sc"]["speed_ms"] or 1e9, -r["global"]))
+        # Throughput, not latency: the same metric the global scores (SPEC §5). A row
+        # with no recorded t/s sorts last instead of first (it used to, because its
+        # completion_ms was the lowest).
+        return sorted(rows, key=lambda r: (-(r["sc"]["gen_tps"] or 0), -r["global"]))
     if sort == "version":
         return sorted(rows, key=lambda r: (-r["set_size"], -r["global"]))
     return sorted(rows, key=lambda r: -r["global"])
@@ -230,8 +233,8 @@ def _spread_html(spread):
 
 def _rows(pool):
     """One row per model, sorted by global desc. Same math as the CLI."""
-    speed_values = [int((r.get("speed") or {}).get("speed_ms") or 0) for r in pool]
-    min_speed = min((v for v in speed_values if v > 0), default=0)
+    tps_values = [float((r.get("speed") or {}).get("gen_tps") or 0) for r in pool]
+    max_tps = max(tps_values, default=0)
     rows = []
     for r in pool:
         rows.append({
@@ -240,8 +243,8 @@ def _rows(pool):
             "retired": _is_retired(r.get("model")),
             "sc": R._scores(r),
             "receipts": R.receipts(r),  # context receipts: '?' when the row predates them
-            "global": R._global_score(r, config.WEIGHTS, min_speed),
-            "spread": R.run_spread(r, config.WEIGHTS, min_speed),
+            "global": R._global_score(r, config.WEIGHTS, max_tps),
+            "spread": R.run_spread(r, config.WEIGHTS, max_tps),
             "engine": r.get("engine", "llama"),
             "thinking": r.get("thinking") or "—",  # R4: legacy rows without key
             "code_excluded": int((r.get("code") or {}).get("excluded") or 0),  # R5
@@ -294,26 +297,37 @@ def _heat(v):
 
 def _picks(rows):
     """Category winners (from data, never hardcoded names): one card per each
-    (model, mode) that wins ≥1 category, with its use cases."""
+    (model, mode) that wins ≥1 category, with its use cases.
+
+    Every category carries a `valid` predicate and a winner is only crowned among
+    rows that clear it: a category nobody measured is dropped, never won by a zero.
+    That is what used to happen with 'Fastest' — it ranked completion_ms and a
+    13 ms reply with 0 t/s took the card, because a missing throughput is not a
+    latency."""
     cats = [
         ("global", "Best overall", "daily work in opencode (balance)",
-         lambda r: r["global"]),
+         lambda r: r["global"], lambda r: r["global"] > 0),
         ("code", "Best code", "hard/expert code tasks",
-         lambda r: r["sc"]["code"]),
+         lambda r: r["sc"]["code"], lambda r: r["sc"]["code"] > 0),
         ("agent", "Best agent", "autonomous multi-step work",
-         lambda r: r["sc"]["agent"]),
+         lambda r: r["sc"]["agent"], lambda r: r["sc"]["agent"] > 0),
         ("tools", "Best tools", "tool-calling and orchestration",
-         lambda r: r["sc"]["tools"]),
-        ("speed", "Fastest", "interactivity (lowest latency)",
-         lambda r: -(r["sc"]["speed_ms"] or 1e9)),
-        ("gen", "Highest throughput", "long generations",
-         lambda r: r["sc"]["gen_tps"]),
+         lambda r: r["sc"]["tools"], lambda r: r["sc"]["tools"] > 0),
+        # Throughput is the speed the global scores (SPEC §5): 'fastest' means most t/s.
+        ("speed", "Fastest", "interactivity and long generations",
+         lambda r: r["sc"]["gen_tps"], lambda r: r["sc"]["gen_tps"] > 0),
+        # Latency keeps its own card, but only among rows whose throughput was measured:
+        # a low ms with no t/s is an unmeasured model, not a responsive one.
+        ("latency", "Lowest latency", "short replies (measured throughput only)",
+         lambda r: -(r["sc"]["speed_ms"] or 1e9),
+         lambda r: r["sc"]["gen_tps"] > 0 and r["sc"]["speed_ms"] > 0),
         ("think", "Best thinking", "hard problems where thinking pays off the latency",
-         lambda r: r["sc"]["code"] if r["thinking"] == "on" else -1),
+         lambda r: r["sc"]["code"] if r["thinking"] == "on" else -1,
+         lambda r: r["thinking"] == "on" and r["sc"]["code"] > 0),
     ]
     cards, seen = [], {}
-    for key, label, use, metric in cats:
-        cand = [r for r in rows if metric(r) > 0] or rows
+    for key, label, use, metric, valid in cats:
+        cand = [r for r in rows if valid(r)]
         if not cand:
             continue
         best = max(cand, key=metric)
@@ -324,6 +338,14 @@ def _picks(rows):
             seen[ident] = len(cards)
             cards.append((best, [(label, use)]))
     return cards
+
+
+def _ms_tps(sc):
+    """'74 ms · 54 t/s' for a card, '—' for a measurement that was never recorded:
+    printing '0 t/s' reads as a result instead of a gap."""
+    ms = f'{sc["speed_ms"]} ms' if sc["speed_ms"] else "—"
+    tps = f'{sc["gen_tps"]:.0f} t/s' if sc["gen_tps"] else "—"
+    return f"{ms} · {tps}"
 
 
 def _rec_section(rows):
@@ -344,7 +366,7 @@ def _rec_section(rows):
             f'<div class="kpi"><div class="v">{r["sc"]["code"]:.0%} · {r["sc"]["agent"]:.0%} · '
             f'{r["sc"]["tools"]:.0%}</div><div class="l">code · agent · tools'
             f' (excluded code: {r["code_excluded"]})</div></div>'
-            f'<div class="kpi"><div class="v">{r["sc"]["speed_ms"]} ms · {r["sc"]["gen_tps"]:.0f} t/s</div>'
+            f'<div class="kpi"><div class="v">{_ms_tps(r["sc"])}</div>'
             f'<div class="l">latency · throughput</div></div>'
             f"<ul>{why}</ul></section>")
     out.append("  </div>\n</section>")
@@ -354,11 +376,17 @@ def _rec_section(rows):
 def _kpis(rows):
     """The headline strip (Best overall / Fastest (gen) / Lowest latency / Newest model),
     computed from `rows` only — the board passes its live rows, so a deleted model cannot
-    headline the board (report_polish R5)."""
+    headline the board (report_polish R5).
+
+    Latency only considers rows whose throughput was measured: a 13 ms reply with 0 t/s
+    is a missing measurement, not the most responsive model on the rig."""
     dates = sorted({r["ts"] for r in rows if r["ts"]})
+    tps = [r["sc"]["gen_tps"] for r in rows if r["sc"]["gen_tps"]]
+    lat = [r["sc"]["speed_ms"] for r in rows
+           if r["sc"]["gen_tps"] and r["sc"]["speed_ms"]]
     kpis = [("Best overall", f"{rows[0]['global']:.2f}" if rows else "—"),
-            ("Fastest (gen)", f"{max((r['sc']['gen_tps'] for r in rows), default=0):.0f} t/s"),
-            ("Lowest latency", f"{min((r['sc']['speed_ms'] for r in rows if r['sc']['speed_ms']), default=0)} ms"),
+            ("Fastest (gen)", f"{max(tps):.0f} t/s" if tps else "—"),
+            ("Lowest latency", f"{min(lat)} ms" if lat else "—"),
             ("Newest model", _esc(dates[-1]) if dates else "—")]
     return ('<div class="kpis">'
             + ''.join(f'<div class="kpi"><div class="v">{v}</div><div class="l">{_esc(l)}</div></div>'
@@ -427,7 +455,7 @@ def _sections(rows, sort, *, board, optimal):
         # the static order uses. Values, not text, so the JS never parses the display.
         data = (f' data-g="{r["global"]:.4f}" data-tools="{r["sc"]["tools"] or 0:.4f}"'
                 f' data-code="{r["sc"]["code"] or 0:.4f}" data-agent="{r["sc"]["agent"] or 0:.4f}"'
-                f' data-speed="{r["sc"]["speed_ms"] or 0}" data-setsize="{r["set_size"]}"'
+                f' data-gt="{r["sc"]["gen_tps"] or 0}" data-setsize="{r["set_size"]}"'
                 f' data-set="{_esc(r["set"])}"')
         ranking.append(
             f'<div class="trow{" retired" if r["retired"] else ""}"{data}>'
@@ -451,6 +479,15 @@ def _sections(rows, sort, *, board, optimal):
                    '<span class="miss" id="sorted">'
                    + _esc("static order: " + sort + " — the control reorders in place, no network")
                    + '</span></div>')
+
+    # Latency ranks only rows whose throughput was measured: completion_ms is a reply of
+    # varying length, so a short reply with no t/s used to top this list and read as the
+    # fastest model. 0 t/s is a gap, not a result.
+    measured = [r for r in rows if r["sc"]["gen_tps"]]
+    unmeasured = len(rows) - len(measured)
+    lat_note = (f'<p class="miss">{unmeasured} row(s) without a recorded throughput are '
+                f'not ranked here: 0 t/s is a missing measurement, not a fast model.</p>'
+                if unmeasured else "")
 
     matrix_rows = []
     for r in rows:
@@ -529,14 +566,14 @@ def _sections(rows, sort, *, board, optimal):
 <section><h2>Code ({_n_tasks(rows, "code")} tasks · 4 languages)</h2>{_dim_bars(rows, "code", lambda v: f"{v:.0%}")}</section>
 <section><h2>Multi-step agent ({_n_tasks(rows, "agent")} tasks)</h2>{_dim_bars(rows, "agent", lambda v: f"{v:.0%}")}</section>
 <section><h2>Tool-calling ({_n_tasks(rows, "tools")} tasks)</h2>{_dim_bars(rows, "tools", lambda v: f"{v:.0%}")}</section>
-<section><h2>Speed (generation ms · lower is better)</h2>{_dim_bars(rows, "speed_ms", lambda v: f"{v} ms")}</section>
+<section><h2>Latency (generation ms · lower is better)</h2>{lat_note}{_dim_bars(measured, "speed_ms", lambda v: f"{v} ms")}</section>
 </div>
 
 <section>
   <h2>Tokens per second</h2>
   <div class="grid2">
-    <div><h2>gen (output)</h2>{_dim_bars(rows, "gen_tps", lambda v: f"{v:.0f} t/s")}</div>
-    <div><h2>prompt (input)</h2>{_dim_bars(rows, "prompt_tps", lambda v: f"{v:.0f} t/s")}</div>
+    <div><h2>gen (output)</h2>{_dim_bars(rows, "gen_tps", lambda v: f"{v:.0f} t/s" if v else "—")}</div>
+    <div><h2>prompt (input)</h2>{_dim_bars(rows, "prompt_tps", lambda v: f"{v:.0f} t/s" if v else "—")}</div>
   </div>
 </section>
 
@@ -901,24 +938,24 @@ def _fmt_env(env):
 
 
 def _ranked(pool):
-    """(min_speed, {report._key_of(row): rank}, ordered_rows) with the scoreboard's
+    """(max_tps, {report._key_of(row): rank}, ordered_rows) with the scoreboard's
     math: rows sorted by global desc — rank #1 is the same top model the report
     page shows. The pool is read-only: ranks are derived, never stored."""
-    speed_values = [int((r.get("speed") or {}).get("speed_ms") or 0) for r in pool]
-    min_speed = min((v for v in speed_values if v > 0), default=0)
-    ordered = sorted(pool, key=lambda r: R._global_score(r, config.WEIGHTS, min_speed),
+    tps_values = [float((r.get("speed") or {}).get("gen_tps") or 0) for r in pool]
+    max_tps = max(tps_values, default=0)
+    ordered = sorted(pool, key=lambda r: R._global_score(r, config.WEIGHTS, max_tps),
                      reverse=True)
-    return min_speed, {R._key_of(r): i + 1 for i, r in enumerate(ordered)}, ordered
+    return max_tps, {R._key_of(r): i + 1 for i, r in enumerate(ordered)}, ordered
 
 
-def _pack(r, rank, total, min_speed):
+def _pack(r, rank, total, max_tps):
     """Compact compare row, shared by the static render and the picker JSON
     embedded in the page (short keys: the whole pool rides inline)."""
     sc = R._scores(r)
     code = r.get("code") or {}
     bl = code.get("by_level") or {}
     lex = _level_excluded(r)
-    gspread = (R.run_spread(r, config.WEIGHTS, min_speed) or {}).get("global")
+    gspread = (R.run_spread(r, config.WEIGHTS, max_tps) or {}).get("global")
     pack = {
         "s": _display_slug(config.slug(r["model"])),
         "t": r.get("thinking") or "—",
@@ -930,7 +967,7 @@ def _pack(r, rank, total, min_speed):
         "sig": R.task_signature(r),
         "base": R.baseline_id(r),   # §C10: the picker's banner compares it like `sig`
         "env": _sanitize_env(r.get("environment")) or "",
-        "g": R._global_score(r, config.WEIGHTS, min_speed),
+        "g": R._global_score(r, config.WEIGHTS, max_tps),
         "r": rank,
         "n": total,
         "ms": int(sc["speed_ms"] or 0),
@@ -1154,8 +1191,10 @@ _SORT_JS = """
     var g = num(el, "g");
     g = (g === null ? -1 : g);
     if (k === "speed") {
-      var s = num(el, "speed");
-      return [s === null || s === 0 ? Infinity : s, -g];
+      // Throughput (t/s), the metric the global scores: a row with no recorded
+      // throughput goes last, never first.
+      var s = num(el, "gt");
+      return [s === null || s === 0 ? Infinity : -s, -g];
     }
     if (k === "version") {
       var n = num(el, "setsize");
@@ -1440,9 +1479,9 @@ def render_compare(row_a, row_b, pool=None):
     if pool is None:
         pool = R.load_pool()
     now = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
-    min_speed, ranks, _ordered = _ranked(pool)
-    pa = _pack(row_a, ranks.get(R._key_of(row_a)), len(pool), min_speed)
-    pb = _pack(row_b, ranks.get(R._key_of(row_b)), len(pool), min_speed)
+    max_tps, ranks, _ordered = _ranked(pool)
+    pa = _pack(row_a, ranks.get(R._key_of(row_a)), len(pool), max_tps)
+    pb = _pack(row_b, ranks.get(R._key_of(row_b)), len(pool), max_tps)
     # Picker list: non-retired rows only (retired models stay out of the way,
     # but an explicitly compared retired pair still renders via _find_or_append
     # below), deduped by (slug, think) so stale key variants never double up,
@@ -1452,7 +1491,7 @@ def render_compare(row_a, row_b, pool=None):
     for r in pool:
         if _is_retired(r.get("model")):
             continue
-        p = _pack(r, ranks.get(R._key_of(r)), len(pool), min_speed)
+        p = _pack(r, ranks.get(R._key_of(r)), len(pool), max_tps)
         if (p["s"], p["t"]) not in _seen:
             _seen.add((p["s"], p["t"]))
             packs.append(p)

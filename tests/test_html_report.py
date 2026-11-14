@@ -331,7 +331,7 @@ class TestTaskSetDisplay(unittest.TestCase):
         a, b = self._rows()
         row = [l for l in html_report.render([a, b]).splitlines()
                if 'data-set="v3·16/60/60"' in l][0]
-        for attr in ('data-g=', 'data-tools=', 'data-code=', 'data-agent=', 'data-speed=',
+        for attr in ('data-g=', 'data-tools=', 'data-code=', 'data-agent=', 'data-gt=',
                      'data-setsize="136"', 'data-set="v3·16/60/60"'):
             self.assertIn(attr, row)
 
@@ -423,7 +423,7 @@ class TestCompare(unittest.TestCase):
         self.assertIn('<div class="mval bad">100 ms</div>', html)
         self.assertIn('<div class="verdict good">Faster prompt + reply latency. +20%</div>', html)
         self.assertIn('<div class="verdict good">Faster generation. +25%</div>', html)
-        self.assertIn('<div class="verdict good">Higher weighted global. +14%</div>', html)
+        self.assertIn('<div class="verdict good">Higher weighted global. +24%</div>', html)
         self.assertIn('<div class="verdict good">Higher pool rank. +50%</div>', html)
 
     def test_wall_clock_metric(self):
@@ -478,7 +478,7 @@ class TestCompare(unittest.TestCase):
         self.assertIn("<h2>Agent</h2>", static)
         # Global and Code are won outright: badge = mean of the won deltas
         self.assertIn('<h2>Global <span class="secbadge good"', static)
-        self.assertIn("+32%</span></h2>", static)    # mean(+14%, +50%)
+        self.assertIn("+37%</span></h2>", static)    # mean(+24%, +50%)
         self.assertIn('<h2>Code <span class="secbadge good"', static)
         self.assertIn("+80%</span></h2>", static)
 
@@ -941,10 +941,10 @@ class TestReportTabs(unittest.TestCase):
         gone["speed"].update(gen_tps=999.0, speed_ms=1)
         html = self._render([live, gone])
         board_kpis = html.split('<div class="kpis">', 1)[1].split("<section", 1)[0]
-        # The speed score normalises against the pool's fastest row (the gone 1 ms
-        # pulls live's global down to 0.62); the strip must still read the live row
-        # (0.62 / 200 t/s / 40 ms), never the retired one (0.80 / 999 t/s / 1 ms).
-        self.assertIn("0.62", board_kpis)
+        # The speed score normalises against the pool's fastest throughput (the gone
+        # 999 t/s pulls live's global down to 0.65); the strip must still read the live
+        # row (0.65 / 200 t/s / 40 ms), never the retired one (999 t/s / 1 ms).
+        self.assertIn("0.65", board_kpis)
         self.assertIn("200 t/s", board_kpis)
         self.assertIn("40 ms", board_kpis)
         self.assertNotIn("999", board_kpis)
@@ -1015,7 +1015,7 @@ class TestReportOrdering(unittest.TestCase):
         code = self._region(html, "Code (")
         self.assertLess(code.index("aaa"), code.index("bbb"))
         self.assertLess(code.index("bbb"), code.index("ccc"))
-        speed = self._region(html, "Speed (generation ms")
+        speed = self._region(html, "Latency (generation ms")
         self.assertLess(speed.index("aaa"), speed.index("bbb"))   # 10 < 100 < 1000 ms
         self.assertLess(speed.index("bbb"), speed.index("ccc"))
         gen = self._region(html, "gen (output)", "<h2>prompt")
@@ -1031,7 +1031,7 @@ class TestReportOrdering(unittest.TestCase):
         retired = html.split('<div class="pane-retired">', 1)[1]
         code = self._region(retired, "Code (")
         self.assertLess(code.index("gonea"), code.index("goneb"))
-        speed = self._region(retired, "Speed (generation ms")
+        speed = self._region(retired, "Latency (generation ms")
         self.assertLess(speed.index("gonea"), speed.index("goneb"))
         gen = self._region(retired, "gen (output)", "<h2>prompt")
         self.assertLess(gen.index("gonea"), gen.index("goneb"))
@@ -1041,10 +1041,15 @@ class TestReportOrdering(unittest.TestCase):
         blank = _mk(name="models/blank.gguf")
         blank["speed"].update(gen_tps=0.0, speed_ms=0)
         html = html_report.render([full, blank])
-        speed = self._region(html, "Speed (generation ms")
-        self.assertLess(speed.index("full"), speed.index("blank"))
+        # The latency pane ranks only measured rows: a 0 t/s row is a gap, not the
+        # fastest model, and the note says how many rows were left out.
+        speed = self._region(html, "Latency (generation ms")
+        self.assertIn("full", speed)
+        self.assertNotIn("blank", speed)
+        self.assertIn("1 row(s) without a recorded throughput", speed)
         gen = self._region(html, "gen (output)", "<h2>prompt")
         self.assertLess(gen.index("full"), gen.index("blank"))
+        self.assertIn("—", gen)   # 0 t/s renders as a gap, never as a result
 
 
 class TestComparePicker(unittest.TestCase):

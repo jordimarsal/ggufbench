@@ -126,22 +126,27 @@ def _set_size(sig):
     return sum(parts) if all(p > 0 for p in parts) else -1
 
 
-def sort_key(sort, weights, min_speed):
+def sort_key(sort, weights, max_tps):
     """Key function for the scoreboard (ascending, so the best/informative comes first).
-    Unknown keys fall back to 'global' — the caller validates, this never raises."""
+    Unknown keys fall back to 'global' — the caller validates, this never raises.
+
+    'speed' orders by throughput (t/s), the metric SPEC §5 normalizes against, not by
+    latency: completion_ms is measured on a reply whose length varies per model, so a
+    short reply with no recorded throughput used to sort first and read as 'fastest'.
+    A row with no throughput (0) lands last, never first."""
     def key(r):
         sc = _scores(r)
         if sort == "version":
-            return (-_set_size(task_signature(r)), -_global_score(r, weights, min_speed))
+            return (-_set_size(task_signature(r)), -_global_score(r, weights, max_tps))
         if sort == "tools":
-            return (-(sc["tools"] or 0), -_global_score(r, weights, min_speed))
+            return (-(sc["tools"] or 0), -_global_score(r, weights, max_tps))
         if sort == "code":
-            return (-(sc["code"] or 0), -_global_score(r, weights, min_speed))
+            return (-(sc["code"] or 0), -_global_score(r, weights, max_tps))
         if sort == "agent":
-            return (-(sc["agent"] or 0), -_global_score(r, weights, min_speed))
+            return (-(sc["agent"] or 0), -_global_score(r, weights, max_tps))
         if sort == "speed":
-            return (sc["speed_ms"] or 1e9, -_global_score(r, weights, min_speed))
-        return (-_global_score(r, weights, min_speed), 0)
+            return (-(sc["gen_tps"] or 0), -_global_score(r, weights, max_tps))
+        return (-_global_score(r, weights, max_tps), 0)
     return key
 
 
@@ -287,18 +292,24 @@ def receipts(r: dict[str, Any]) -> dict[str, float | None]:
 
 
 def _global_score(r: dict[str, Any], weights: dict[str, float],
-                  min_speed: float) -> float:
-    """Weighted sum 0..1. Normalized speed: the fastest model (fewest ms) -> 1.0."""
+                  max_tps: float) -> float:
+    """Weighted sum 0..1. Speed normalized against the best tps in the pool, as SPEC §5
+    states: the fastest model (most t/s) -> 1.0."""
     sc = _scores(r)
     return _weighted_global(_score_parts(sc["tools"], sc["code"], sc["agent"],
-                                         sc["speed_ms"], min_speed), weights)
+                                         sc["gen_tps"], max_tps), weights)
 
 
-def _score_parts(tools, code, agent, speed_ms, min_speed) -> dict[str, float]:
+def _score_parts(tools, code, agent, gen_tps, max_tps) -> dict[str, float]:
     """The four weighted inputs of a global. Speed is measured once per row, so a
-    per-run index reuses the row's own normalized speed (same min_speed)."""
+    per-run index reuses the row's own normalized speed (same max_tps).
+
+    A row whose throughput was never recorded scores 0 for speed — never 1.0 by
+    accident. It used to normalize latency (min_speed / speed_ms), which crowned a
+    13 ms reply with 0 t/s as the fastest model in the pool and handed it the full
+    0.15 of the weight."""
     return {"tools": tools, "code": code, "agent": agent,
-            "speed": (min_speed / speed_ms) if (speed_ms and min_speed) else 0}
+            "speed": (gen_tps / max_tps) if (gen_tps and max_tps) else 0}
 
 
 def _weighted_global(parts: dict[str, float], weights: dict[str, float]) -> float:
@@ -337,13 +348,13 @@ def _run_scores(r):
     return out or None
 
 
-def run_spread(r, weights: dict[str, float], min_speed: float):
+def run_spread(r, weights: dict[str, float], max_tps: float):
     """Run-to-run spread (sample stddev) per dimension and for the weighted global —
     the ± of a mean ± spread cell (SPEC: aggregating repeated runs).
 
     None for single-run rows, which is every row of today's pool: they render exactly
     as before. A dimension needs at least two comparable run indexes to get its own
-    spread; the global uses the per-index globals (same weights, same min_speed) and
+    spread; the global uses the per-index globals (same weights, same max_tps) and
     skips an index that is incomplete (a run with every task excluded)."""
     runs = _run_scores(r)
     if not runs:
@@ -355,7 +366,7 @@ def run_spread(r, weights: dict[str, float], min_speed: float):
             out[dim] = statistics.stdev(vals)
 
     sc = _scores(r)
-    base = _score_parts(sc["tools"], sc["code"], sc["agent"], sc["speed_ms"], min_speed)
+    base = _score_parts(sc["tools"], sc["code"], sc["agent"], sc["gen_tps"], max_tps)
     n = max((len(v) for v in runs.values()), default=0)
     globals_ = []
     for i in range(n):
@@ -461,15 +472,17 @@ def _render_global_rows(pool, weights, title, sort="global"):
     next to the mean: '83% ±29' and '0.84 ±26' (see run_spread). Single-run rows —
     every row of a pool measured without --runs — render exactly as before."""
     # Coerce None -> 0 so a model without speed (partial run) does not break the render.
-    speed_values = [int((r.get("speed") or {}).get("speed_ms") or 0) for r in pool]
-    min_speed = min((v for v in speed_values if v > 0), default=0)
-    key = sort_key(sort if sort in SORTS else "global", weights, min_speed)
+    # The pool maximum is throughput (t/s), the metric SPEC §5 normalizes against: a row
+    # with no recorded t/s contributes 0, it is not treated as infinitely fast.
+    tps_values = [float((r.get("speed") or {}).get("gen_tps") or 0) for r in pool]
+    max_tps = max(tps_values, default=0)
+    key = sort_key(sort if sort in SORTS else "global", weights, max_tps)
     rows = []
     for r in pool:
         sc = _scores(r)
         excl = int((r.get("code") or {}).get("excluded") or 0)
-        spread = run_spread(r, weights, min_speed) or {}
-        g = _global_score(r, weights, min_speed)
+        spread = run_spread(r, weights, max_tps) or {}
+        g = _global_score(r, weights, max_tps)
         # Base text exactly as before; the ± only rides on multi-run rows, and the
         # columns widen by the width of the ± so a mixed pool stays aligned.
         suffixes = {k: _spread_suffix(spread.get(k)) for k in _CELLS}
@@ -496,7 +509,10 @@ def _render_global_rows(pool, weights, title, sort="global"):
     out = [f"=== {title} ===", header, "-" * len(header)]
     for row in rows:
         sc = row["sc"]
-        sp = f"{sc['speed_ms']}ms" if sc["speed_ms"] else "—"
+        # The speed column is the metric the global scores (throughput, SPEC §5). A row
+        # with no recorded t/s prints '—' and lands last: 0 t/s is a missing measurement,
+        # not a fast model.
+        sp = f"{sc['gen_tps']:.0f} t/s" if sc["gen_tps"] else "—"
         think = f"{row['mode']:>4} ★" if optimal.get(row["name"]) == row["mode"] else f"{row['mode']:>5}"
         out.append(f"{row['name']:{nw}} {think:>5} {row['set']:{sw}} "
                    f"{row['cells']['tools']:>{widths['tools']}} "
