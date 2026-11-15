@@ -589,14 +589,14 @@ def _render_global_rows(pool, weights, title, sort="global"):
     # Refusal screening (probe-refusal.py): informational, never scored. '—' = never
     # probed (a gap is not a clean bill); '~' = the probe predates the row.
     ordered = sorted(pool, key=key)
-    cells = [refusal_cell(config.slug(r["model"]), str(r.get("ts") or "")) for r in ordered]
-    if any(c != "—" for c in cells):
+    refusals = [refusal_cell(config.slug(r["model"]), str(r.get("ts") or "")) for r in ordered]
+    if any(c != "—" for c in refusals):
         out.append("")
         out.append("=== Refusal screening (never scored) ===")
         rheader = f"{'MODEL':{nw}} {'benign · stress':>26}"
         out.append(rheader)
         out.append("-" * len(rheader))
-        for r, c in zip(ordered, cells):
+        for r, c in zip(ordered, refusals):
             out.append(f"{config.slug(r['model']):{nw}} {c:>26}")
     return out
 
