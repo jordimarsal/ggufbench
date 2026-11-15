@@ -199,9 +199,9 @@
     {
       "id": 14,
       "name": "refusal_badge",
-      "status": "in_progress",
+      "status": "done",
       "title": "Badge de rebuig al marcador (CLI+HTML): screening, mai pes del global",
-      "description": "Cel·la per fila amb refusal_rate benigne + stress compliance quan la sonda hi és (results/refusal/<slug>.json, --save a la sonda); absent = '—' (mai 0%), antic = '~'; el global NO canvia (pin R4). Motiu: la primera pasada d'estrès (2026-11-14) va demostrar que l'eix diferencia (UD-Q3 1/33 vs 4 builds 33/33) i que el 'censurat' d'Strata corre amb un vector refusal-direction per defecte. Spec: harness/specs/refusal_badge/ (R1-R7, T1-T3)."
+      "description": "Cel·la per fila amb refusal_rate benigne + stress compliance quan la sonda hi és (results/refusal/<slug>.json, --save a la sonda); absent = '—' (mai 0%), antic = '~'; el global NO canvia (pin R4). Motiu: la primera pasada d'estrès (2026-11-14) va demostrar que l'eix diferencia (UD-Q3 1/33 vs 4 builds 33/33) i que el 'censurat' d'Strata corre amb un vector refusal-direction per defecte. Spec: harness/specs/refusal_badge/ (R1-R7, T1-T3). ✅ Completion gate aprovat 2026-11-15 (commits ad8c688 T1, 2ea5c78 T2-T3, 94a15e8 mypy)."
     }
   ]
 }
