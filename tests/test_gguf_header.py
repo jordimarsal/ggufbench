@@ -37,7 +37,22 @@ def build_gguf(kv: list[tuple[str, int, object]], tensors: list[str]) -> bytes:
             out += struct.pack("<I", int(val))
         elif vtype == VUINT64:
             out += struct.pack("<Q", int(val))
-        else:  # pragma: no cover — the tests only use these three
+        elif vtype == 6:  # float32
+            out += struct.pack("<f", float(val))
+        elif vtype == 9:  # array: (elem_type, list_of_elems)
+            et, elems = val
+            out += struct.pack("<I", et)
+            out += struct.pack("<Q", len(elems))
+            for el in elems:
+                if et == VSTRING:
+                    _wstr(out, str(el))
+                elif et == 4:
+                    out += struct.pack("<I", int(el))
+                elif et == 6:
+                    out += struct.pack("<f", float(el))
+                else:  # pragma: no cover
+                    raise AssertionError(f"array elem type {et} not supported")
+        else:  # pragma: no cover — the tests only use these
             raise AssertionError(f"fixture does not support vtype {vtype}")
     for name in tensors:
         _wstr(out, name)
@@ -91,6 +106,24 @@ class TestReadHeader(unittest.TestCase):
              ("general.size_label", VSTRING, "35B-A3B")],
             tensors=["output.weight"]))
         self.assertEqual(gguf_header.read_header(p)["size_label"], "35B-A3B")
+
+    def test_real_world_kv_shapes_parse_through(self) -> None:
+        """Regression from the first real file (unsloth Llama-3.2-1B, 2026-11-15):
+        the kv set carries float32 scalars (rope.freq_base = 500000.0) and the big
+        tokenizer arrays. skip_payload must read the VALUE payload only — the loop
+        already consumed the type — or the stream desynchronizes and a float's bytes
+        come back as a bogus value type."""
+        tokens = ["t%d" % i for i in range(200)]
+        p = self._write(build_gguf(
+            [("general.architecture", VSTRING, "llama"),
+             ("llama.rope.freq_base", 6, 500000.0),          # float32
+             ("llama.attention.key_length", 6, 64.0),         # float32
+             ("tokenizer.ggml.tokens", 9, (VSTRING, tokens)),
+             ("tokenizer.ggml.token_type", 9, (4, [1] * 200))],
+            tensors=["output.weight", "blk.0.nextn.ffn_norm.weight"]))
+        facts = gguf_header.read_header(p)
+        self.assertEqual(facts["arch"], "llama")
+        self.assertEqual(facts["mtp_tensors"], 1)
 
     def test_missing_optionals_are_none(self) -> None:
         p = self._write(build_gguf([], tensors=[]))

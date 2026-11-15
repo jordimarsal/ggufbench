@@ -44,19 +44,23 @@ def read_header(path: Path) -> dict:
             raise ValueError(f"{p.name}: GGUF version {version} not supported")
         tensor_count, kv_count = struct.unpack("<QQ", take(16))
 
-        def skip_value() -> None:
-            (vt,) = struct.unpack("<I", take(4))
+        def skip_payload(vt: int) -> None:
+            """Skip the VALUE payload of a metadata kv — the type is already read by
+            the caller (reading it twice desynchronizes the stream: a float32 like
+            rope.freq_base = 500000.0 then parses as a bogus value type)."""
             if vt == _VSTRING:
                 rstr()
             elif vt == _VARRAY:
                 (et,) = struct.unpack("<I", take(4))
                 (n,) = struct.unpack("<Q", take(8))
                 for _ in range(n):
-                    skip_value()
+                    skip_payload(et)
             elif vt in _VSCALAR:
                 take(_VSCALAR[vt][1])
             else:
-                raise ValueError(f"{p.name}: unsupported GGUF metadata type {vt}")
+                raise ValueError(
+                    f"{p.name}: unsupported GGUF metadata type {vt} (hex {vt:#x}) "
+                    f"at byte {fh.tell()}")
 
         kv: dict[str, object] = {}
         for _ in range(kv_count):
@@ -67,7 +71,7 @@ def read_header(path: Path) -> dict:
             elif vt == _VUINT32:
                 kv[key] = struct.unpack("<I", take(4))[0]
             else:
-                skip_value()
+                skip_payload(vt)
 
         mtp = 0
         for _ in range(tensor_count):
