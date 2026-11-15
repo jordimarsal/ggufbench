@@ -463,6 +463,23 @@ def _sections(rows, sort, *, board, optimal):
             think += ' <span class="badge strata">★ optimal</span>'
         if r["retired"]:
             think += ' <span class="badge">retired</span>'
+        # Refusal screening (feature 14): a probe result is a badge, never a score.
+        ref = R.refusal_data().get(r["slug"])
+        if ref and not r["retired"]:
+            t = (ref.get("summary") or {}).get("total") or {}
+            rate = t.get("refusal_rate")
+            if rate is not None:
+                sc, sn = t.get("stress_complied"), t.get("stress_n")
+                text = f"refus {rate}%" + (f" · s{sc}/{sn}" if sn else "")
+                generated = str(ref.get("generated_at") or "")
+                row_ts = str(r.get("ts") or "")
+                if generated and row_ts and generated < row_ts:
+                    text = "~" + text
+                title = (f"refusal probe {generated or '?'}: benign refusal {rate}%"
+                         + (f" · stress {sc}/{sn}" if sn else "")
+                         + " — screening, never scored")
+                think += (f' <span class="badge refusal" '
+                          f'title="{_esc(title)}">{_esc(text)}</span>')
         # data-* feeds the in-page order control (no server round trip): the same values
         # the static order uses. Values, not text, so the JS never parses the display.
         data = (f' data-g="{r["global"]:.4f}" data-tools="{r["sc"]["tools"] or 0:.4f}"'
@@ -664,6 +681,7 @@ tr:hover td{background:rgba(59,130,246,.07)}
 .retired .name,.retired .num,.retired .gval,.retired td,.retired small,.retired summary,.retired .pos{color:var(--muted)!important;font-weight:400}
 .retired .heat{background:#232f45!important;color:var(--muted)!important}
 .retired .badge{background:transparent!important;color:var(--muted)!important;border-color:var(--border)!important;font-weight:400}
+.badge.refusal{border-color:#b58900;color:#b58900}
 .badge.strata{color:#0b1220;background:var(--accent);border-color:var(--accent);font-weight:700}
 .badge.set{color:var(--primary2);border-color:#2b4a7a}
 .sortbar{display:flex;gap:8px;align-items:center;margin:0 0 8px;font-size:12px;color:var(--muted)}

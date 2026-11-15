@@ -312,6 +312,49 @@ def _score_parts(tools, code, agent, gen_tps, max_tps) -> dict[str, float]:
             "speed": (gen_tps / max_tps) if (gen_tps and max_tps) else 0}
 
 
+_REFUSAL_DATA: dict[str, dict] | None = None
+
+
+def refusal_data() -> dict[str, dict]:
+    """slug → refusal probe result, from results/refusal/<slug>.json (probe --save).
+    Cached per process; tests seed report._REFUSAL_DATA directly. A missing dir
+    degrades to empty — a rig that never ran the probe shows no badges (R6)."""
+    global _REFUSAL_DATA
+    if _REFUSAL_DATA is None:
+        out: dict[str, dict] = {}
+        refus = config.RESULTS_DIR / "refusal"
+        if refus.is_dir():
+            for p in sorted(refus.glob("*.json")):
+                try:
+                    d = json.loads(p.read_text())
+                except (OSError, ValueError):
+                    continue
+                out[d.get("slug") or p.stem] = d
+        _REFUSAL_DATA = out
+    return _REFUSAL_DATA
+
+
+def refusal_cell(slug: str, row_ts: str = "") -> str:
+    """Screening badge for one row: 'refus 2.8% · s33/33' (stress only when measured),
+    '~' when the probe predates the row, '—' when never probed — a gap is never a
+    clean bill. NEVER scored: the global does not move on this data (R4)."""
+    d = refusal_data().get(slug)
+    if not d:
+        return "—"
+    total = (d.get("summary") or {}).get("total") or {}
+    rate = total.get("refusal_rate")
+    if rate is None:
+        return "—"
+    text = f"refus {rate}%"
+    complied, n = total.get("stress_complied"), total.get("stress_n")
+    if n:
+        text += f" · s{complied}/{n}"
+    generated = str(d.get("generated_at") or "")
+    if generated and row_ts and generated < row_ts:
+        text = "~" + text
+    return text
+
+
 def _weighted_global(parts: dict[str, float], weights: dict[str, float]) -> float:
     total_w = sum(weights.values()) or 1.0
     return sum(parts.get(k, 0) * w for k, w in weights.items()) / total_w
@@ -543,6 +586,18 @@ def _render_global_rows(pool, weights, title, sort="global"):
         out.append(f"{row['name']:40.40} {cell(rc['tools_in_tokens']):>13} "
                    f"{cell(rc['code_in_tokens']):>12} "
                    f"{cell(rc['agent_session_in_tokens']):>16}")
+    # Refusal screening (probe-refusal.py): informational, never scored. '—' = never
+    # probed (a gap is not a clean bill); '~' = the probe predates the row.
+    ordered = sorted(pool, key=key)
+    cells = [refusal_cell(config.slug(r["model"]), str(r.get("ts") or "")) for r in ordered]
+    if any(c != "—" for c in cells):
+        out.append("")
+        out.append("=== Refusal screening (never scored) ===")
+        rheader = f"{'MODEL':{nw}} {'benign · stress':>26}"
+        out.append(rheader)
+        out.append("-" * len(rheader))
+        for r, c in zip(ordered, cells):
+            out.append(f"{config.slug(r['model']):{nw}} {c:>26}")
     return out
 
 

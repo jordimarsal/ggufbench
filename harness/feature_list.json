@@ -192,14 +192,14 @@
     {
       "id": 13,
       "name": "model_onboarding",
-      "status": "in_progress",
+      "status": "done",
       "title": "ggufbench.fetch — onboarding de models: HF → descarrega verificada → capçalera → perfil draft → bench",
-      "description": "Un comandament per al flux més repetit del rig: listing del tree API de HF amb SHA256 LFS, descarrega amb hash en streaming + resume, lector de capçalera GGUF stdlib (arch, blocs, MTP, visió), draft de perfil només amb flags segurs (-c mai numèric sense mesura), --bench delegant a run.main. Sense writes a docs (R8: gate humà). Spec: harness/specs/model_onboarding/ (R1-R9, T1-T5). Gate humà aprovat 2026-11-15; implementació T1-T5 en curs."
+      "description": "Un comandament per al flux més repetit del rig: listing del tree API de HF amb SHA256 LFS, descarrega amb hash en streaming + resume, lector de capçalera GGUF stdlib (arch, blocs, MTP, visió), draft de perfil només amb flags segurs (-c mai numèric sense mesura), --bench delegant a run.main. Sense writes a docs (R8: gate humà). Spec: harness/specs/model_onboarding/ (R1-R9, T1-T5). Gate humà aprovat 2026-11-15; implementació T1-T5 en curs. ✅ Completion gate aprovat 2026-11-15 (commits c9151fa, 2e33af2)."
     },
     {
       "id": 14,
       "name": "refusal_badge",
-      "status": "spec_ready",
+      "status": "in_progress",
       "title": "Badge de rebuig al marcador (CLI+HTML): screening, mai pes del global",
       "description": "Cel·la per fila amb refusal_rate benigne + stress compliance quan la sonda hi és (results/refusal/<slug>.json, --save a la sonda); absent = '—' (mai 0%), antic = '~'; el global NO canvia (pin R4). Motiu: la primera pasada d'estrès (2026-11-14) va demostrar que l'eix diferencia (UD-Q3 1/33 vs 4 builds 33/33) i que el 'censurat' d'Strata corre amb un vector refusal-direction per defecte. Spec: harness/specs/refusal_badge/ (R1-R7, T1-T3)."
     }

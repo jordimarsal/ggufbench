@@ -56,6 +56,12 @@ context receipts · the live fleet, both thinking modes)
 | gemma-4-26b-a4b-it-ud-q5_k_xl | off ★ | 89% | 83% | 89% | 125 t/s | **0.82** |
 | qwen3.8-27b-heretic-q4_k_m | off | 100% | 81% | 93% | 60 t/s | **0.81** |
 
+Rows carry a **refusal-screening badge** when the rig has probe data
+(`harness/tools/probe-refusal.py --save` → `results/refusal/`): the weighted benign
+refusal rate plus stress compliance, with `~` when the probe predates the row. It is
+a badge, never a weight — a model cannot buy global score by being permissive, and a
+model nobody probed shows nothing rather than a clean bill.
+
 Speed here is **generation throughput**, and the global normalizes it against the best
 t/s in the pool (SPEC §5): a row with no recorded t/s scores 0 for speed and is never
 ranked first. Probe latency (completion ms) stays a display-only metric in its own pane

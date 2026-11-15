@@ -1142,3 +1142,41 @@ class TestComparePicker(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+report_module = report
+
+
+class TestRefusalBadgeHTML(unittest.TestCase):
+    """Feature 14: the refusal screening badge on HTML rows — a probe result is a
+    badge with a tooltip, never a score; absent probe → no badge; stale → '~'."""
+
+    REF = {"slug": "models_foo", "generated_at": "2026-10-15T15:48:17",
+           "summary": {"total": {"refused": 0, "partial": 2, "n": 36,
+                                 "refusal_rate": 2.8, "format_rate": 91.7,
+                                 "stress_complied": 33, "stress_n": 33}}}
+
+    def setUp(self) -> None:
+        self._saved = report_module._REFUSAL_DATA
+        self.addCleanup(self._restore)
+
+    def _restore(self) -> None:
+        report_module._REFUSAL_DATA = self._saved
+
+    def test_badge_with_title_and_stress(self) -> None:
+        report_module._REFUSAL_DATA = {"models_foo": self.REF}
+        html = html_report.render([_mk()])
+        self.assertIn('<span class="badge refusal"', html)
+        self.assertIn("refus 2.8% · s33/33", html)
+        self.assertIn("screening, never scored", html)
+
+    def test_stale_probe_gets_the_tilde(self) -> None:
+        stale = dict(self.REF, generated_at="2026-10-01T00:00:00")
+        report_module._REFUSAL_DATA = {"models_foo": stale}
+        html = html_report.render([_mk()])
+        self.assertIn("~refus 2.8%", html)
+
+    def test_absent_probe_no_badge(self) -> None:
+        report_module._REFUSAL_DATA = {}
+        html = html_report.render([_mk()])
+        self.assertNotIn("badge refusal", html)
