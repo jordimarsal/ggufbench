@@ -192,9 +192,9 @@
     {
       "id": 13,
       "name": "model_onboarding",
-      "status": "spec_ready",
+      "status": "in_progress",
       "title": "ggufbench.fetch — onboarding de models: HF → descarrega verificada → capçalera → perfil draft → bench",
-      "description": "Un comandament per al flux més repetit del rig: listing del tree API de HF amb SHA256 LFS, descarrega amb hash en streaming + resume, lector de capçalera GGUF stdlib (arch, blocs, MTP, visió), draft de perfil només amb flags segurs (-c mai numèric sense mesura), --bench delegant a run.main. Sense writes a docs (R8: gate humà). Spec: harness/specs/model_onboarding/ (R1-R9, T1-T5)."
+      "description": "Un comandament per al flux més repetit del rig: listing del tree API de HF amb SHA256 LFS, descarrega amb hash en streaming + resume, lector de capçalera GGUF stdlib (arch, blocs, MTP, visió), draft de perfil només amb flags segurs (-c mai numèric sense mesura), --bench delegant a run.main. Sense writes a docs (R8: gate humà). Spec: harness/specs/model_onboarding/ (R1-R9, T1-T5). Gate humà aprovat 2026-11-15; implementació T1-T5 en curs."
     },
     {
       "id": 14,

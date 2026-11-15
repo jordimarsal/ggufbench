@@ -181,7 +181,24 @@ cd ggufbench
 # 3. run the full benchmark on a model (starts llama-server itself)
 cd ..
 python3 -m ggufbench.run --models ../models/Qwen3.8-27B-UD-Q5_K_M.gguf
+```
 
+**Or onboard straight from Hugging Face** — verified download (LFS sha256 checked while
+streaming, resumable), GGUF header fact-sheet, and a conservative profile draft (`-c` is
+left as a commented TODO for `probe-context.py`: a context pin is a measurement, never a
+guess):
+
+```sh
+cd ..
+python3 -m ggufbench.fetch --repo ggml/llama-3.2-1B-it-GGUF --include "*Q4_K_M.gguf" --yes
+python3 -m ggufbench.fetch --repo <org/model-GGUF> --include "*.gguf" --yes --bench
+```
+
+`--bench` runs the full reference pass on every verified file (skips while a foreign
+engine is alive); without it, fetch stops before measuring. Docs (`ASSIGNACIO.md`,
+skills) stay a human step by design — fetch proposes, you apply.
+
+```sh
 # accumulated scoreboard + HTML report
 python3 -m ggufbench.run --scoreboard --html   # → scoreboard + ggufbench/results/report.html
 
