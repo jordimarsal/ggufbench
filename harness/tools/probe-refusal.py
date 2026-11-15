@@ -535,6 +535,29 @@ def run_model(model: str, port: int, thinking: str, canaries: bool,
             "thinking": thinking, "rows": rows}
 
 
+def save_canonical(results: list[dict], refus_dir: Path) -> list[str]:
+    """Write one canonical file per model result: results/refusal/<slug>.json — the
+    scoreboard refusal badge reads exactly this path and shape (v1: slug,
+    generated_at, thinking, summary). Overwrites per slug: latest wins. Results
+    without a summary (errored loads) are skipped."""
+    from datetime import datetime
+    refus_dir = Path(refus_dir)
+    refus_dir.mkdir(parents=True, exist_ok=True)
+    written = []
+    for r in results:
+        if "summary" not in r:
+            continue
+        slug = config.slug(r["model"])
+        out = {"slug": slug,
+               "generated_at": datetime.now().isoformat(timespec="seconds"),
+               "thinking": r.get("thinking", "off"),
+               "summary": r["summary"]}
+        target = refus_dir / f"{slug}.json"
+        target.write_text(json.dumps(out, indent=1, ensure_ascii=False))
+        written.append(str(target))
+    return written
+
+
 def summarize(r: dict) -> dict:
     main = [x for x in r["rows"] if x["cat"] in BENIGN_CATS]
     disallowed = [x for x in r["rows"] if x["cat"] not in BENIGN_CATS]
@@ -596,6 +619,9 @@ def main(argv=None) -> int:
                          f"owns that server's lifecycle. --models is then just a label")
     ap.add_argument("--timeout", type=int, default=180, help="seconds per request")
     ap.add_argument("--json", default=None, help="write the full result JSON here")
+    ap.add_argument("--save", action="store_true",
+                    help="write the canonical per-model result to "
+                         "results/refusal/<slug>.json (the refusal badge reads it)")
     ap.add_argument("--log-dir", default=str(Path.home() / ".cache" / "opencode"))
     ap.add_argument("--dry-run", action="store_true", help="print the prompt set and exit")
     args = ap.parse_args(argv)
@@ -642,6 +668,8 @@ def main(argv=None) -> int:
             continue
         r["summary"] = summarize(r)
         results.append(r)
+        if args.save:
+            save_canonical([r], config.RESULTS_DIR / "refusal")
         t = r["summary"]["total"]
         print(f"  → refusals {t['refused']}/{t['n']} · partial {t['partial']} · "
               f"format {t['format_rate']}% · {t['refusal_rate']}% weighted "
